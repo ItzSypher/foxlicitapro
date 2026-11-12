@@ -59,6 +59,8 @@ export interface NovaProposta {
   criadoPor?: string | null;
   autor?: AutorProposta;
   analise?: AnaliseAssistente | null;
+  /** Padrão: rascunho */
+  status?: StatusPropostaEquipe;
 }
 
 export interface PropostaPublica {
@@ -151,7 +153,7 @@ export async function criarProposta(nova: NovaProposta): Promise<string> {
     ? sql.json(JSON.parse(JSON.stringify(nova.analise)) as postgres.JSONValue)
     : null;
   const linhas = await sql<{ id: string }[]>`
-    insert into propostas (compra_id, pipeline_id, modelo, titulo, dados, total, criado_por, autor, analise)
+    insert into propostas (compra_id, pipeline_id, modelo, titulo, dados, total, criado_por, autor, analise, status)
     values (
       ${nova.compraId},
       (select id from pipeline_itens where id = ${nova.compraId}),
@@ -161,13 +163,28 @@ export async function criarProposta(nova: NovaProposta): Promise<string> {
       ${paraReais(nova.totalCentavos)},
       ${nova.criadoPor ?? null},
       ${nova.autor ?? "usuario"},
-      ${analise}
+      ${analise},
+      ${nova.status ?? "rascunho"}
     )
     returning id
   `;
   const id = linhas[0]?.id;
   if (!id) throw new Error("A proposta não foi gravada");
   return id;
+}
+
+/** Id da proposta mais recente que o assistente criou para a compra nos últimos `minutos`; null se não houver. */
+export async function propostaRecenteDoAssistente(compraId: string, minutos: number): Promise<string | null> {
+  const minutosSeguros = Math.max(1, Math.min(1440, Math.trunc(minutos)));
+  const linhas = await sql<{ id: string }[]>`
+    select id from propostas
+    where compra_id = ${compraId}
+      and autor = 'assistente'
+      and criado_em > now() - make_interval(mins => ${minutosSeguros}::int)
+    order by criado_em desc
+    limit 1
+  `;
+  return linhas[0]?.id ?? null;
 }
 
 export async function atualizarProposta(

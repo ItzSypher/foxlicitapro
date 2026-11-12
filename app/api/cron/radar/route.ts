@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { atualizarRadar } from "@/lib/radar-dados";
+import { enviarResumoDiario } from "@/lib/resumo-diario";
 
-/** Coleta diária do PNCP (Vercel Cron). Só roda com `Authorization: Bearer <CRON_SECRET>`. */
+/** Coleta diária do PNCP e resumo por e-mail (Vercel Cron). Só roda com `Authorization: Bearer <CRON_SECRET>`. */
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
@@ -9,6 +10,8 @@ export async function GET(request: Request) {
   if (!segredo || request.headers.get("authorization") !== `Bearer ${segredo}`) {
     return NextResponse.json({ erro: "Não autorizado." }, { status: 401 });
   }
-  const resumo = await atualizarRadar();
-  return NextResponse.json(resumo);
+  const soResumo = new URL(request.url).searchParams.get("so") === "resumo";
+  const coleta = soResumo ? null : await atualizarRadar();
+  const resumo = await enviarResumoDiario();
+  return NextResponse.json({ coleta, resumo });
 }

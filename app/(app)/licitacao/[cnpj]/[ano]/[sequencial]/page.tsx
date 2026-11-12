@@ -19,6 +19,9 @@ import type { OportunidadeComScore } from "@/core/types";
 import { idsNoPipeline } from "@/db/pipeline";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
 
+/** A montagem da proposta pelo assistente (server action desta rota) pode levar mais de 1 minuto. */
+export const maxDuration = 300;
+
 interface Props {
   params: Promise<{ cnpj: string; ano: string; sequencial: string }>;
 }

@@ -20,6 +20,10 @@ function Titulo({ children }: { children: React.ReactNode }) {
 export function BlocoAnalise({ analise }: { analise: AnaliseAssistente }) {
   return (
     <Secao id="secao-analise" titulo="Análise do assistente">
+      <p className="rounded-control border border-border bg-raised px-3 py-2 text-[13px] leading-snug text-ink">
+        Confira preços e marcas antes de aprovar: são sugestões.
+      </p>
+
       {analise.resumo.trim() !== "" ? <p className="text-sm leading-snug text-ink">{analise.resumo}</p> : null}
 
       {analise.pegadinhas.length > 0 ? (

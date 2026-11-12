@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { Calculator, ExternalLink, FilePlus2 } from "lucide-react";
+import { BotaoAssistente } from "@/components/licitacao/botao-assistente";
 import { BotaoSalvarPipeline } from "@/components/pipeline/botao-salvar";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ChaveCompra } from "@/core/types-detalhe";
+import { assistenteDisponivel } from "@/lib/gemini";
 
 const SECUNDARIO =
   "inline-flex h-11 items-center justify-center gap-2 rounded-control border border-control bg-transparent px-4 text-sm font-medium whitespace-nowrap text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand md:h-9";
@@ -49,6 +51,8 @@ function Secundarias({ numeroControle, linkPncp, linkOrigem, salvo }: Pick<Props
  */
 export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportunidade, salvo }: Props) {
   const compra = `${chave.cnpj}-${chave.ano}-${chave.sequencial}`;
+  // Sem chave configurada o botão não existe e a barra fica como sempre foi.
+  const assistente = assistenteDisponivel();
   return (
     <>
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex items-start gap-2 border-t border-border bg-ground px-4 py-2 lg:static lg:z-auto lg:flex-wrap lg:items-center lg:border-t-0 lg:p-0">
@@ -56,12 +60,18 @@ export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportu
           <FilePlus2 aria-hidden="true" className="size-4" />
           Criar proposta
         </Link>
+        {assistente ? (
+          <div className="hidden lg:block">
+            <BotaoAssistente compra={compra} />
+          </div>
+        ) : null}
         {oportunidade ? <BotaoSalvarPipeline item={oportunidade} salvo={salvo} /> : null}
         <div className="hidden lg:contents">
           <Secundarias numeroControle={numeroControle} linkPncp={linkPncp} linkOrigem={linkOrigem} salvo={salvo} />
         </div>
       </div>
       <div className="flex flex-wrap gap-2 lg:hidden">
+        {assistente ? <BotaoAssistente compra={compra} /> : null}
         <Secundarias numeroControle={numeroControle} linkPncp={linkPncp} linkOrigem={linkOrigem} salvo={salvo} />
       </div>
     </>

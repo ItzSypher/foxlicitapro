@@ -34,7 +34,7 @@ const CNAES_DE_TI: ReadonlyArray<string> = ["95.11-8-00", "61.90-6-99", "47.51-2
  * "Sistema" sozinho engana: sistema de registro de preços, de ar condicionado, de incêndio...
  * Estes trechos saem do texto antes de procurar os termos prioritários.
  */
-const SISTEMA_QUE_NAO_E_TI =
+export const SISTEMA_QUE_NAO_E_TI =
   /(?<![a-z0-9])sistemas? (?:de |do |da |dos |das )?(?:registro de precos?|srp|ar condicionado|climatizacao|refrigeracao|ventilacao|exaustao|combate a incendio|incendio|alarme|viario|hidraulic\w*|sanitari\w*|esgoto|drenagem|abastecimento|agua|eletric\w*|energia|spda|protecao catodica|suspensao|freios?|impermeabilizacao|cftv|seguranca eletronica)/g;
 
 const TERMO_DE_SOFTWARE = /sistema|software|licenc|aplicativo|desenvolvimento|nuvem|plataforma|programa/;
