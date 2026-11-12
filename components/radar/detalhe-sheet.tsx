@@ -13,9 +13,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { resumirObjeto } from "@/core/objeto";
+import { EXPLICACAO_CRITERIO } from "@/lib/glossario";
 import { formatarCnpj, formatarEncerramento, formatarMoeda } from "@/lib/formato";
 import { nomeFaixa, nomeModalidade } from "@/lib/radar-filtros";
 import { cn } from "@/lib/utils";
+import { DicaGlossario, DicaModalidade, DicaNota, DicaValor } from "./dicas";
 import { Pilula } from "./pilula";
 import { ContagemTexto } from "./prazo";
 
@@ -44,10 +46,14 @@ interface Props {
   acoesExtras?: React.ReactNode;
 }
 
-function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+/** Seção do detalhe; `dica` traz o balão "i" ao lado do título. */
+function Secao({ titulo, dica, children }: { titulo: string; dica?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-base font-semibold text-ink">{titulo}</h3>
+      <h3 className="flex items-center gap-1 text-base font-semibold text-ink">
+        {titulo}
+        {dica}
+      </h3>
       {children}
     </section>
   );
@@ -87,7 +93,13 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
               </Secao>
 
               <div className="grid grid-cols-1 gap-6 min-[480px]:grid-cols-2">
-                <Secao titulo="Valor estimado">
+                <Secao titulo="Modalidade" dica={<DicaModalidade modalidadeId={item.modalidadeId} className="-my-3.5" />}>
+                  <p className="text-sm text-ink">{nomeModalidade(item.modalidadeId)}</p>
+                </Secao>
+                <Secao titulo="Como você participa" dica={<DicaGlossario chave="meEpp" rotulo="O que é ME/EPP?" className="-my-3.5" />}>
+                  <p className="text-sm text-ink">MEI, tratado como ME/EPP</p>
+                </Secao>
+                <Secao titulo="Valor estimado" dica={<DicaValor className="-my-3.5" />}>
                   {item.valorEstimado === null ? (
                     <p className="text-2xl font-medium text-muted-foreground">Sigiloso</p>
                   ) : (
@@ -96,7 +108,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                     </p>
                   )}
                 </Secao>
-                <Secao titulo="Encerramento">
+                <Secao titulo="Encerramento" dica={<DicaGlossario chave="prazo" rotulo="O que é o prazo?" className="-my-3.5" />}>
                   <p className="text-sm text-ink">{formatarEncerramento(item.dataEncerramento)}</p>
                   <p className="text-sm text-muted-foreground">
                     Faltam <ContagemTexto encerramentoIso={item.dataEncerramento} agoraInicial={agoraInicial} />
@@ -104,7 +116,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                 </Secao>
               </div>
 
-              <Secao titulo="Por que essa nota">
+              <Secao titulo="Por que essa nota" dica={<DicaNota score={item.score} className="-my-3.5" />}>
                 {item.score.alertas && item.score.alertas.length > 0 ? (
                   <ul className="mb-3 flex flex-col gap-1">
                     {item.score.alertas.map((alerta) => (
@@ -122,6 +134,27 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                         <th scope="row" className="py-3 pr-3 text-left font-normal">
                           <span className="block font-medium text-ink">{criterio.rotulo}</span>
                           <span className="block text-[13px] text-muted-foreground">{criterio.motivo}</span>
+                          {criterio.id === "documentacao" ? (
+                            <>
+                              <span className="mt-1 block text-[13px] text-muted-foreground">
+                                {EXPLICACAO_CRITERIO.documentacao}
+                              </span>
+                              <span className="mt-1 flex flex-wrap items-center gap-x-3 text-[13px] text-muted-foreground">
+                                <span className="inline-flex items-center">
+                                  CND
+                                  <DicaGlossario chave="cnd" rotulo="O que é CND?" className="-my-3 -ml-1" />
+                                </span>
+                                <span className="inline-flex items-center">
+                                  SICAF
+                                  <DicaGlossario chave="sicaf" rotulo="O que é SICAF?" className="-my-3 -ml-1" />
+                                </span>
+                                <span className="inline-flex items-center">
+                                  Atestado técnico
+                                  <DicaGlossario chave="atestado" rotulo="O que é atestado de capacidade técnica?" className="-my-3 -ml-1" />
+                                </span>
+                              </span>
+                            </>
+                          ) : null}
                           {criterio.aConfirmar ? (
                             <Pilula tom="aviso" className="mt-1.5">
                               confirmar no edital

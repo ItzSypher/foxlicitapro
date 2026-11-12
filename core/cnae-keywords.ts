@@ -28,6 +28,23 @@ export const PALAVRAS_CHAVE: Readonly<Record<CodigoCnae, readonly string[]>> = {
     "reparo de computador",
     "conserto de computador",
     "recarga de cartucho",
+    "suporte de ti",
+    "suporte tecnico de ti",
+    "suporte tecnico em ti",
+    "suporte de tecnologia da informacao",
+    "suporte gerenciado",
+    "servico de ti",
+    "servico de tecnologia da informacao",
+    "servico de informatica",
+    "empresa especializada em informatica",
+    "empresa especializada em tecnologia da informacao",
+    "infraestrutura de tic",
+    "outsourcing de impressao",
+    "locacao de equipamento de informatica",
+    "locacao de computador",
+    "locacao de impressora",
+    "service desk",
+    "help desk",
   ],
   "43.21-5-00": [
     "instalacao eletrica",
@@ -67,6 +84,32 @@ export const PALAVRAS_CHAVE: Readonly<Record<CodigoCnae, readonly string[]>> = {
     "acesso a internet",
     "provedor de internet",
     "roteador",
+    "software",
+    "licenca de software",
+    "licenca de sistema",
+    "licenca de uso",
+    "aquisicao de licenca",
+    "contratacao de licenca",
+    "desenvolvimento de software",
+    "desenvolvimento de sistema",
+    "desenvolvimento de aplicativo",
+    "locacao de software",
+    "locacao de sistema",
+    "implantacao de sistema",
+    "sistema informatizado",
+    "sistema de informacao",
+    "sistema de gestao",
+    "sistema integrado de gestao",
+    "aplicativo",
+    "solucao de ti",
+    "solucao de tecnologia da informacao",
+    "hospedagem de site",
+    "computacao em nuvem",
+    "seguranca da informacao",
+    "google workspace",
+    "microsoft 365",
+    "office 365",
+    "antivirus",
   ],
   "85.99-6-03": [
     "treinamento em informatica",
@@ -142,6 +185,8 @@ export const PALAVRAS_CHAVE: Readonly<Record<CodigoCnae, readonly string[]>> = {
     "memoria ram",
     "ssd",
     "hd externo",
+    "licenca de software",
+    "antivirus",
   ],
   "47.52-1-00": [
     "aparelho telefonico",
@@ -348,6 +393,23 @@ export const TERMOS_FORTES: Readonly<Record<CodigoCnae, readonly string[]>> = {
     "reparo de computador",
     "conserto de computador",
     "recarga de cartucho",
+    "suporte de ti",
+    "suporte tecnico de ti",
+    "suporte tecnico em ti",
+    "suporte de tecnologia da informacao",
+    "suporte gerenciado",
+    "servico de ti",
+    "servico de tecnologia da informacao",
+    "servico de informatica",
+    "empresa especializada em informatica",
+    "empresa especializada em tecnologia da informacao",
+    "infraestrutura de tic",
+    "outsourcing de impressao",
+    "locacao de equipamento de informatica",
+    "locacao de computador",
+    "locacao de impressora",
+    "service desk",
+    "help desk",
   ],
   "43.21-5-00": [
     "cftv",
@@ -370,6 +432,25 @@ export const TERMOS_FORTES: Readonly<Record<CodigoCnae, readonly string[]>> = {
     "ponto de rede",
     "certificacao de cabeamento",
     "patch panel",
+    "licenca de software",
+    "licenca de sistema",
+    "desenvolvimento de software",
+    "desenvolvimento de sistema",
+    "desenvolvimento de aplicativo",
+    "locacao de software",
+    "locacao de sistema",
+    "implantacao de sistema",
+    "sistema informatizado",
+    "sistema de informacao",
+    "solucao de ti",
+    "solucao de tecnologia da informacao",
+    "hospedagem de site",
+    "computacao em nuvem",
+    "seguranca da informacao",
+    "google workspace",
+    "microsoft 365",
+    "office 365",
+    "antivirus",
   ],
   "85.99-6-03": [
     "treinamento em informatica",
@@ -416,6 +497,8 @@ export const TERMOS_FORTES: Readonly<Record<CodigoCnae, readonly string[]>> = {
     "memoria ram",
     "ssd",
     "hd externo",
+    "licenca de software",
+    "antivirus",
   ],
   "47.52-1-00": [
     "aparelho telefonico",
@@ -563,7 +646,27 @@ const NEGATIVOS_GERAIS: readonly Negativo[] = [
 /** Nestas atividades, objeto de veículo é outro mercado (baterias, lâmpadas, rádios, som automotivo). */
 const NEGATIVOS_VEICULO: readonly Negativo[] = ["veiculo", "automotiv"];
 
+/**
+ * "Sistema" também é ar condicionado, incêndio, viário, hidráulico e consultoria de norma ISO:
+ * nesses casos o objeto não é software.
+ */
+const NEGATIVOS_SISTEMA_NAO_TI: readonly Negativo[] = [
+  "ar condicionado",
+  "climatizacao",
+  "incendio",
+  "viario",
+  "hidraulic",
+  "sanitari",
+  "esgoto",
+  "drenagem",
+  "impermeabilizacao",
+  "suspensao",
+  "abnt nbr iso",
+  "cadeia de suprimento",
+];
+
 const NEGATIVOS_POR_CNAE: Readonly<Partial<Record<CodigoCnae, readonly Negativo[]>>> = {
+  "61.90-6-99": NEGATIVOS_SISTEMA_NAO_TI,
   "43.21-5-00": [...NEGATIVOS_VEICULO, "iluminacao publica", "rede de distribuicao"],
   "47.52-1-00": NEGATIVOS_VEICULO,
   "47.42-3-00": NEGATIVOS_VEICULO,
@@ -581,6 +684,15 @@ export function normalizarTexto(texto: string): string {
     .trim();
 }
 
+/** "Diretoria de Sistemas de Informação", "Superintendência de Sistemas": é o setor do órgão, não o objeto. */
+const SETOR_DE_SISTEMAS =
+  /(?<![a-z0-9])(?:diretoria|departamento|coordenacao|gerencia|divisao|setor|superintendencia|secretaria|subsecretaria|assessoria|centro|nucleo|unidade) (?:de |do |da |dos |das )?(?:sistemas?|tecnologia da informacao|informatica)(?: de informacao| e \w+)?/g;
+
+/** Tira do texto já normalizado os nomes de setor que citam sistemas ou tecnologia. */
+export function removerSetorDeSistemas(textoNormalizado: string): string {
+  return textoNormalizado.replace(SETOR_DE_SISTEMAS, " ");
+}
+
 function escaparRegex(texto: string): string {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -589,7 +701,7 @@ function escaparRegex(texto: string): string {
  * Monta a expressão de um termo: limite de palavra nas pontas e plural simples
  * ("s" ou "es") em palavras com 4 letras ou mais.
  */
-function montarRegex(termo: string): RegExp {
+export function regexDoTermo(termo: string): RegExp {
   const palavras = normalizarTexto(termo)
     .split(" ")
     .map((p) => (p.length >= 4 ? `${escaparRegex(p)}(?:e?s)?` : escaparRegex(p)));
@@ -610,7 +722,7 @@ interface TermoCompilado {
 const TERMOS_POR_CNAE: ReadonlyMap<string, readonly TermoCompilado[]> = new Map(
   Object.entries(PALAVRAS_CHAVE).map(([codigo, termos]) => {
     const fortes = new Set<string>(TERMOS_FORTES[codigo as CodigoCnae]);
-    return [codigo, termos.map((termo) => ({ termo, regex: montarRegex(termo), forte: fortes.has(termo) }))];
+    return [codigo, termos.map((termo) => ({ termo, regex: regexDoTermo(termo), forte: fortes.has(termo) }))];
   }),
 );
 
@@ -648,7 +760,7 @@ function casarUm(texto: string, codigo: string): CasamentoCnae | null {
 
 /** Casamentos por frente, com a força de cada um: quantos termos e se há termo forte. */
 export function casarCnaesComForca(objeto: string): CasamentosPorFrente {
-  const texto = normalizarTexto(objeto);
+  const texto = removerSetorDeSistemas(normalizarTexto(objeto));
   const resultado: CasamentosPorFrente = { servicos: [], produtos: [] };
   for (const frente of ["servicos", "produtos"] as const) {
     for (const cnae of CNAES_POR_FRENTE[frente]) {

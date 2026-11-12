@@ -167,3 +167,67 @@ describe("recomendar: ordem, órgão e limite", () => {
     expect(r.motivos).not.toContain("É a sua atividade principal");
   });
 });
+
+const PREFS = {
+  termosPrioritarios: ["sistema", "software", "suporte tecnico", "rede logica"],
+  termosBloqueadosParaVoce: ["cftv", "camera", "cameras", "videomonitoramento", "alarme"],
+};
+
+describe("recomendar: preferências", () => {
+  it("sem preferências o comportamento antigo se mantém (CFTV entra)", () => {
+    const cftv = item({ objeto: "Instalação de CFTV com câmeras" });
+    expect(recomendar([cftv], "servicos", AGORA)).toHaveLength(1);
+  });
+
+  it("termo bloqueado tira do Para você, sem acento e em qualquer caixa", () => {
+    const cftv = item({ objeto: "Instalação de CFTV", orgaoCnpj: "1" });
+    const camera = item({ objeto: "Manutenção de computadores e CÂMERAS de segurança", orgaoCnpj: "2" });
+    const ok = item({ objeto: "Manutenção de computadores", orgaoCnpj: "3" });
+    const r = recomendar([cftv, camera, ok], "servicos", AGORA, 12, PREFS);
+    expect(r.map((x) => x.item.id)).toEqual([ok.id]);
+  });
+
+  it("não bloqueia palavra que só contém o termo dentro de outra", () => {
+    const ok = item({ objeto: "Manutenção de computadores do setor de alarmística" });
+    const prefs = { termosPrioritarios: [], termosBloqueadosParaVoce: ["alarme"] };
+    expect(recomendar([ok], "servicos", AGORA, 12, prefs)).toHaveLength(1);
+  });
+
+  it("termo prioritário dá +10 e o motivo de software", () => {
+    const base = item({ objeto: "Licença de software de antivírus", orgaoCnpj: "1" });
+    const sem = recomendar([base], "servicos", AGORA)[0];
+    const com = recomendar([base], "servicos", AGORA, 12, PREFS)[0];
+    expect(com.prioridade - sem.prioridade).toBe(10);
+    expect(com.motivos[0]).toBe("Sistema/software: seu foco");
+  });
+
+  it("termo de serviço usa o motivo de serviço de TI", () => {
+    const rede = item({ objeto: "Serviço de rede lógica e cabeamento estruturado" });
+    const [r] = recomendar([rede], "servicos", AGORA, 12, PREFS);
+    expect(r.motivos[0]).toBe("Serviço de TI: seu foco");
+  });
+
+  it("sistema de ar condicionado e de registro de preços não ganham o bônus de foco", () => {
+    const frio = item({ objeto: "Manutenção de computadores e do sistema de ar condicionado" });
+    const srp = item({ objeto: "Manutenção de computadores pelo Sistema de Registro de Preços" });
+    const prefs = { termosPrioritarios: ["sistema"], termosBloqueadosParaVoce: [] };
+    for (const o of [frio, srp]) {
+      const [r] = recomendar([o], "servicos", AGORA, 12, prefs);
+      expect(r.motivos.some((m) => m === "Sistema/software: seu foco"), o.objeto).toBe(false);
+    }
+  });
+
+  it("nome de setor (Diretoria de Sistemas de Informação) não vira foco", () => {
+    const o = item({ objeto: "Manutenção de computadores para a Diretoria de Sistemas de Informação" });
+    const [r] = recomendar([o], "servicos", AGORA, 12, { termosPrioritarios: ["sistema"], termosBloqueadosParaVoce: [] });
+    expect(r.motivos.some((m) => m.includes("Sistema/software"))).toBe(false);
+  });
+
+  it("software e serviço de TI sobem à frente de outras atividades", () => {
+    const eletrica = item({ objeto: "Manutenção elétrica do prédio", orgaoCnpj: "1" });
+    const software = item({ objeto: "Aquisição de licença de software de gestão", orgaoCnpj: "2" });
+    const ti = item({ objeto: "Empresa especializada em serviços de TI", orgaoCnpj: "3" });
+    const r = recomendar([eletrica, software, ti], "servicos", AGORA, 12, PREFS);
+    expect(r[r.length - 1].item.id).toBe(eletrica.id);
+  });
+});

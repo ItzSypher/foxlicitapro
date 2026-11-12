@@ -39,6 +39,23 @@ export interface ItemPipeline {
   criadoEm: string;
   atualizadoEm: string;
   item: OportunidadeComScore;
+  /** Quem adicionou ao pipeline (null: item antigo ou pessoa removida) */
+  criadoPorId: string | null;
+  criadoPorNome: string | null;
+  responsavelId: string | null;
+  responsavelNome: string | null;
+  comentarios: number;
+}
+
+/** Pessoa que pode ser responsável por um item */
+export interface PessoaPipeline {
+  id: string;
+  nome: string;
+}
+
+/** "Só os meus": sou o responsável, ou adicionei e ninguém assumiu. */
+export function ehMeu(item: ItemPipeline, usuarioId: string): boolean {
+  return item.responsavelId === usuarioId || (item.responsavelId === null && item.criadoPorId === usuarioId);
 }
 
 export interface ResumoEtapa {

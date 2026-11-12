@@ -5,6 +5,7 @@ import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { chaveDeNumeroControle, referenciasDoDetalhe } from "@/core/proposta";
 import { listarCotacoes } from "@/db/cotacoes";
 import { lerProposta, type Proposta } from "@/db/propostas";
+import { exigirSessao } from "@/lib/sessao";
 
 export const metadata = { title: "Proposta · FoxLicita Pro" };
 
@@ -41,6 +42,7 @@ function linkVigente(p: Proposta): { token: string; expira: string } | null {
 
 export default async function PropostaPage({ params, searchParams }: Props) {
   await connection();
+  const sessao = await exigirSessao();
   const [{ id }, { aviso }] = await Promise.all([params, searchParams]);
   const proposta = await lerProposta(id);
   if (!proposta) notFound();
@@ -58,7 +60,15 @@ export default async function PropostaPage({ params, searchParams }: Props) {
         dados: proposta.dados,
         status: proposta.status,
         link: linkVigente(proposta),
+        autor: proposta.autor,
+        criadoPor: proposta.criadoPor,
+        criadoPorNome: proposta.criadoPorNome,
+        revisadoPorNome: proposta.revisadoPorNome,
+        revisaoNota: proposta.revisaoNota,
+        revisadoEm: proposta.revisadoEm,
+        analise: proposta.analise,
       }}
+      usuarioId={sessao.usuarioId}
       referencias={referencias}
       cotacao={cotacao}
       avisoSemItens={avisoBruto === "itens"}

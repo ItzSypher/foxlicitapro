@@ -1,9 +1,13 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import type postgres from "postgres";
+import { z } from "zod";
 import { sql } from "@/db/client";
 import { DadosPropostaSchema } from "@/core/proposta";
 import { ehModeloId, type ModeloId } from "@/core/proposta-modelos";
-import type { DadosProposta, StatusProposta } from "@/core/types-detalhe";
+import { ehStatusEquipe } from "@/core/revisao";
+import type { DadosProposta } from "@/core/types-detalhe";
+import type { AnaliseAssistente, AutorProposta, StatusPropostaEquipe } from "@/core/types-equipe";
 
 export interface Proposta {
   id: string;
@@ -13,12 +17,21 @@ export interface Proposta {
   dados: DadosProposta;
   /** Em reais */
   total: number;
-  status: StatusProposta;
+  status: StatusPropostaEquipe;
   tokenPublico: string | null;
   /** ISO 8601 */
   tokenExpira: string | null;
   criadoEm: string;
   atualizadoEm: string;
+  autor: AutorProposta;
+  criadoPor: string | null;
+  criadoPorNome: string | null;
+  revisadoPor: string | null;
+  revisadoPorNome: string | null;
+  revisaoNota: string | null;
+  /** ISO 8601 */
+  revisadoEm: string | null;
+  analise: AnaliseAssistente | null;
 }
 
 export interface ResumoProposta {
@@ -27,8 +40,12 @@ export interface ResumoProposta {
   titulo: string;
   orgao: string;
   total: number;
-  status: StatusProposta;
+  status: StatusPropostaEquipe;
   atualizadoEm: string;
+  autor: AutorProposta;
+  criadoPor: string | null;
+  criadoPorNome: string | null;
+  revisadoPor: string | null;
 }
 
 export interface NovaProposta {
@@ -38,6 +55,10 @@ export interface NovaProposta {
   dados: DadosProposta;
   /** Em centavos inteiros */
   totalCentavos: number;
+  /** Quem está criando; null só em rotinas sem sessão */
+  criadoPor?: string | null;
+  autor?: AutorProposta;
+  analise?: AnaliseAssistente | null;
 }
 
 export interface PropostaPublica {
@@ -49,8 +70,27 @@ export interface PropostaPublica {
 const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const FORMATO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function ehStatus(valor: string): valor is StatusProposta {
-  return valor === "rascunho" || valor === "pronta" || valor === "enviada";
+const analiseSchema: z.ZodType<AnaliseAssistente> = z.object({
+  modeloId: z.string(),
+  resumo: z.string(),
+  pegadinhas: z.array(z.string()),
+  documentosExigidos: z.array(z.string()),
+  sugestoesPorItem: z.array(
+    z.object({
+      numero: z.number(),
+      marcaModelo: z.string(),
+      precoSugerido: z.number().nullable(),
+      observacao: z.string(),
+    }),
+  ),
+  geradoEm: z.string(),
+  modelo: z.string(),
+});
+
+function lerAnalise(bruto: unknown): AnaliseAssistente | null {
+  if (bruto === null || bruto === undefined) return null;
+  const lida = analiseSchema.safeParse(bruto);
+  return lida.success ? lida.data : null;
 }
 
 function paraReais(centavos: number): string {
@@ -69,11 +109,19 @@ interface LinhaProposta {
   token_expira: Date | null;
   criado_em: Date;
   atualizado_em: Date;
+  autor: string;
+  criado_por: string | null;
+  criado_por_nome: string | null;
+  revisado_por: string | null;
+  revisado_por_nome: string | null;
+  revisao_nota: string | null;
+  revisado_em: Date | null;
+  analise: unknown;
 }
 
 function converter(l: LinhaProposta): Proposta | null {
   const dados = DadosPropostaSchema.safeParse(l.dados);
-  if (!dados.success || !ehStatus(l.status)) return null;
+  if (!dados.success || !ehStatusEquipe(l.status)) return null;
   return {
     id: l.id,
     compraId: l.compra_id,
@@ -86,20 +134,34 @@ function converter(l: LinhaProposta): Proposta | null {
     tokenExpira: l.token_expira ? l.token_expira.toISOString() : null,
     criadoEm: l.criado_em.toISOString(),
     atualizadoEm: l.atualizado_em.toISOString(),
+    autor: l.autor === "assistente" ? "assistente" : "usuario",
+    criadoPor: l.criado_por,
+    criadoPorNome: l.criado_por_nome,
+    revisadoPor: l.revisado_por,
+    revisadoPorNome: l.revisado_por_nome,
+    revisaoNota: l.revisao_nota,
+    revisadoEm: l.revisado_em ? l.revisado_em.toISOString() : null,
+    analise: lerAnalise(l.analise),
   };
 }
 
 export async function criarProposta(nova: NovaProposta): Promise<string> {
   const dados = DadosPropostaSchema.parse(nova.dados);
+  const analise = nova.analise
+    ? sql.json(JSON.parse(JSON.stringify(nova.analise)) as postgres.JSONValue)
+    : null;
   const linhas = await sql<{ id: string }[]>`
-    insert into propostas (compra_id, pipeline_id, modelo, titulo, dados, total)
+    insert into propostas (compra_id, pipeline_id, modelo, titulo, dados, total, criado_por, autor, analise)
     values (
       ${nova.compraId},
       (select id from pipeline_itens where id = ${nova.compraId}),
       ${nova.modelo},
       ${nova.titulo},
       ${sql.json(dados)},
-      ${paraReais(nova.totalCentavos)}
+      ${paraReais(nova.totalCentavos)},
+      ${nova.criadoPor ?? null},
+      ${nova.autor ?? "usuario"},
+      ${analise}
     )
     returning id
   `;
@@ -127,10 +189,34 @@ export async function atualizarProposta(
   return linhas[0]?.atualizado_em ?? null;
 }
 
-export async function definirStatus(id: string, status: StatusProposta): Promise<boolean> {
+export interface RevisaoGravada {
+  revisadoPor: string;
+  nota: string | null;
+}
+
+/**
+ * Muda o status. `revisao`: objeto grava quem revisou e a nota; null apaga os dados da revisão;
+ * sem o argumento, mantém o que já está gravado. `esperado`: só muda se o status atual ainda for esse
+ * (evita duas pessoas decidirem a mesma proposta ao mesmo tempo).
+ */
+export async function definirStatus(
+  id: string,
+  status: StatusPropostaEquipe,
+  revisao?: RevisaoGravada | null,
+  esperado?: StatusPropostaEquipe,
+): Promise<boolean> {
   if (!FORMATO_ID.test(id)) return false;
+  const condicao = esperado ? sql`and status = ${esperado}` : sql``;
+  const campos =
+    revisao === undefined
+      ? sql``
+      : revisao === null
+        ? sql`, revisado_por = null, revisao_nota = null, revisado_em = null`
+        : sql`, revisado_por = ${revisao.revisadoPor}, revisao_nota = ${revisao.nota}, revisado_em = now()`;
   const linhas = await sql<{ id: string }[]>`
-    update propostas set status = ${status}, atualizado_em = now() where id = ${id} returning id
+    update propostas set status = ${status}, atualizado_em = now() ${campos}
+    where id = ${id} ${condicao}
+    returning id
   `;
   return linhas.length > 0;
 }
@@ -139,8 +225,13 @@ export async function definirStatus(id: string, status: StatusProposta): Promise
 export async function lerProposta(id: string): Promise<Proposta | null> {
   if (!FORMATO_ID.test(id)) return null;
   const linhas = await sql<LinhaProposta[]>`
-    select id, compra_id, modelo, titulo, dados, total, status, token_publico, token_expira, criado_em, atualizado_em
-    from propostas where id = ${id} limit 1
+    select p.id, p.compra_id, p.modelo, p.titulo, p.dados, p.total, p.status, p.token_publico, p.token_expira,
+           p.criado_em, p.atualizado_em, p.autor, p.criado_por, c.nome as criado_por_nome,
+           p.revisado_por, r.nome as revisado_por_nome, p.revisao_nota, p.revisado_em, p.analise
+    from propostas p
+    left join usuarios c on c.id = p.criado_por
+    left join usuarios r on r.id = p.revisado_por
+    where p.id = ${id} limit 1
   `;
   const linha = linhas[0];
   return linha ? converter(linha) : null;
@@ -154,20 +245,26 @@ interface LinhaResumo {
   total: string;
   status: string;
   atualizado_em: Date;
+  autor: string;
+  criado_por: string | null;
+  criado_por_nome: string | null;
+  revisado_por: string | null;
 }
 
 /** Mais recentes primeiro; com compraId, só as daquela compra. */
 export async function listarPropostas(filtro?: { compraId?: string }): Promise<ResumoProposta[]> {
   const linhas = await sql<LinhaResumo[]>`
-    select id, compra_id, titulo, dados->>'orgao' as orgao, total, status, atualizado_em
-    from propostas
-    where ${filtro?.compraId ? sql`compra_id = ${filtro.compraId}` : sql`true`}
-    order by atualizado_em desc
+    select p.id, p.compra_id, p.titulo, p.dados->>'orgao' as orgao, p.total, p.status, p.atualizado_em,
+           p.autor, p.criado_por, c.nome as criado_por_nome, p.revisado_por
+    from propostas p
+    left join usuarios c on c.id = p.criado_por
+    where ${filtro?.compraId ? sql`p.compra_id = ${filtro.compraId}` : sql`true`}
+    order by p.atualizado_em desc
     limit 500
   `;
   const resumos: ResumoProposta[] = [];
   for (const l of linhas) {
-    if (!ehStatus(l.status)) continue;
+    if (!ehStatusEquipe(l.status)) continue;
     resumos.push({
       id: l.id,
       compraId: l.compra_id,
@@ -176,9 +273,27 @@ export async function listarPropostas(filtro?: { compraId?: string }): Promise<R
       total: Number(l.total),
       status: l.status,
       atualizadoEm: l.atualizado_em.toISOString(),
+      autor: l.autor === "assistente" ? "assistente" : "usuario",
+      criadoPor: l.criado_por,
+      criadoPorNome: l.criado_por_nome,
+      revisadoPor: l.revisado_por,
     });
   }
   return resumos;
+}
+
+/**
+ * Quantas propostas esperam por esta pessoa: em revisão que ela pode revisar
+ * (não é a autora) e devolvidas que ela criou.
+ */
+export async function contarPropostasParaMim(usuarioId: string): Promise<number> {
+  if (!FORMATO_ID.test(usuarioId)) return 0;
+  const [linha] = await sql<{ total: number }[]>`
+    select count(*)::int as total from propostas
+    where (status = 'em_revisao' and (autor = 'assistente' or criado_por is null or criado_por <> ${usuarioId}))
+       or (status = 'devolvida' and criado_por = ${usuarioId})
+  `;
+  return linha?.total ?? 0;
 }
 
 export async function excluirProposta(id: string): Promise<boolean> {

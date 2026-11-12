@@ -7,7 +7,7 @@ import { ArrowLeft, Copy, Download, Send, Trash2 } from "lucide-react";
 import {
   duplicarPropostaAction,
   excluirPropostaAction,
-  marcarProntaAction,
+  acaoRevisaoAction,
   salvarPropostaAction,
 } from "@/app/(app)/propostas/actions";
 import {
@@ -23,11 +23,15 @@ import { dadosParaFormulario, formularioParaDados, type Formulario } from "@/com
 import { FolhaEnviar, type LinkPublico } from "@/components/propostas/folha-enviar";
 import { PreviaEscalada } from "@/components/propostas/previa-escalada";
 import { SecaoItens } from "@/components/propostas/secao-itens";
-import { PilulaStatus } from "@/components/propostas/status";
+import { BlocoAnalise } from "@/components/propostas/bloco-analise";
+import { FaixaRevisao } from "@/components/propostas/faixa-revisao";
+import { PainelRevisao } from "@/components/propostas/painel-revisao";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { totalProposta, validarProposta, valorPorExtenso } from "@/core/proposta";
 import { MODELOS, obterModelo, type ModeloId } from "@/core/proposta-modelos";
-import type { DadosProposta, StatusProposta } from "@/core/types-detalhe";
+import { podeEditar, type AcaoRevisao } from "@/core/revisao";
+import type { DadosProposta } from "@/core/types-detalhe";
+import type { AnaliseAssistente, AutorProposta, StatusPropostaEquipe } from "@/core/types-equipe";
 import { formatarMoeda } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -36,12 +40,21 @@ export interface PropostaParaEditor {
   titulo: string;
   modelo: ModeloId;
   dados: DadosProposta;
-  status: StatusProposta;
+  status: StatusPropostaEquipe;
   link: LinkPublico | null;
+  autor: AutorProposta;
+  criadoPor: string | null;
+  criadoPorNome: string | null;
+  revisadoPorNome: string | null;
+  revisaoNota: string | null;
+  revisadoEm: string | null;
+  analise: AnaliseAssistente | null;
 }
 
 interface Props {
   proposta: PropostaParaEditor;
+  /** Quem está olhando a proposta */
+  usuarioId: string;
   /** Valor unitário estimado pelo órgão, por número do item */
   referencias: Record<number, number>;
   cotacao: { precoMinimo: number; precoAlvo: number } | null;
@@ -83,11 +96,17 @@ function aplicarPadroes(f: Formulario, novo: ModeloId): Formulario {
   };
 }
 
-export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props) {
+export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens }: Props) {
   const [form, setForm] = useState<Formulario>(() =>
     dadosParaFormulario(proposta.titulo, proposta.modelo, proposta.dados, referencias),
   );
-  const [status, setStatus] = useState<StatusProposta>(proposta.status);
+  const [status, setStatus] = useState<StatusPropostaEquipe>(proposta.status);
+  const [revisao, setRevisao] = useState({
+    revisadoPorNome: proposta.revisadoPorNome,
+    revisaoNota: proposta.revisaoNota,
+    revisadoEm: proposta.revisadoEm,
+  });
+  const somenteLeitura = !podeEditar(status);
   const [link, setLink] = useState<LinkPublico | null>(proposta.link);
   const [salvo, setSalvo] = useState<EstadoSalvo>({ tipo: "parado" });
   const [aba, setAba] = useState<"editar" | "previa">("editar");
@@ -150,16 +169,21 @@ export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props)
     return (valor: Formulario[K]) => setForm((f) => ({ ...f, [chave]: valor }));
   }
 
-  function marcarPronta(pronta: boolean) {
+  function agir(acao: AcaoRevisao, nota?: string) {
     setMensagem(null);
     iniciar(async () => {
       if (!(await persistir())) {
         setMensagem("Não foi possível salvar. Tente de novo.");
         return;
       }
-      const r = await marcarProntaAction(id, pronta);
-      if (r.ok) setStatus(r.status);
-      else setMensagem(r.mensagem);
+      const r = await acaoRevisaoAction(id, acao, nota);
+      if (r.ok) {
+        setStatus(r.status);
+        setRevisao(r.revisao);
+        roteador.refresh();
+      } else {
+        setMensagem(r.mensagem);
+      }
     });
   }
 
@@ -229,12 +253,23 @@ export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props)
                 Tentar de novo
               </button>
             )}
-            <PilulaStatus status={status} />
           </div>
         </div>
 
+        <FaixaRevisao
+          dados={{
+            status,
+            autor: proposta.autor,
+            criadoPorNome: proposta.criadoPorNome,
+            revisadoPorNome: revisao.revisadoPorNome,
+            revisaoNota: revisao.revisaoNota,
+            revisadoEm: revisao.revisadoEm,
+          }}
+        />
+
         <input
           value={form.titulo}
+          disabled={somenteLeitura}
           onChange={(e) => campo("titulo")(e.target.value)}
           aria-label="Título da proposta"
           maxLength={160}
@@ -276,6 +311,18 @@ export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props)
         )}
       </header>
 
+      <Secao id="secao-revisao" titulo="Revisão">
+        <PainelRevisao
+          status={status}
+          autor={proposta.autor}
+          criadoPor={proposta.criadoPor}
+          usuarioId={usuarioId}
+          pendencias={pendencias.length}
+          pendente={pendente}
+          aoAgir={agir}
+        />
+      </Secao>
+
       <div
         role="tablist"
         aria-label="Modo de exibição"
@@ -308,7 +355,12 @@ export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props)
       </div>
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,620px)] xl:gap-6">
-        <div className={cn("min-w-0 flex-col gap-4", aba === "editar" ? "flex" : "hidden", "xl:flex")}>
+        <fieldset
+          disabled={somenteLeitura}
+          className={cn("m-0 min-w-0 flex-col gap-4 border-0 p-0", aba === "editar" ? "flex" : "hidden", "xl:flex")}
+        >
+          {proposta.analise ? <BlocoAnalise analise={proposta.analise} /> : null}
+
           {cotacao && (
             <p className="rounded-card border border-border bg-surface px-4 py-3 text-[13px] text-muted-foreground">
               Seu preço mínimo:{" "}
@@ -319,7 +371,7 @@ export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props)
 
           <Secao id="secao-pendencias" titulo={`Pendências (${pendencias.length})`}>
             {pendencias.length === 0 ? (
-              <p className="text-sm text-positive">Nada pendente. A proposta pode ser marcada como pronta.</p>
+              <p className="text-sm text-positive">Nada pendente.</p>
             ) : (
               <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-ink">
                 {pendencias.slice(0, 8).map((p) => (
@@ -329,25 +381,6 @@ export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props)
                   <li className="text-muted-foreground">e mais {pendencias.length - 8}</li>
                 )}
               </ul>
-            )}
-            {status === "rascunho" ? (
-              <button
-                type="button"
-                onClick={() => marcarPronta(true)}
-                disabled={pendencias.length > 0 || pendente}
-                className={cn(BOTAO_PRIMARIO, "w-full sm:w-auto sm:self-start")}
-              >
-                Marcar como pronta
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => marcarPronta(false)}
-                disabled={pendente}
-                className={cn(BOTAO_SECUNDARIO, "w-full sm:w-auto sm:self-start")}
-              >
-                Voltar para rascunho
-              </button>
             )}
           </Secao>
 
@@ -414,7 +447,7 @@ export function Editor({ proposta, referencias, cotacao, avisoSemItens }: Props)
             </div>
           </Secao>
           <div aria-hidden className="h-20 xl:hidden" />
-        </div>
+        </fieldset>
 
         <div className={cn("min-w-0", aba === "previa" ? "block" : "hidden", "xl:block")}>
           <div className="rounded-card bg-raised p-2 xl:sticky xl:top-8 xl:max-h-[calc(100dvh-4rem)] xl:overflow-y-auto">

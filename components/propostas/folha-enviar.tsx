@@ -6,7 +6,8 @@ import { gerarLinkAction, revogarLinkAction } from "@/app/(app)/propostas/action
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CONTROLE } from "@/components/propostas/campos";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { EMITENTE } from "@/core/proposta-emitente";
-import type { StatusProposta } from "@/core/types-detalhe";
+import { podeGerarLink } from "@/core/revisao";
+import type { StatusPropostaEquipe } from "@/core/types-equipe";
 
 export interface LinkPublico {
   token: string;
@@ -21,9 +22,9 @@ interface Props {
   titulo: string;
   orgao: string;
   objeto: string;
-  status: StatusProposta;
+  status: StatusPropostaEquipe;
   link: LinkPublico | null;
-  aoMudarLink: (link: LinkPublico | null, status?: StatusProposta) => void;
+  aoMudarLink: (link: LinkPublico | null, status?: StatusPropostaEquipe) => void;
   /** Grava as edições pendentes antes de gerar o link */
   aoSalvar: () => Promise<boolean>;
 }
@@ -108,7 +109,7 @@ export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto
     }
   }
 
-  const bloqueada = status === "rascunho";
+  const bloqueada = !podeGerarLink(status);
 
   return (
     <Sheet open={aberto} onOpenChange={aoMudar}>
@@ -121,7 +122,7 @@ export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto
         <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-6">
           {bloqueada && !link && (
             <p className="rounded-card border border-border bg-raised px-3 py-2.5 text-[13px] text-muted-foreground">
-              Marque a proposta como pronta para gerar o link.
+              A proposta precisa ser aprovada na revisão para gerar o link.
             </p>
           )}
 

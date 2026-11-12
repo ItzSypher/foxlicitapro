@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "@/db/client";
 import type { OportunidadeComScore } from "@/core/types";
+import type { ComentarioPipeline } from "@/core/types-equipe";
 import {
   ETAPAS,
   ROTULO_ETAPA,
@@ -66,6 +67,11 @@ const linhaSchema = z.object({
   notas: z.string(),
   criado_em: z.date(),
   atualizado_em: z.date(),
+  criado_por: z.string().nullable(),
+  criado_por_nome: z.string().nullable(),
+  responsavel: z.string().nullable(),
+  responsavel_nome: z.string().nullable(),
+  comentarios: z.number(),
 });
 
 const historicoSchema = z.object({
@@ -83,9 +89,14 @@ export interface EventoHistorico {
 /** Todos os itens, por etapa e ordem. Linhas com `dados` inválidos são ignoradas e registradas. */
 export async function listarPipeline(): Promise<ItemPipeline[]> {
   const linhas = await sql`
-    select id, etapa, ordem, dados, notas, criado_em, atualizado_em
-    from pipeline_itens
-    order by ordem asc, criado_em asc
+    select i.id, i.etapa, i.ordem, i.dados, i.notas, i.criado_em, i.atualizado_em,
+           i.criado_por, c.nome as criado_por_nome,
+           i.responsavel, r.nome as responsavel_nome,
+           (select count(*)::int from pipeline_comentarios k where k.item_id = i.id) as comentarios
+    from pipeline_itens i
+    left join usuarios c on c.id = i.criado_por
+    left join usuarios r on r.id = i.responsavel
+    order by i.ordem asc, i.criado_em asc
   `;
   const itens: ItemPipeline[] = [];
   for (const linha of linhas) {
@@ -103,6 +114,11 @@ export async function listarPipeline(): Promise<ItemPipeline[]> {
       criadoEm: d.criado_em.toISOString(),
       atualizadoEm: d.atualizado_em.toISOString(),
       item: d.dados,
+      criadoPorId: d.criado_por,
+      criadoPorNome: d.criado_por_nome,
+      responsavelId: d.responsavel,
+      responsavelNome: d.responsavel_nome,
+      comentarios: d.comentarios,
     });
   }
   return itens;
@@ -114,14 +130,17 @@ export async function idsNoPipeline(): Promise<Set<string>> {
 }
 
 /** Insere na etapa "radar", no fim da coluna. Se já existe, só atualiza os dados da oportunidade. */
-export async function salvarItem(o: OportunidadeComScore): Promise<{ criado: boolean }> {
+export async function salvarItem(
+  o: OportunidadeComScore,
+  criadoPor: string | null = null,
+): Promise<{ criado: boolean }> {
   const dados = oportunidadeComScoreSchema.parse(o);
   const json = JSON.parse(JSON.stringify(dados)) as postgres.JSONValue;
   const encerramento = new Date(dados.dataEncerramento).toISOString();
 
   return sql.begin(async (tx) => {
     const [linha] = await tx`
-      insert into pipeline_itens (id, etapa, ordem, dados, score, faixa, valor_estimado, data_encerramento)
+      insert into pipeline_itens (id, etapa, ordem, dados, score, faixa, valor_estimado, data_encerramento, criado_por)
       values (
         ${dados.id},
         'radar',
@@ -130,7 +149,8 @@ export async function salvarItem(o: OportunidadeComScore): Promise<{ criado: boo
         ${Math.round(dados.score.total)},
         ${dados.score.faixa},
         ${dados.valorEstimado},
-        ${encerramento}
+        ${encerramento},
+        ${criadoPor}
       )
       on conflict (id) do update set
         dados = excluded.dados,
@@ -143,14 +163,21 @@ export async function salvarItem(o: OportunidadeComScore): Promise<{ criado: boo
     `;
     const criado = linha?.criado === true;
     if (criado) {
-      await tx`insert into pipeline_historico (item_id, de, para) values (${dados.id}, null, 'radar')`;
+      await tx`
+        insert into pipeline_historico (item_id, de, para, usuario_id) values (${dados.id}, null, 'radar', ${criadoPor})
+      `;
     }
     return { criado };
   });
 }
 
 /** Muda de etapa e registra o histórico na mesma transação. Sem `ordem`, vai para o fim da coluna. */
-export async function moverItem(id: string, etapa: EtapaId, ordem?: number): Promise<boolean> {
+export async function moverItem(
+  id: string,
+  etapa: EtapaId,
+  ordem?: number,
+  usuarioId: string | null = null,
+): Promise<boolean> {
   const destino = etapaSchema.parse(etapa);
   return sql.begin(async (tx) => {
     const atual = await tx`select etapa from pipeline_itens where id = ${id} for update`;
@@ -172,7 +199,9 @@ export async function moverItem(id: string, etapa: EtapaId, ordem?: number): Pro
       where id = ${id}
     `;
     if (origem !== destino) {
-      await tx`insert into pipeline_historico (item_id, de, para) values (${id}, ${origem}, ${destino})`;
+      await tx`
+        insert into pipeline_historico (item_id, de, para, usuario_id) values (${id}, ${origem}, ${destino}, ${usuarioId})
+      `;
     }
     return true;
   });
@@ -188,6 +217,77 @@ export async function atualizarNotas(id: string, notas: string): Promise<boolean
     update pipeline_itens set notas = ${notas}, atualizado_em = now() where id = ${id}
   `;
   return r.count > 0;
+}
+
+const FORMATO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Define (ou tira, com null) o responsável. Devolve se o item existe e se o responsável mudou. */
+export async function definirResponsavel(
+  id: string,
+  responsavelId: string | null,
+): Promise<{ existe: boolean; mudou: boolean }> {
+  if (responsavelId !== null && !FORMATO_ID.test(responsavelId)) return { existe: false, mudou: false };
+  return sql.begin(async (tx) => {
+    const atual = await tx`select responsavel from pipeline_itens where id = ${id} for update`;
+    if (atual.length === 0) return { existe: false, mudou: false };
+    const anterior = (atual[0]?.responsavel ?? null) as string | null;
+    if (anterior === responsavelId) return { existe: true, mudou: false };
+    await tx`update pipeline_itens set responsavel = ${responsavelId}, atualizado_em = now() where id = ${id}`;
+    return { existe: true, mudou: true };
+  });
+}
+
+/** Texto do objeto da oportunidade, para avisos. */
+export async function lerObjetoItem(id: string): Promise<string | null> {
+  const linhas = await sql`select dados->>'objeto' as objeto from pipeline_itens where id = ${id}`;
+  const objeto: unknown = linhas[0]?.objeto;
+  return typeof objeto === "string" ? objeto : null;
+}
+
+const comentarioSchema = z.object({
+  id: z.coerce.number(),
+  item_id: z.string(),
+  autor: z.string().nullable(),
+  texto: z.string(),
+  em: z.date(),
+});
+
+function paraComentario(linha: unknown): ComentarioPipeline {
+  const c = comentarioSchema.parse(linha);
+  return { id: c.id, itemId: c.item_id, autor: c.autor, texto: c.texto, em: c.em.toISOString() };
+}
+
+/** Do mais antigo ao mais novo. */
+export async function listarComentarios(itemId: string): Promise<ComentarioPipeline[]> {
+  const linhas = await sql`
+    select k.id, k.item_id, u.nome as autor, k.texto, k.em
+    from pipeline_comentarios k
+    left join usuarios u on u.id = k.usuario_id
+    where k.item_id = ${itemId}
+    order by k.em asc, k.id asc
+    limit 200
+  `;
+  return linhas.map(paraComentario);
+}
+
+/** Null quando o item não existe mais. */
+export async function adicionarComentario(
+  itemId: string,
+  usuarioId: string,
+  texto: string,
+): Promise<ComentarioPipeline | null> {
+  const existe = await sql`select 1 from pipeline_itens where id = ${itemId}`;
+  if (existe.length === 0) return null;
+  const linhas = await sql`
+    with novo as (
+      insert into pipeline_comentarios (item_id, usuario_id, texto)
+      values (${itemId}, ${usuarioId}, ${texto})
+      returning id, item_id, usuario_id, texto, em
+    )
+    select novo.id, novo.item_id, u.nome as autor, novo.texto, novo.em
+    from novo left join usuarios u on u.id = novo.usuario_id
+  `;
+  return linhas[0] ? paraComentario(linhas[0]) : null;
 }
 
 export async function listarHistorico(id: string): Promise<EventoHistorico[]> {

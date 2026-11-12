@@ -1,22 +1,33 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import {
+  adicionarComentario,
   atualizarNotas,
+  definirResponsavel,
+  lerObjetoItem,
+  listarComentarios,
   moverItem,
   oportunidadeComScoreSchema,
   removerItem,
   salvarItem,
 } from "@/db/pipeline";
+import { lerUsuario } from "@/db/usuarios";
+import { avisarResponsavel } from "@/lib/avisos";
+import { lerSessao } from "@/lib/sessao";
 import type { OportunidadeComScore } from "@/core/types";
+import type { ComentarioPipeline, Sessao } from "@/core/types-equipe";
 import type { EtapaId, ResultadoAcao } from "@/components/pipeline/tipos";
 
 const idSchema = z.string().min(1).max(200);
 const etapaSchema = z.enum(["radar", "analisando", "cotando", "proposta", "disputa", "ganha", "perdida"]);
 const notasSchema = z.string().max(5000);
+const comentarioSchema = z.string().trim().min(1).max(2000);
 
 const ERRO_DADOS = "Dados inválidos. Recarregue a página e tente de novo.";
+const SEM_SESSAO = "Sessão expirada. Entre de novo.";
 
 function atualizarTelas(): void {
   revalidatePath("/pipeline");
@@ -40,11 +51,13 @@ async function executar(
 }
 
 export async function salvarNoPipeline(item: OportunidadeComScore): Promise<ResultadoAcao> {
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, erro: SEM_SESSAO };
   const lido = oportunidadeComScoreSchema.safeParse(item);
   if (!lido.success) return { ok: false, erro: ERRO_DADOS };
   return executar(
     async () => {
-      await salvarItem(lido.data);
+      await salvarItem(lido.data, sessao.usuarioId);
       return true;
     },
     "Não foi possível salvar no pipeline. Tente de novo.",
@@ -53,17 +66,20 @@ export async function salvarNoPipeline(item: OportunidadeComScore): Promise<Resu
 }
 
 export async function moverEtapa(id: string, etapa: EtapaId): Promise<ResultadoAcao> {
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, erro: SEM_SESSAO };
   const i = idSchema.safeParse(id);
   const e = etapaSchema.safeParse(etapa);
   if (!i.success || !e.success) return { ok: false, erro: ERRO_DADOS };
   return executar(
-    () => moverItem(i.data, e.data),
+    () => moverItem(i.data, e.data, undefined, sessao.usuarioId),
     "Não foi possível mover o item. Tente de novo.",
     "Esse item não está mais no pipeline.",
   );
 }
 
 export async function removerDoPipeline(id: string): Promise<ResultadoAcao> {
+  if (!(await lerSessao())) return { ok: false, erro: SEM_SESSAO };
   const i = idSchema.safeParse(id);
   if (!i.success) return { ok: false, erro: ERRO_DADOS };
   return executar(
@@ -74,6 +90,7 @@ export async function removerDoPipeline(id: string): Promise<ResultadoAcao> {
 }
 
 export async function salvarNotas(id: string, notas: string): Promise<ResultadoAcao> {
+  if (!(await lerSessao())) return { ok: false, erro: SEM_SESSAO };
   const i = idSchema.safeParse(id);
   const n = notasSchema.safeParse(notas);
   if (!i.success || !n.success) return { ok: false, erro: ERRO_DADOS };
@@ -82,4 +99,71 @@ export async function salvarNotas(id: string, notas: string): Promise<ResultadoA
     "Não foi possível salvar as notas. Tente de novo.",
     "Esse item não está mais no pipeline.",
   );
+}
+
+/** `responsavelId` null tira o responsável. Quem recebe o item (e não é quem atribuiu) ganha um e-mail. */
+export async function definirResponsavelAction(id: string, responsavelId: string | null): Promise<ResultadoAcao> {
+  const sessao: Sessao | null = await lerSessao();
+  if (!sessao) return { ok: false, erro: SEM_SESSAO };
+  const i = idSchema.safeParse(id);
+  const r = z.uuid().nullable().safeParse(responsavelId);
+  if (!i.success || !r.success) return { ok: false, erro: ERRO_DADOS };
+
+  try {
+    if (r.data !== null) {
+      const alvo = await lerUsuario(r.data);
+      if (!alvo || !alvo.ativo) return { ok: false, erro: "Essa pessoa não está mais na equipe." };
+    }
+    const resultado = await definirResponsavel(i.data, r.data);
+    if (!resultado.existe) return { ok: false, erro: "Esse item não está mais no pipeline." };
+    if (resultado.mudou && r.data !== null && r.data !== sessao.usuarioId) {
+      const novoResponsavel = r.data;
+      after(async () => {
+        const objeto = (await lerObjetoItem(i.data)) ?? "uma oportunidade";
+        await avisarResponsavel({
+          itemId: i.data,
+          objeto,
+          responsavelId: novoResponsavel,
+          porNome: sessao.nome,
+        });
+      });
+    }
+    atualizarTelas();
+    return { ok: true };
+  } catch (e) {
+    console.error("[pipeline]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível trocar o responsável. Tente de novo." };
+  }
+}
+
+export type RespostaComentarios = { ok: true; comentarios: ComentarioPipeline[] } | { ok: false; erro: string };
+
+export async function lerComentariosAction(id: string): Promise<RespostaComentarios> {
+  if (!(await lerSessao())) return { ok: false, erro: SEM_SESSAO };
+  const i = idSchema.safeParse(id);
+  if (!i.success) return { ok: false, erro: ERRO_DADOS };
+  try {
+    return { ok: true, comentarios: await listarComentarios(i.data) };
+  } catch (e) {
+    console.error("[pipeline]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível carregar os comentários." };
+  }
+}
+
+/** Grava o comentário e devolve a lista atualizada. */
+export async function comentarAction(id: string, texto: string): Promise<RespostaComentarios> {
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, erro: SEM_SESSAO };
+  const i = idSchema.safeParse(id);
+  const t = comentarioSchema.safeParse(texto);
+  if (!i.success || !t.success) return { ok: false, erro: "Escreva o comentário antes de enviar." };
+  try {
+    const novo = await adicionarComentario(i.data, sessao.usuarioId, t.data);
+    if (!novo) return { ok: false, erro: "Esse item não está mais no pipeline." };
+    revalidatePath("/pipeline");
+    return { ok: true, comentarios: await listarComentarios(i.data) };
+  } catch (e) {
+    console.error("[pipeline]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível comentar agora. Tente de novo." };
+  }
 }

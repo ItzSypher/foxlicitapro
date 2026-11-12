@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink } from "lucide-react";
-import { salvarNotas } from "@/app/(app)/pipeline/actions";
+import { comentarAction, lerComentariosAction, salvarNotas } from "@/app/(app)/pipeline/actions";
+import type { ComentarioPipeline } from "@/core/types-equipe";
 import { resumirObjeto } from "@/core/objeto";
 import type { Faixa } from "@/core/types";
 import { restanteMs } from "@/lib/formato";
@@ -12,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { formatarReais, textoFecha } from "./formato";
 import { MenuAcoes } from "./menu-acoes";
 import { SeletorEtapa } from "./seletor-etapa";
-import type { EtapaId, ItemPipeline } from "./tipos";
+import type { EtapaId, ItemPipeline, PessoaPipeline } from "./tipos";
 
 const COR_FAIXA: Record<Faixa, string> = {
   go: "text-positive",
@@ -116,8 +117,177 @@ function Notas({ id, inicial, aoAbrir }: { id: string; inicial: string; aoAbrir:
   );
 }
 
+const horaFmt = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "America/Sao_Paulo",
+  hourCycle: "h23",
+});
+
+/** "agora", "há 5 min", "há 3 h", "ontem" ou a data, em relação a agora. */
+function horaRelativa(iso: string, agora: number): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const minutos = Math.max(0, Math.floor((agora - t) / 60_000));
+  if (minutos < 1) return "agora";
+  if (minutos < 60) return `há ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `há ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  if (dias === 1) return "ontem";
+  if (dias < 7) return `há ${dias} dias`;
+  return horaFmt.format(new Date(t)).replace(" ", ", ");
+}
+
+function Comentarios({ id, total, aoAbrir }: { id: string; total: number; aoAbrir: (aberto: boolean) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [lista, setLista] = useState<ComentarioPipeline[] | null>(null);
+  const [quantidade, setQuantidade] = useState(total);
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [pendente, iniciar] = useTransition();
+  const [agora, setAgora] = useState<number | null>(null);
+
+  function alternar() {
+    const novo = !aberto;
+    setAberto(novo);
+    aoAbrir(novo);
+    if (novo && lista === null) {
+      setErro(null);
+      iniciar(async () => {
+        const r = await lerComentariosAction(id);
+        if (r.ok) {
+          setLista(r.comentarios);
+          setQuantidade(r.comentarios.length);
+          setAgora(Date.now());
+        } else {
+          setErro(r.erro);
+        }
+      });
+    }
+  }
+
+  function enviar() {
+    if (texto.trim() === "") return;
+    setErro(null);
+    iniciar(async () => {
+      const r = await comentarAction(id, texto);
+      if (r.ok) {
+        setLista(r.comentarios);
+        setQuantidade(r.comentarios.length);
+        setAgora(Date.now());
+        setTexto("");
+      } else {
+        setErro(r.erro);
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={alternar}
+        aria-expanded={aberto}
+        className="inline-flex h-11 w-fit items-center gap-1 rounded-control text-[13px] text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
+      >
+        <ChevronDown aria-hidden="true" className={cn("size-4 transition-transform", aberto ? "rotate-180" : "")} />
+        {quantidade === 0 ? "Comentários" : `Comentários (${quantidade})`}
+      </button>
+      {aberto ? (
+        <div className="flex flex-col gap-2">
+          {lista === null && !erro ? <p className="text-xs text-muted-foreground">Carregando…</p> : null}
+          {lista !== null && lista.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum comentário ainda.</p>
+          ) : null}
+          {lista !== null && lista.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {lista.map((c) => (
+                <li key={c.id} className="flex flex-col gap-0.5 rounded-control bg-raised px-2.5 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-ink">{c.autor ?? "Pessoa removida"}</span>
+                    {agora === null ? "" : ` · ${horaRelativa(c.em, agora)}`}
+                  </p>
+                  <p className="text-[13px] leading-snug whitespace-pre-line text-ink">{c.texto}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <textarea
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            rows={2}
+            maxLength={2000}
+            aria-label="Escrever comentário"
+            placeholder="Escreva um comentário"
+            className="w-full resize-y rounded-control border border-control bg-ground p-2 text-base leading-snug text-ink outline-none placeholder:text-faint focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
+          />
+          <button
+            type="button"
+            onClick={enviar}
+            disabled={pendente || texto.trim() === ""}
+            className="inline-flex h-11 items-center justify-center rounded-control bg-brand-fill px-4 text-sm font-medium text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 lg:h-9"
+          >
+            Comentar
+          </button>
+          {erro ? (
+            <p role="alert" className="text-xs text-negative">
+              {erro}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Responsavel({
+  dado,
+  pessoas,
+  aoMudar,
+}: {
+  dado: ItemPipeline;
+  pessoas: PessoaPipeline[];
+  aoMudar: (responsavelId: string | null) => void;
+}) {
+  const id = `resp-${dado.id}`;
+  // Responsável que saiu da equipe continua aparecendo, para o valor não sumir do seletor.
+  const foraDaLista =
+    dado.responsavelId !== null && !pessoas.some((p) => p.id === dado.responsavelId)
+      ? { id: dado.responsavelId, nome: dado.responsavelNome ?? "Pessoa removida" }
+      : null;
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs text-muted-foreground">
+        {dado.criadoPorNome ? `Adicionado por ${dado.criadoPorNome}` : "Adicionado por pessoa não registrada"}
+      </p>
+      <label htmlFor={id} className="text-xs text-muted-foreground">
+        Responsável
+      </label>
+      <select
+        id={id}
+        value={dado.responsavelId ?? ""}
+        onChange={(e) => aoMudar(e.target.value === "" ? null : e.target.value)}
+        className="h-11 w-full rounded-control border border-control bg-ground px-2 text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand lg:h-9 lg:text-[13px]"
+      >
+        <option value="">Sem responsável</option>
+        {foraDaLista ? <option value={foraDaLista.id}>{foraDaLista.nome}</option> : null}
+        {pessoas.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nome}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 interface Props {
   dado: ItemPipeline;
+  pessoas: PessoaPipeline[];
+  aoResponsavel: (id: string, responsavelId: string | null) => void;
   agoraInicial: number;
   arrastavel: boolean;
   arrastando: boolean;
@@ -129,6 +299,8 @@ interface Props {
 
 export function CardItem({
   dado,
+  pessoas,
+  aoResponsavel,
   agoraInicial,
   arrastavel,
   arrastando,
@@ -140,13 +312,14 @@ export function CardItem({
   const { item } = dado;
   const [confirmando, setConfirmando] = useState(false);
   const [notasAbertas, setNotasAbertas] = useState(false);
+  const [comentariosAbertos, setComentariosAbertos] = useState(false);
   const titulo = useMemo(() => resumirObjeto(item.objeto), [item.objeto]);
   const tituloCurto = titulo.length > 90 ? `${titulo.slice(0, 89)}…` : titulo;
   const pncp = item.linkPncp;
 
   return (
     <li
-      draggable={arrastavel && !notasAbertas && !confirmando}
+      draggable={arrastavel && !notasAbertas && !comentariosAbertos && !confirmando}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", dado.id);
         e.dataTransfer.effectAllowed = "move";
@@ -155,7 +328,7 @@ export function CardItem({
       onDragEnd={aoTerminarArraste}
       className={cn(
         "flex flex-col gap-2 rounded-card border border-border bg-surface p-3",
-        arrastavel && !notasAbertas && !confirmando ? "cursor-grab active:cursor-grabbing" : "",
+        arrastavel && !notasAbertas && !comentariosAbertos && !confirmando ? "cursor-grab active:cursor-grabbing" : "",
         arrastando ? "opacity-40" : "",
       )}
     >
@@ -197,7 +370,11 @@ export function CardItem({
         </span>
       </p>
 
+      <Responsavel dado={dado} pessoas={pessoas} aoMudar={(r) => aoResponsavel(dado.id, r)} />
+
       <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} />
+
+      <Comentarios id={dado.id} total={dado.comentarios} aoAbrir={setComentariosAbertos} />
 
       {confirmando ? (
         <div role="group" aria-label="Confirmar remoção" className="flex flex-col gap-2 border-t border-border pt-3">

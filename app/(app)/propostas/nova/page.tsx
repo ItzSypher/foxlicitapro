@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { lerSessao } from "@/lib/sessao";
 import { EscolhaModelo } from "@/components/propostas/escolha-modelo";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { lerChaveCompra } from "@/core/proposta";
@@ -30,7 +31,8 @@ export default async function NovaPropostaPage({ searchParams }: Props) {
 
   let falhou = false;
   if (ehModeloId(modeloPedido)) {
-    const criado = await criarRascunho(modeloPedido, compraValida === "" ? null : compraValida);
+    const sessao = await lerSessao();
+    const criado = await criarRascunho(modeloPedido, compraValida === "" ? null : compraValida, sessao?.usuarioId ?? null);
     if (criado) redirect(criado.semItens ? `/propostas/${criado.id}?aviso=itens` : `/propostas/${criado.id}`);
     falhou = true;
   }

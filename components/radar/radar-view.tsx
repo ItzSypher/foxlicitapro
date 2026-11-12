@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { atualizarRadarAgora, definirFrente } from "@/app/(app)/actions";
 import { Button } from "@/components/ui/button";
-import { recomendar } from "@/core/recomendacao";
+import { recomendar, type PreferenciasDeRecomendacao } from "@/core/recomendacao";
 import type { Frente, ModalidadeId, OportunidadeComScore, RespostaRadar } from "@/core/types";
 import { formatarHora } from "@/lib/formato";
 import {
@@ -71,9 +72,11 @@ interface Props {
   visaoInicial: Visao;
   /** Ponto de inserção no detalhe, antes de "Abrir no PNCP" (ex.: "Salvar no pipeline"). */
   renderAcoes?: (item: OportunidadeComScore) => React.ReactNode;
+  /** Termos que o dono quer priorizar ou nunca ver em "Para você" */
+  preferencias?: PreferenciasDeRecomendacao;
 }
 
-export function RadarView({ frente, resposta, visaoInicial, renderAcoes }: Props) {
+export function RadarView({ frente, resposta, visaoInicial, renderAcoes, preferencias }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const filtros = useMemo(() => lerFiltros(params), [params]);
@@ -102,8 +105,8 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes }: Props
   const baseRecomendacao = useMemo(() => filtrar(lista, filtros), [lista, filtros]);
   // O relógio de referência é o da busca: as recomendações não mudam a cada segundo.
   const recomendadas = useMemo(
-    () => recomendar(baseRecomendacao, frente, new Date(agoraInicial)),
-    [baseRecomendacao, frente, agoraInicial],
+    () => recomendar(baseRecomendacao, frente, new Date(agoraInicial), undefined, preferencias),
+    [baseRecomendacao, frente, agoraInicial, preferencias],
   );
   const motivosPorId = useMemo(
     () => new Map(recomendadas.map((r) => [r.item.id, r.motivos] as const)),
@@ -280,7 +283,13 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes }: Props
             <div ref={topoRef} className="scroll-mt-[68px] lg:scroll-mt-6">
               {paraVoce ? (
                 <p className="mb-3 text-sm text-muted-foreground">
-                  {fraseRecomendadas(recomendadas.length, baseRecomendacao.length)}
+                  {fraseRecomendadas(recomendadas.length, baseRecomendacao.length)}.{" "}
+                  <Link
+                    href="/preferencias"
+                    className="inline-flex min-h-11 items-center text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
+                  >
+                    Ajustar o que aparece aqui
+                  </Link>
                 </p>
               ) : null}
               {visao === "cards" ? (

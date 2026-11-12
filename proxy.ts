@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { COOKIE_SESSAO, tokenValido } from "@/lib/auth";
+import { COOKIE_SESSAO, lerToken } from "@/lib/auth";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,10 +11,11 @@ export async function proxy(request: NextRequest) {
   // Coleta agendada: a própria rota confere o CRON_SECRET.
   if (pathname.startsWith("/api/cron/")) return NextResponse.next();
 
-  const autenticado = await tokenValido(
-    request.cookies.get(COOKIE_SESSAO)?.value,
-    process.env.APP_SECRET,
-  );
+  // Limpa o cookie de uma sessão que o servidor não aceita mais (pessoa desativada).
+  if (pathname === "/login/sair") return NextResponse.next();
+
+  const autenticado =
+    (await lerToken(request.cookies.get(COOKIE_SESSAO)?.value, process.env.APP_SECRET)) !== null;
 
   if (pathname === "/login") {
     if (autenticado) return NextResponse.redirect(new URL("/radar", request.url));

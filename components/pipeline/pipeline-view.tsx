@@ -2,17 +2,25 @@
 
 import { useMemo, useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import { moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
+import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { cn } from "@/lib/utils";
 import { BlocoErro } from "./bloco-erro";
 import { Coluna } from "./coluna";
 import { linhaDeNumeros } from "./formato";
-import { ETAPAS, montarResumo, type EtapaId, type ItemPipeline } from "./tipos";
+import { ETAPAS, ehMeu, montarResumo, type EtapaId, type ItemPipeline, type PessoaPipeline } from "./tipos";
 
-type Acao = { tipo: "mover"; id: string; etapa: EtapaId } | { tipo: "remover"; id: string };
+type Acao =
+  | { tipo: "mover"; id: string; etapa: EtapaId }
+  | { tipo: "remover"; id: string }
+  | { tipo: "responsavel"; id: string; responsavelId: string | null; nome: string | null };
 
 function reduzir(estado: ItemPipeline[], acao: Acao): ItemPipeline[] {
   if (acao.tipo === "remover") return estado.filter((i) => i.id !== acao.id);
+  if (acao.tipo === "responsavel") {
+    return estado.map((i) =>
+      i.id === acao.id ? { ...i, responsavelId: acao.responsavelId, responsavelNome: acao.nome } : i,
+    );
+  }
   const maior = estado
     .filter((i) => i.etapa === acao.etapa && i.id !== acao.id)
     .reduce((m, i) => Math.max(m, i.ordem), 0);
@@ -40,9 +48,12 @@ interface Props {
   itens: ItemPipeline[] | null;
   etapaInicial: EtapaId;
   agoraInicial: number;
+  usuarioId: string;
+  /** Pessoas ativas que podem assumir um item */
+  pessoas: PessoaPipeline[];
 }
 
-export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial }: Props) {
+export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial, usuarioId, pessoas }: Props) {
   if (itensServidor === null) {
     return (
       <div className="flex flex-col gap-4 lg:gap-6">
@@ -51,19 +62,33 @@ export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial 
       </div>
     );
   }
-  return <Quadro itensServidor={itensServidor} etapaInicial={etapaInicial} agoraInicial={agoraInicial} />;
+  return (
+    <Quadro
+      itensServidor={itensServidor}
+      etapaInicial={etapaInicial}
+      agoraInicial={agoraInicial}
+      usuarioId={usuarioId}
+      pessoas={pessoas}
+    />
+  );
 }
 
 function Quadro({
   itensServidor,
   etapaInicial,
   agoraInicial,
+  usuarioId,
+  pessoas,
 }: {
   itensServidor: ItemPipeline[];
   etapaInicial: EtapaId;
   agoraInicial: number;
+  usuarioId: string;
+  pessoas: PessoaPipeline[];
 }) {
-  const [itens, aplicar] = useOptimistic(itensServidor, reduzir);
+  const [todos, aplicar] = useOptimistic(itensServidor, reduzir);
+  const [soMeus, setSoMeus] = useState(false);
+  const itens = useMemo(() => (soMeus ? todos.filter((i) => ehMeu(i, usuarioId)) : todos), [todos, soMeus, usuarioId]);
   const [, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<EtapaId>(etapaInicial);
@@ -84,12 +109,22 @@ function Quadro({
   }, [itens]);
 
   function mover(id: string, etapa: EtapaId) {
-    const atual = itens.find((i) => i.id === id);
+    const atual = todos.find((i) => i.id === id);
     if (!atual || atual.etapa === etapa) return;
     setErro(null);
     iniciar(async () => {
       aplicar({ tipo: "mover", id, etapa });
       const r = await moverEtapa(id, etapa);
+      if (!r.ok) setErro(r.erro);
+    });
+  }
+
+  function trocarResponsavel(id: string, responsavelId: string | null) {
+    const nome = pessoas.find((p) => p.id === responsavelId)?.nome ?? null;
+    setErro(null);
+    iniciar(async () => {
+      aplicar({ tipo: "responsavel", id, responsavelId, nome });
+      const r = await definirResponsavelAction(id, responsavelId);
       if (!r.ok) setErro(r.erro);
     });
   }
@@ -125,6 +160,18 @@ function Quadro({
         <p className="font-mono text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
       </div>
 
+      <button
+        type="button"
+        aria-pressed={soMeus}
+        onClick={() => setSoMeus((v) => !v)}
+        className={cn(
+          "inline-flex h-11 w-fit items-center rounded-control border px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand",
+          soMeus ? "border-brand bg-active font-medium text-ink" : "border-control text-muted-foreground hover:bg-active hover:text-ink",
+        )}
+      >
+        Só os meus
+      </button>
+
       {erro ? (
         <p
           role="alert"
@@ -134,7 +181,7 @@ function Quadro({
         </p>
       ) : null}
 
-      {itens.length === 0 ? (
+      {todos.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-control px-6 py-12 text-center">
           <p className="text-sm text-muted-foreground">
             Seu pipeline está vazio. Salve oportunidades do Radar para acompanhá-las aqui.
@@ -186,6 +233,8 @@ function Quadro({
                   resumo={resumo.porEtapa[e.id]}
                   ativaNoTelefone={aba === e.id}
                   agoraInicial={agoraInicial}
+                  pessoas={pessoas}
+                  aoResponsavel={trocarResponsavel}
                   desktop={desktop}
                   arrastandoId={arrastandoId}
                   alvo={alvo === e.id}

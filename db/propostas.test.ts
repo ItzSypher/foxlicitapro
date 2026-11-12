@@ -73,6 +73,13 @@ describe.skipIf(!process.env.DATABASE_URL)("propostas no banco", () => {
     expect(await m.definirStatus(id, "enviada")).toBe(true);
     expect((await m.lerProposta(id))?.status).toBe("enviada");
 
+    // O status esperado protege contra duas decisões ao mesmo tempo.
+    expect(await m.definirStatus(id, "aprovada", null, "rascunho")).toBe(false);
+    expect(await m.definirStatus(id, "em_revisao", null, "enviada")).toBe(true);
+    const emRevisao = await m.lerProposta(id);
+    expect(emRevisao).toMatchObject({ status: "em_revisao", autor: "usuario", criadoPor: null, revisaoNota: null });
+    expect(await m.definirStatus(id, "enviada")).toBe(true);
+
     expect(await m.revogarToken(id)).toBe(true);
     expect(await m.lerPorToken(gerado?.token ?? "")).toBeNull();
 

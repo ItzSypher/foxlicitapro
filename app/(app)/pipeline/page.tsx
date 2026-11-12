@@ -1,11 +1,22 @@
 import { connection } from "next/server";
 import { listarPipeline } from "@/db/pipeline";
+import { listarUsuariosAtivos } from "@/db/usuarios";
+import { exigirSessao } from "@/lib/sessao";
 import { PipelineView } from "@/components/pipeline/pipeline-view";
-import { ehEtapa, type EtapaId, type ItemPipeline } from "@/components/pipeline/tipos";
+import { ehEtapa, type EtapaId, type ItemPipeline, type PessoaPipeline } from "@/components/pipeline/tipos";
 
 /** Instante do pedido; o cliente parte dele para evitar divergência na hidratação. */
 function momento(): number {
   return Date.now();
+}
+
+async function lerPessoas(): Promise<PessoaPipeline[]> {
+  try {
+    return (await listarUsuariosAtivos()).map((u) => ({ id: u.id, nome: u.nome }));
+  } catch (e) {
+    console.error("[pipeline] equipe indisponível:", e instanceof Error ? e.message : e);
+    return [];
+  }
 }
 
 export default async function PipelinePage({
@@ -14,6 +25,7 @@ export default async function PipelinePage({
   searchParams: Promise<{ [chave: string]: string | string[] | undefined }>;
 }) {
   await connection();
+  const sessao = await exigirSessao();
   const params = await searchParams;
   const bruto = Array.isArray(params.etapa) ? params.etapa[0] : params.etapa;
   const etapaInicial: EtapaId = ehEtapa(bruto) ? bruto : "radar";
@@ -25,6 +37,15 @@ export default async function PipelinePage({
     console.error("[pipeline] leitura falhou:", e instanceof Error ? e.message : e);
     itens = null;
   }
+  const pessoas = await lerPessoas();
 
-  return <PipelineView itens={itens} etapaInicial={etapaInicial} agoraInicial={momento()} />;
+  return (
+    <PipelineView
+      itens={itens}
+      etapaInicial={etapaInicial}
+      agoraInicial={momento()}
+      usuarioId={sessao.usuarioId}
+      pessoas={pessoas}
+    />
+  );
 }

@@ -7,6 +7,7 @@ import { formatarMoedaCurta } from "@/lib/formato";
 import { nomeFaixa, nomeModalidade } from "@/lib/radar-filtros";
 import { cn } from "@/lib/utils";
 import { TEXTO_FAIXA } from "./faixa";
+import { DicaNota } from "./dicas";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { PrazoDoCard } from "./prazo";
 import { Termometro } from "./termometro";
@@ -23,18 +24,19 @@ interface Props {
 function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: Props) {
   const cor = TEXTO_FAIXA[item.score.faixa];
   return (
-    <button
-      type="button"
-      onClick={() => onAbrir(item)}
+    <div
       style={{ "--i": indice } as React.CSSProperties}
-      className="card-entrada flex h-full w-full cursor-pointer flex-col gap-3 rounded-card border border-border bg-surface p-4 text-left outline-none transition-[border-color,scale] duration-150 hover:border-control focus-visible:ring-2 focus-visible:ring-brand active:scale-[.99]"
+      className="card-entrada relative flex h-full w-full flex-col gap-3 rounded-card border border-border bg-surface p-4 text-left transition-[border-color,scale] duration-150 hover:border-control active:scale-[.99]"
     >
       <span className="flex items-start justify-between gap-3">
-        <span className="flex shrink-0 flex-col">
-          <span className={cn("font-mono text-[28px] leading-none font-semibold tabular-nums", cor)}>
-            {item.score.total}
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="flex shrink-0 flex-col">
+            <span className={cn("font-mono text-[28px] leading-none font-semibold tabular-nums", cor)}>
+              {item.score.total}
+            </span>
+            <span className={cn("mt-1 text-xs font-medium", cor)}>{nomeFaixa(item.score.faixa)}</span>
           </span>
-          <span className={cn("mt-1 text-xs font-medium", cor)}>{nomeFaixa(item.score.faixa)}</span>
+          <DicaNota score={item.score} />
         </span>
         <span className="flex min-w-0 flex-col items-end gap-1.5">
           {item.valorEstimado === null ? (
@@ -48,9 +50,13 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
         </span>
       </span>
 
-      <span className="line-clamp-3 text-[15px] leading-snug font-medium wrap-break-word text-ink">
-        {resumirObjeto(item.objeto)}
-      </span>
+      <button
+        type="button"
+        onClick={() => onAbrir(item)}
+        className="block cursor-pointer rounded-control text-left text-[15px] leading-snug font-medium wrap-break-word text-ink outline-none after:absolute after:inset-0 after:rounded-card after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-brand"
+      >
+        <span className="line-clamp-3">{resumirObjeto(item.objeto)}</span>
+      </button>
 
       <span className="truncate text-[13px] text-muted-foreground">
         {item.municipio} · {nomeModalidade(item.modalidadeId)} · {item.orgao}
@@ -60,7 +66,7 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
       <AlertaDoScore score={item.score} />
 
       <Termometro score={item.score} className="mt-auto" />
-    </button>
+    </div>
   );
 }
 

@@ -3,11 +3,11 @@ import { casarCnaes, casarCnaesComForca, normalizarTexto, PALAVRAS_CHAVE, TERMOS
 import { TODOS_CNAES } from "./empresa";
 
 describe("tabela de palavras-chave", () => {
-  it("tem de 12 a 20 termos por CNAE, normalizados", () => {
+  it("tem de 12 a 50 termos por CNAE, normalizados", () => {
     for (const cnae of TODOS_CNAES) {
       const termos = PALAVRAS_CHAVE[cnae.codigo as keyof typeof PALAVRAS_CHAVE];
       expect(termos.length, cnae.codigo).toBeGreaterThanOrEqual(12);
-      expect(termos.length, cnae.codigo).toBeLessThanOrEqual(20);
+      expect(termos.length, cnae.codigo).toBeLessThanOrEqual(50);
       for (const termo of termos) {
         expect(normalizarTexto(termo), `${cnae.codigo}: ${termo}`).toBe(termo);
       }
@@ -109,5 +109,42 @@ describe("casarCnaesComForca", () => {
     expect(casarCnaes("Manutenção elétrica de ambulância e veículos").servicos).toEqual([]);
     expect(casarCnaes("Obra predial com instalação elétrica").servicos).toEqual([]);
     expect(casarCnaes("Manutenção elétrica do prédio").servicos).toContain("43.21-5-00");
+  });
+});
+
+describe("software, sistema e serviço de TI", () => {
+  const servicos = (objeto: string) => casarCnaes(objeto).servicos;
+
+  it("casa software, licença, sistema e empresa especializada em TI com a frente de serviços", () => {
+    expect(servicos("Licença de software de antivírus")).toContain("61.90-6-99");
+    expect(servicos("Contratação de licenças Google Workspace")).toContain("61.90-6-99");
+    expect(servicos("Locação de sistema de registro de ponto")).toContain("61.90-6-99");
+    expect(servicos("Desenvolvimento de sistema de gestão")).toContain("61.90-6-99");
+    expect(servicos("Solução de TI para pesquisa de preços")).toContain("61.90-6-99");
+    expect(servicos("Serviços de suporte de TI")).toContain("95.11-8-00");
+    expect(servicos("Empresa especializada em tecnologia da informação")).toContain("95.11-8-00");
+    expect(servicos("Locação de equipamentos de informática")).toContain("95.11-8-00");
+  });
+
+  it("licença de software também casa na frente de produtos", () => {
+    expect(casarCnaes("Licença de software Adobe").produtos).toContain("47.51-2-01");
+  });
+
+  it("sistema de ar condicionado, incêndio, viário, hidráulico e norma ISO não contam", () => {
+    expect(servicos("Manutenção do sistema de ar condicionado")).toEqual([]);
+    expect(servicos("Instalação de sistema de incêndio")).toEqual([]);
+    expect(servicos("Revitalização do sistema viário")).toEqual([]);
+    expect(servicos("Reforma do sistema hidráulico")).toEqual([]);
+    expect(servicos("Consultoria do sistema de gestão da segurança conforme ABNT NBR ISO 28000")).toEqual([]);
+    expect(servicos("Materiais para o sistema de climatização")).toEqual([]);
+  });
+
+  it("nome de setor (Diretoria de Sistemas de Informação) não casa", () => {
+    expect(servicos("Aquisição de notebooks para a Diretoria de Sistemas de Informação")).toEqual([]);
+  });
+
+  it("software sozinho é casamento fraco", () => {
+    const fraco = casarCnaesComForca("Aquisição de software").servicos.find((c) => c.codigo === "61.90-6-99");
+    expect(fraco?.forte).toBe(false);
   });
 });

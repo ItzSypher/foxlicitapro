@@ -6,12 +6,13 @@ import { resumirObjeto } from "@/core/objeto";
 import { formatarMoedaCurta } from "@/lib/formato";
 import { nomeModalidade } from "@/lib/radar-filtros";
 import { cn } from "@/lib/utils";
+import { DicaNota } from "./dicas";
 import { PASTILHA_FAIXA } from "./faixa";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { usePrazo } from "./prazo";
 
 /** Colunas da lista no desktop: nota | objeto | modalidade | valor | prazo. */
-const COLUNAS = "md:grid-cols-[48px_minmax(0,1fr)_88px_128px_112px]";
+const COLUNAS = "md:grid-cols-[96px_minmax(0,1fr)_88px_128px_112px]";
 
 /** Cabeçalho da lista (só a partir de 768 px): 12 px, sem faixa de fundo, com régua. */
 export function CabecalhoLista() {
@@ -48,28 +49,33 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
   const prazoTelefone = encerrada ? "encerrada" : `fecha em ${curto}`;
 
   return (
-    <button
-      type="button"
-      onClick={() => onAbrir(item)}
+    <div
       style={{ "--i": indice } as React.CSSProperties}
       className={cn(
-        "card-entrada grid w-full cursor-pointer grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3 border-b border-rule px-2 py-3 text-left outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset md:min-h-16 md:gap-x-4 md:py-2",
+        "card-entrada relative grid w-full grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3 border-b border-rule px-2 py-3 text-left transition-colors hover:bg-raised md:min-h-16 md:gap-x-4 md:py-2",
         COLUNAS,
       )}
     >
-      <span
-        className={cn(
-          "flex h-9 w-12 items-center justify-center self-start rounded-control font-mono text-sm font-semibold tabular-nums md:self-center",
-          PASTILHA_FAIXA[item.score.faixa],
-        )}
-      >
-        {item.score.total}
+      <span className="flex flex-col items-center self-start md:flex-row md:self-center">
+        <span
+          className={cn(
+            "flex h-9 w-12 shrink-0 items-center justify-center rounded-control font-mono text-sm font-semibold tabular-nums",
+            PASTILHA_FAIXA[item.score.faixa],
+          )}
+        >
+          {item.score.total}
+        </span>
+        <DicaNota score={item.score} className="-mt-1 md:mt-0" />
       </span>
 
       <span className="flex min-w-0 flex-col gap-1 md:gap-0.5">
-        <span className="line-clamp-2 text-[15px] leading-snug font-medium wrap-break-word text-ink md:line-clamp-1 md:text-sm">
-          {resumirObjeto(item.objeto)}
-        </span>
+        <button
+          type="button"
+          onClick={() => onAbrir(item)}
+          className="block cursor-pointer rounded-control text-left text-[15px] leading-snug font-medium wrap-break-word text-ink outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-brand focus-visible:after:ring-inset md:text-sm"
+        >
+          <span className="line-clamp-2 md:line-clamp-1">{resumirObjeto(item.objeto)}</span>
+        </button>
         <span className="hidden truncate text-xs text-muted-foreground md:block">
           {item.municipio} · {item.orgao}
         </span>
@@ -100,7 +106,7 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
       >
         {prazoDesktop}
       </span>
-    </button>
+    </div>
   );
 }
 

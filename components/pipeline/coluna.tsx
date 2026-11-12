@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { CardItem } from "./card-item";
 import { formatarReais } from "./formato";
-import type { EtapaId, ItemPipeline, ResumoEtapa } from "./tipos";
+import type { EtapaId, ItemPipeline, PessoaPipeline, ResumoEtapa } from "./tipos";
 
 interface Props {
   etapa: EtapaId;
@@ -13,6 +13,8 @@ interface Props {
   /** No telefone só a coluna da aba ativa aparece; no desktop todas. */
   ativaNoTelefone: boolean;
   agoraInicial: number;
+  pessoas: PessoaPipeline[];
+  aoResponsavel: (id: string, responsavelId: string | null) => void;
   desktop: boolean;
   arrastandoId: string | null;
   alvo: boolean;
@@ -32,6 +34,8 @@ export function Coluna({
   resumo,
   ativaNoTelefone,
   agoraInicial,
+  pessoas,
+  aoResponsavel,
   desktop,
   arrastandoId,
   alvo,
@@ -91,6 +95,8 @@ export function Coluna({
               key={dado.id}
               dado={dado}
               agoraInicial={agoraInicial}
+              pessoas={pessoas}
+              aoResponsavel={aoResponsavel}
               arrastavel={desktop}
               arrastando={arrastandoId === dado.id}
               aoIniciarArraste={aoIniciarArraste}

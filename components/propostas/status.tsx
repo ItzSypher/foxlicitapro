@@ -1,20 +1,18 @@
 import { Pilula, type TomPilula } from "@/components/radar/pilula";
-import type { StatusProposta } from "@/core/types-detalhe";
+import { ROTULO_STATUS } from "@/core/revisao";
+import type { StatusPropostaEquipe } from "@/core/types-equipe";
 
-const ROTULO: Record<StatusProposta, string> = {
-  rascunho: "Rascunho",
-  pronta: "Pronta",
-  enviada: "Enviada",
-};
-
-const TOM: Record<StatusProposta, TomPilula> = {
+const TOM: Record<StatusPropostaEquipe, TomPilula> = {
   rascunho: "neutro",
-  pronta: "aviso",
+  em_revisao: "aviso",
+  aprovada: "positivo",
+  devolvida: "negativo",
+  pronta: "positivo",
   enviada: "positivo",
 };
 
-export function PilulaStatus({ status }: { status: StatusProposta }) {
-  return <Pilula tom={TOM[status]}>{ROTULO[status]}</Pilula>;
+export function PilulaStatus({ status }: { status: StatusPropostaEquipe }) {
+  return <Pilula tom={TOM[status]}>{ROTULO_STATUS[status]}</Pilula>;
 }
 
 const dataCurta = new Intl.DateTimeFormat("pt-BR", {

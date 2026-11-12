@@ -1,11 +1,13 @@
 import { connection } from "next/server";
 import { BotaoNovaProposta, ListaPropostas } from "@/components/propostas/lista-propostas";
 import { listarPropostas, type ResumoProposta } from "@/db/propostas";
+import { exigirSessao } from "@/lib/sessao";
 
 export const metadata = { title: "Propostas · FoxLicita Pro" };
 
 export default async function PropostasPage() {
   await connection();
+  const sessao = await exigirSessao();
   let propostas: ResumoProposta[] | null;
   try {
     propostas = await listarPropostas();
@@ -19,7 +21,7 @@ export default async function PropostasPage() {
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-[22px] font-semibold leading-tight text-ink">Propostas</h1>
-          <p className="text-sm text-muted-foreground">Modelos prontos para editar, imprimir e enviar.</p>
+          <p className="text-sm text-muted-foreground">Edite, mande para revisão e envie depois de aprovada.</p>
         </div>
         <BotaoNovaProposta />
       </header>
@@ -28,7 +30,7 @@ export default async function PropostasPage() {
           Não foi possível carregar as propostas agora.
         </p>
       ) : (
-        <ListaPropostas propostas={propostas} />
+        <ListaPropostas propostas={propostas} usuarioId={sessao.usuarioId} />
       )}
     </div>
   );

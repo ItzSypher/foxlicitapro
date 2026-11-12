@@ -19,6 +19,7 @@ import { criarProposta } from "@/db/propostas";
 export async function criarRascunho(
   modelo: ModeloId,
   compra: string | null,
+  criadoPor: string | null = null,
 ): Promise<{ id: string; semItens: boolean } | null> {
   const hoje = new Date();
   const chave = compra === null ? null : lerChaveCompra(compra);
@@ -39,6 +40,7 @@ export async function criarRascunho(
       titulo: detalhe ? tituloPadrao(dados) : `Nova proposta · ${obterModelo(modelo).nome}`,
       dados,
       totalCentavos: 0,
+      criadoPor,
     });
     return { id, semItens: chave !== null && detalhe === null };
   } catch {
