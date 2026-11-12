@@ -1,0 +1,281 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-heading: var(--font-plex-sans), system-ui, sans-serif;
+
+  /* tokens da folha emoldurada */
+  --color-ground: var(--c-ground);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-active: var(--c-active);
+  --color-rule: var(--c-rule);
+  --color-control: var(--c-control);
+  --color-ink: var(--c-text);
+  --color-faint: var(--c-faint);
+  --color-brand: var(--c-accent);
+  --color-brand-fill: var(--c-brand-fill);
+  --color-positive: var(--c-positive);
+  --color-negative: var(--c-negative);
+  --color-warning: var(--c-warning);
+  --color-go: var(--c-go);
+  --color-atencao: var(--c-atencao);
+  --color-nogo: var(--c-nogo);
+  --color-pill-pos-bg: var(--c-pill-pos-bg);
+  --color-pill-pos-fg: var(--c-pill-pos-fg);
+  --color-pill-neg-bg: var(--c-pill-neg-bg);
+  --color-pill-neg-fg: var(--c-pill-neg-fg);
+  --color-pill-warn-bg: var(--c-pill-warn-bg);
+  --color-pill-warn-fg: var(--c-pill-warn-fg);
+  --color-pill-neutral-bg: var(--c-pill-neutral-bg);
+  --color-pill-neutral-fg: var(--c-pill-neutral-fg);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-sheet: 16px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* tema claro */
+  --c-ground: #f6f6f5;
+  --c-surface: #ffffff;
+  --c-raised: #f1f1f0;
+  --c-active: #e9e9e8;
+  --c-border: #e4e4e2;
+  --c-rule: #ececea;
+  --c-control: #c9c9c6;
+  --c-text: #111111;
+  --c-muted: #5c5c5a;
+  --c-faint: #5c5c5a;
+  /* texto de marca no claro: #a34b00 mantém 4,5:1 sobre active; o laranja puro fica no preenchimento */
+  --c-accent: #a34b00;
+  --c-brand-fill: #f57e11;
+  --c-positive: #166534;
+  --c-negative: #b91c1c;
+  --c-warning: #92400e;
+  --c-go: #10b981;
+  --c-atencao: #f59e0b;
+  --c-nogo: #ef4444;
+  --c-pill-pos-bg: #dcfae5;
+  --c-pill-pos-fg: #04250e;
+  --c-pill-neg-bg: #ffedea;
+  --c-pill-neg-fg: #831c1e;
+  --c-pill-warn-bg: #fffbeb;
+  --c-pill-warn-fg: #92400e;
+  --c-pill-neutral-bg: #e9e9e8;
+  --c-pill-neutral-fg: #353736;
+
+  --background: var(--c-ground);
+  --foreground: var(--c-text);
+  --card: var(--c-surface);
+  --card-foreground: var(--c-text);
+  --popover: var(--c-surface);
+  --popover-foreground: var(--c-text);
+  --primary: var(--c-brand-fill);
+  --primary-foreground: #000000;
+  --secondary: var(--c-raised);
+  --secondary-foreground: var(--c-text);
+  --muted: var(--c-raised);
+  --muted-foreground: var(--c-muted);
+  --accent: var(--c-active);
+  --accent-foreground: var(--c-text);
+  --destructive: var(--c-negative);
+  --border: var(--c-border);
+  --input: var(--c-control);
+  --ring: var(--c-accent);
+  --chart-1: var(--c-brand-fill);
+  --chart-2: var(--c-go);
+  --chart-3: var(--c-atencao);
+  --chart-4: var(--c-nogo);
+  --chart-5: var(--c-control);
+  --radius: 0.5rem;
+  --sidebar: var(--c-ground);
+  --sidebar-foreground: var(--c-text);
+  --sidebar-primary: var(--c-brand-fill);
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: var(--c-active);
+  --sidebar-accent-foreground: var(--c-text);
+  --sidebar-border: var(--c-border);
+  --sidebar-ring: var(--c-accent);
+}
+
+.dark {
+  /* tema escuro (padrão) */
+  --c-ground: #000000;
+  --c-surface: #0d0d0d;
+  --c-raised: #161616;
+  --c-active: #1f1f1f;
+  --c-border: #232323;
+  --c-rule: #181818;
+  --c-control: #3a3a3a;
+  --c-text: #f5f5f5;
+  --c-muted: #a3a3a3;
+  --c-faint: #8a8a8a;
+  --c-accent: #f57e11;
+  --c-brand-fill: #f57e11;
+  --c-positive: #34d399;
+  --c-negative: #f87171;
+  --c-warning: #fbbf24;
+  --c-pill-pos-bg: #0f2a1f;
+  --c-pill-pos-fg: #34d399;
+  --c-pill-neg-bg: #2a1315;
+  --c-pill-neg-fg: #f87171;
+  --c-pill-warn-bg: #2a2008;
+  --c-pill-warn-fg: #fbbf24;
+  --c-pill-neutral-bg: #1f1f1f;
+  --c-pill-neutral-fg: #d4d4d4;
+}
+
+/* Preenchimento de marca: laranja puro nos dois temas (o texto de marca muda no claro). */
+:root:not(.dark) .bg-brand {
+  background-color: var(--c-brand-fill);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    background-color: var(--c-ground);
+  }
+  body {
+    @apply bg-ground text-ink text-sm;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+/* Entrada dos cards e enchimento do termômetro: só transform e opacity, só CSS.
+   Sem animação, o conteúdo já está no estado final e visível. */
+@keyframes card-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes termo-enche {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(var(--r));
+  }
+}
+
+.card-entrada {
+  animation: card-entrada 420ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 11) * 40ms);
+}
+
+.termo-enche {
+  transform: scaleX(var(--r));
+  transform-origin: left center;
+  animation: termo-enche 500ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 11) * 40ms + 420ms + var(--s, 0) * 70ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-entrada,
+  .termo-enche {
+    animation: none;
+  }
+}
+
+.sem-barra {
+  scrollbar-width: none;
+}
+.sem-barra::-webkit-scrollbar {
+  display: none;
+}
+
+/* Impressão de propostas: some a casca do app e o documento sai em A4, preto no branco. */
+@page {
+  size: A4;
+  margin: 20mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  aside,
+  header.fixed,
+  nav[aria-label="Principal"],
+  .nao-imprimir {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .previa-escala {
+    transform: none !important;
+    height: auto !important;
+    width: auto !important;
+  }
+  .previa-moldura {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .doc-folha {
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+}

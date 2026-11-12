@@ -1,0 +1,94 @@
+import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
+import { connection } from "next/server";
+import { AvisoFalha } from "@/components/licitacao/aviso-falha";
+import { ArquivosCompra } from "@/components/licitacao/arquivos-compra";
+import { BarraAcoes } from "@/components/licitacao/barra-acoes";
+import { CabecalhoLicitacao } from "@/components/licitacao/cabecalho";
+import { gerarSinais, linhaIdentificacao, montarOportunidade } from "@/components/licitacao/dominio";
+import { ItensCompra } from "@/components/licitacao/itens-compra";
+import { ChipsSecoes, IndiceSecoes } from "@/components/licitacao/navegacao-secoes";
+import { NotaCriterios } from "@/components/licitacao/nota-criterios";
+import { Resumo } from "@/components/licitacao/resumo";
+import { Sinais } from "@/components/licitacao/sinais";
+import { TextoEdital } from "@/components/licitacao/texto-edital";
+import { buscarDetalheCompra } from "@/core/pncp/detalhe";
+import { resumirObjeto } from "@/core/objeto";
+import { calcularScore } from "@/core/score";
+import type { OportunidadeComScore } from "@/core/types";
+import { idsNoPipeline } from "@/db/pipeline";
+import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
+
+interface Props {
+  params: Promise<{ cnpj: string; ano: string; sequencial: string }>;
+}
+
+/** Instante do pedido; o cliente parte dele para evitar divergência na hidratação. */
+function momento(): number {
+  return Date.now();
+}
+
+export default async function LicitacaoPage({ params }: Props) {
+  await connection();
+  const { cnpj, ano, sequencial } = await params;
+  if (!/^\d{14}$/.test(cnpj) || !/^\d{4}$/.test(ano) || !/^\d{1,9}$/.test(sequencial)) notFound();
+
+  const jar = await cookies();
+  const frente = lerFrente(jar.get(COOKIE_FRENTE)?.value);
+
+  const [detalhe, salvos] = await Promise.all([
+    buscarDetalheCompra({ cnpj, ano: Number(ano), sequencial: Number(sequencial) }),
+    idsNoPipeline().catch((): Set<string> => new Set()),
+  ]);
+  if (detalhe === null) notFound();
+
+  const agora = momento();
+  const base = montarOportunidade(detalhe);
+  const score = base ? calcularScore(base, frente, new Date(agora)) : null;
+  const oportunidade: OportunidadeComScore | null = base && score ? { ...base, score } : null;
+  const sinais = gerarSinais(detalhe, frente, agora);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-6 pb-20 lg:pb-0">
+      <CabecalhoLicitacao
+        titulo={resumirObjeto(detalhe.objeto) || "Contratação sem objeto informado"}
+        identificacao={linhaIdentificacao(detalhe)}
+        score={score}
+        valorEstimado={detalhe.valorEstimado}
+        dataEncerramento={detalhe.dataEncerramento}
+        agoraInicial={agora}
+      />
+
+      <BarraAcoes
+        chave={detalhe.chave}
+        numeroControle={detalhe.numeroControle}
+        linkPncp={detalhe.linkPncp}
+        linkOrigem={detalhe.linkOrigem}
+        oportunidade={oportunidade}
+        salvo={salvos.has(detalhe.numeroControle)}
+      />
+
+      <ChipsSecoes />
+
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_160px] xl:gap-10">
+        <div className="flex min-w-0 flex-col gap-8">
+          <Resumo d={detalhe} />
+          <Sinais sinais={sinais} />
+          <ItensCompra
+            itens={detalhe.itens}
+            totalItens={detalhe.totalItens}
+            linkPncp={detalhe.linkPncp}
+            aviso={detalhe.falhas.includes("itens") ? <AvisoFalha texto="Os itens não carregaram agora." /> : null}
+          />
+          <ArquivosCompra
+            arquivos={detalhe.arquivos}
+            aviso={detalhe.falhas.includes("arquivos") ? <AvisoFalha texto="Os arquivos não carregaram agora." /> : null}
+          />
+          <TextoEdital objeto={detalhe.objeto} informacaoComplementar={detalhe.informacaoComplementar} />
+          <NotaCriterios score={score} />
+        </div>
+        <IndiceSecoes />
+      </div>
+    </div>
+  );
+}
