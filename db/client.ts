@@ -50,9 +50,33 @@ function obter(): postgres.Sql {
   return criado;
 }
 
+/** Consulta sem resposta por mais que isso: a conexão travou (socket morto ou protocolo pela metade). */
+const LIMITE_CONSULTA_MS = 25_000;
+
+/** Descarta a conexão travada; as consultas pendentes falham e a próxima abre outra. */
+function descartar(alvo: postgres.Sql): void {
+  if (globalThis.__foxSql === alvo) globalThis.__foxSql = undefined;
+  console.error("[db] consulta sem resposta; conexão recriada");
+  alvo.end({ timeout: 0 }).catch(() => undefined);
+}
+
+function vigiar(alvo: postgres.Sql, consulta: unknown): unknown {
+  if (typeof consulta !== "object" || consulta === null || typeof (consulta as PromiseLike<unknown>).then !== "function") {
+    return consulta;
+  }
+  const timer = setTimeout(() => descartar(alvo), LIMITE_CONSULTA_MS);
+  timer.unref?.();
+  (consulta as PromiseLike<unknown>).then(
+    () => clearTimeout(timer),
+    () => clearTimeout(timer),
+  );
+  return consulta;
+}
+
 export const sql: postgres.Sql = new Proxy((() => undefined) as unknown as postgres.Sql, {
   apply(_alvo, esse, argumentos: unknown[]) {
-    return Reflect.apply(obter() as unknown as (...a: unknown[]) => unknown, esse, argumentos);
+    const real = obter();
+    return vigiar(real, Reflect.apply(real as unknown as (...a: unknown[]) => unknown, esse, argumentos));
   },
   get(_alvo, propriedade) {
     const real = obter();
