@@ -44,7 +44,12 @@ export class ErroAssistente extends Error {
 
 /** Há chave configurada? Sem ela, nenhuma parte do assistente aparece. */
 export function assistenteDisponivel(): boolean {
-  return (process.env.GEMINI_API_KEY ?? "").trim() !== "";
+  return chaveConfigurada() !== "";
+}
+
+/** Chave sem espaços nem aspas coladas por engano. */
+function chaveConfigurada(): string {
+  return (process.env.GEMINI_API_KEY ?? "").trim().replace(/^["']|["']$/g, "").trim();
 }
 
 export function nomeDoModelo(): string {
@@ -148,12 +153,31 @@ export function lerRespostaApi(corpo: unknown): { texto: string; finishReason: s
   return { texto, finishReason };
 }
 
-function erroDoStatus(status: number): ErroAssistente {
+/** Lê o motivo devolvido pela API (só o texto do erro, nunca o conteúdo enviado). */
+export function motivoDoErro(corpo: unknown): string {
+  if (typeof corpo !== "object" || corpo === null) return "";
+  const erro = (corpo as { error?: { message?: unknown; status?: unknown } }).error;
+  const partes = [erro?.status, erro?.message].filter((v): v is string => typeof v === "string");
+  return partes.join(": ").slice(0, 300);
+}
+
+export function erroDoStatus(status: number, motivo = ""): ErroAssistente {
+  if (/api[ _]?key/i.test(motivo)) {
+    return new ErroAssistente(
+      "chave-invalida",
+      "A chave do assistente foi recusada. Confira o valor de GEMINI_API_KEY na Vercel (sem aspas nem espaços) e faça um novo deploy.",
+      status,
+    );
+  }
+  if (status === 404 || /model/i.test(motivo)) {
+    return new ErroAssistente(
+      "modelo-indisponivel",
+      `O modelo configurado não está disponível para esta chave (${nomeDoModelo()}). Ajuste GEMINI_MODEL na Vercel.`,
+      status,
+    );
+  }
   if (status === 401 || status === 403) {
     return new ErroAssistente("chave-invalida", "O assistente não está autorizado. Avise quem cuida do painel.", status);
-  }
-  if (status === 404) {
-    return new ErroAssistente("modelo-indisponivel", "O assistente está indisponível no momento. Tente mais tarde.", status);
   }
   if (status === 429) {
     return new ErroAssistente("limite", "O assistente recebeu pedidos demais agora. Espere um pouco e tente de novo.", status);
@@ -174,7 +198,7 @@ function esperar(ms: number): Promise<void> {
 
 /** Uma chamada ao generateContent, com timeout de 60 s e 1 nova tentativa em 429, 5xx ou falha de rede. */
 async function chamar(pedido: PedidoApi, opcoes: OpcoesGemini): Promise<{ texto: string; finishReason: string | null }> {
-  const chave = (process.env.GEMINI_API_KEY ?? "").trim();
+  const chave = chaveConfigurada();
   if (chave === "") throw new ErroAssistente("sem-chave", "O assistente ainda não está ativado.");
   const fetchImpl = opcoes.fetchImpl ?? fetch;
   const espera = opcoes.esperaRetryMs ?? ESPERA_RETRY_MS;
@@ -208,8 +232,9 @@ async function chamar(pedido: PedidoApi, opcoes: OpcoesGemini): Promise<{ texto:
       continue;
     }
     if (!resposta.ok) {
-      console.error("[assistente] falha na API:", resposta.status);
-      throw erroDoStatus(resposta.status);
+      const motivo = motivoDoErro(await resposta.json().catch(() => null));
+      console.error("[assistente] falha na API:", resposta.status, motivo);
+      throw erroDoStatus(resposta.status, motivo);
     }
     let json: unknown;
     try {
