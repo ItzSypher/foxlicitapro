@@ -76,7 +76,11 @@ function vigiar(alvo: postgres.Sql, consulta: unknown): unknown {
 export const sql: postgres.Sql = new Proxy((() => undefined) as unknown as postgres.Sql, {
   apply(_alvo, esse, argumentos: unknown[]) {
     const real = obter();
-    return vigiar(real, Reflect.apply(real as unknown as (...a: unknown[]) => unknown, esse, argumentos));
+    const resultado = Reflect.apply(real as unknown as (...a: unknown[]) => unknown, esse, argumentos);
+    // Só consulta (template marcado) é vigiada; sql(lista) devolve um auxiliar que não pode receber then.
+    const primeiro = argumentos[0];
+    const ehConsulta = Array.isArray(primeiro) && Array.isArray((primeiro as unknown as TemplateStringsArray).raw);
+    return ehConsulta ? vigiar(real, resultado) : resultado;
   },
   get(_alvo, propriedade) {
     const real = obter();
