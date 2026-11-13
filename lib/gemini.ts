@@ -162,6 +162,13 @@ export function motivoDoErro(corpo: unknown): string {
 }
 
 export function erroDoStatus(status: number, motivo = ""): ErroAssistente {
+  if (/credit|billing|prepay/i.test(motivo)) {
+    return new ErroAssistente(
+      "indisponivel",
+      "Os créditos do assistente acabaram. Recarregue em AI Studio, na área de Billing do projeto, e tente de novo.",
+      status,
+    );
+  }
   if (/api[ _]?key/i.test(motivo)) {
     return new ErroAssistente(
       "chave-invalida",
