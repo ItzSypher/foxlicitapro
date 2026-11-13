@@ -16,7 +16,7 @@ import {
 } from "@/db/pipeline";
 import { lerUsuario } from "@/db/usuarios";
 import { avisarResponsavel } from "@/lib/avisos";
-import { lerSessao } from "@/lib/sessao";
+import { lerSessao, verificarPermissao } from "@/lib/sessao";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ComentarioPipeline, Sessao } from "@/core/types-equipe";
 import type { EtapaId, ResultadoAcao } from "@/components/pipeline/tipos";
@@ -51,8 +51,9 @@ async function executar(
 }
 
 export async function salvarNoPipeline(item: OportunidadeComScore): Promise<ResultadoAcao> {
-  const sessao = await lerSessao();
-  if (!sessao) return { ok: false, erro: SEM_SESSAO };
+  const v = await verificarPermissao("mover_pipeline");
+  if (!v.ok) return { ok: false, erro: v.erro };
+  const sessao = v.sessao;
   const lido = oportunidadeComScoreSchema.safeParse(item);
   if (!lido.success) return { ok: false, erro: ERRO_DADOS };
   return executar(
@@ -66,8 +67,9 @@ export async function salvarNoPipeline(item: OportunidadeComScore): Promise<Resu
 }
 
 export async function moverEtapa(id: string, etapa: EtapaId): Promise<ResultadoAcao> {
-  const sessao = await lerSessao();
-  if (!sessao) return { ok: false, erro: SEM_SESSAO };
+  const v = await verificarPermissao("mover_pipeline");
+  if (!v.ok) return { ok: false, erro: v.erro };
+  const sessao = v.sessao;
   const i = idSchema.safeParse(id);
   const e = etapaSchema.safeParse(etapa);
   if (!i.success || !e.success) return { ok: false, erro: ERRO_DADOS };
@@ -79,7 +81,8 @@ export async function moverEtapa(id: string, etapa: EtapaId): Promise<ResultadoA
 }
 
 export async function removerDoPipeline(id: string): Promise<ResultadoAcao> {
-  if (!(await lerSessao())) return { ok: false, erro: SEM_SESSAO };
+  const v = await verificarPermissao("mover_pipeline");
+  if (!v.ok) return { ok: false, erro: v.erro };
   const i = idSchema.safeParse(id);
   if (!i.success) return { ok: false, erro: ERRO_DADOS };
   return executar(
@@ -90,7 +93,8 @@ export async function removerDoPipeline(id: string): Promise<ResultadoAcao> {
 }
 
 export async function salvarNotas(id: string, notas: string): Promise<ResultadoAcao> {
-  if (!(await lerSessao())) return { ok: false, erro: SEM_SESSAO };
+  const v = await verificarPermissao("mover_pipeline");
+  if (!v.ok) return { ok: false, erro: v.erro };
   const i = idSchema.safeParse(id);
   const n = notasSchema.safeParse(notas);
   if (!i.success || !n.success) return { ok: false, erro: ERRO_DADOS };
@@ -103,8 +107,9 @@ export async function salvarNotas(id: string, notas: string): Promise<ResultadoA
 
 /** `responsavelId` null tira o responsável. Quem recebe o item (e não é quem atribuiu) ganha um e-mail. */
 export async function definirResponsavelAction(id: string, responsavelId: string | null): Promise<ResultadoAcao> {
-  const sessao: Sessao | null = await lerSessao();
-  if (!sessao) return { ok: false, erro: SEM_SESSAO };
+  const v = await verificarPermissao("mover_pipeline");
+  if (!v.ok) return { ok: false, erro: v.erro };
+  const sessao: Sessao = v.sessao;
   const i = idSchema.safeParse(id);
   const r = z.uuid().nullable().safeParse(responsavelId);
   if (!i.success || !r.success) return { ok: false, erro: ERRO_DADOS };

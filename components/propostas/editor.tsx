@@ -51,6 +51,15 @@ export interface PropostaParaEditor {
   analise: AnaliseAssistente | null;
 }
 
+export interface AcessosProposta {
+  /** Criar, editar, enviar, duplicar e excluir */
+  editar: boolean;
+  /** Aprovar e voltar para rascunho */
+  aprovar: boolean;
+  /** Devolver com nota */
+  devolver: boolean;
+}
+
 interface Props {
   proposta: PropostaParaEditor;
   /** Quem está olhando a proposta */
@@ -59,6 +68,8 @@ interface Props {
   referencias: Record<number, number>;
   cotacao: { precoMinimo: number; precoAlvo: number } | null;
   avisoSemItens: boolean;
+  /** O que esta pessoa pode fazer; o servidor confere de novo em cada ação */
+  acessos: AcessosProposta;
 }
 
 type EstadoSalvo =
@@ -96,7 +107,7 @@ function aplicarPadroes(f: Formulario, novo: ModeloId): Formulario {
   };
 }
 
-export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens }: Props) {
+export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens, acessos }: Props) {
   const [form, setForm] = useState<Formulario>(() =>
     dadosParaFormulario(proposta.titulo, proposta.modelo, proposta.dados, referencias),
   );
@@ -106,7 +117,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
     revisaoNota: proposta.revisaoNota,
     revisadoEm: proposta.revisadoEm,
   });
-  const somenteLeitura = !podeEditar(status);
+  const somenteLeitura = !podeEditar(status) || !acessos.editar;
   const [link, setLink] = useState<LinkPublico | null>(proposta.link);
   const [salvo, setSalvo] = useState<EstadoSalvo>({ tipo: "parado" });
   const [aba, setAba] = useState<"editar" | "previa">("editar");
@@ -281,22 +292,26 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
             <Download aria-hidden className="size-4" />
             Baixar PDF
           </button>
-          <button type="button" onClick={() => setEnviarAberto(true)} className={BOTAO_SECUNDARIO}>
-            <Send aria-hidden className="size-4" />
-            Enviar
-          </button>
-          <button type="button" onClick={duplicar} disabled={pendente} className={BOTAO_SECUNDARIO}>
-            <Copy aria-hidden className="size-4" />
-            Duplicar
-          </button>
-          <button
-            type="button"
-            onClick={() => setExcluirAberto(true)}
-            className={cn(BOTAO_SECUNDARIO, "text-negative")}
-          >
-            <Trash2 aria-hidden className="size-4" />
-            Excluir
-          </button>
+          {acessos.editar ? (
+            <>
+              <button type="button" onClick={() => setEnviarAberto(true)} className={BOTAO_SECUNDARIO}>
+                <Send aria-hidden className="size-4" />
+                Enviar
+              </button>
+              <button type="button" onClick={duplicar} disabled={pendente} className={BOTAO_SECUNDARIO}>
+                <Copy aria-hidden className="size-4" />
+                Duplicar
+              </button>
+              <button
+                type="button"
+                onClick={() => setExcluirAberto(true)}
+                className={cn(BOTAO_SECUNDARIO, "text-negative")}
+              >
+                <Trash2 aria-hidden className="size-4" />
+                Excluir
+              </button>
+            </>
+          ) : null}
         </div>
         <p className="text-[13px] text-muted-foreground">No diálogo de impressão, escolha Salvar como PDF.</p>
         {mensagem && (
@@ -317,6 +332,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
           autor={proposta.autor}
           criadoPor={proposta.criadoPor}
           usuarioId={usuarioId}
+          acessos={acessos}
           pendencias={pendencias.length}
           pendente={pendente}
           aoAgir={agir}

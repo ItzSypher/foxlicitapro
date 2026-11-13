@@ -1,5 +1,6 @@
 import { randomBytes, randomInt, scrypt, timingSafeEqual, createHash } from "node:crypto";
-import type { Papel, Sessao } from "@/core/types-equipe";
+import { ehPapel } from "@/core/permissoes";
+import type { SessaoToken } from "@/core/types-equipe";
 
 /**
  * Senha por usuário (scrypt) e sessão assinada com HMAC-SHA256 (Web Crypto).
@@ -121,11 +122,7 @@ function iguaisEmTempoConstante(a: Uint8Array, b: Uint8Array): boolean {
   return diferenca === 0;
 }
 
-function ehPapel(valor: unknown): valor is Papel {
-  return valor === "dono" || valor === "gestor";
-}
-
-export async function criarToken(segredo: string, sessao: Sessao, agora: number = Date.now()): Promise<string> {
+export async function criarToken(segredo: string, sessao: SessaoToken, agora: number = Date.now()): Promise<string> {
   const carga = paraBase64Url(
     encoder.encode(
       JSON.stringify({ u: sessao.usuarioId, p: sessao.papel, n: sessao.nome, e: agora + DURACAO_SESSAO_SEGUNDOS * 1000 }),
@@ -139,7 +136,7 @@ export async function lerToken(
   token: string | undefined,
   segredo: string | undefined,
   agora: number = Date.now(),
-): Promise<Sessao | null> {
+): Promise<SessaoToken | null> {
   if (!token || !segredo) return null;
   const partes = token.split(".");
   if (partes.length !== 2) return null;

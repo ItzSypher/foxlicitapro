@@ -1,5 +1,6 @@
 import "server-only";
 import { sql } from "@/db/client";
+import { LIMITE_ASSISTENTE_PADRAO, ehPapel, normalizarPermissoes, permissoesPadrao, type Permissao } from "@/core/permissoes";
 import type { Papel, Usuario } from "@/core/types-equipe";
 
 const FORMATO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -11,6 +12,8 @@ interface LinhaUsuario {
   email: string;
   papel: string;
   ativo: boolean;
+  permissoes: string[];
+  limite_propostas_assistente_dia: number;
 }
 
 export class EmailJaCadastrado extends Error {
@@ -24,13 +27,17 @@ export function normalizarEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function ehPapel(valor: string): valor is Papel {
-  return valor === "dono" || valor === "gestor";
-}
-
 function converter(l: LinhaUsuario): Usuario | null {
   if (!ehPapel(l.papel)) return null;
-  return { id: l.id, nome: l.nome, email: l.email, papel: l.papel, ativo: l.ativo };
+  return {
+    id: l.id,
+    nome: l.nome,
+    email: l.email,
+    papel: l.papel,
+    ativo: l.ativo,
+    permissoes: normalizarPermissoes(l.permissoes),
+    limitePropostasAssistenteDia: l.limite_propostas_assistente_dia,
+  };
 }
 
 function somenteValidos(linhas: LinhaUsuario[]): Usuario[] {
@@ -50,7 +57,7 @@ export async function contarUsuarios(): Promise<number> {
 /** Ativos primeiro, dono antes do gestor, depois por nome. */
 export async function listarUsuarios(): Promise<Usuario[]> {
   const linhas = await sql<LinhaUsuario[]>`
-    select id, nome, email, papel, ativo from usuarios
+    select id, nome, email, papel, ativo, permissoes, limite_propostas_assistente_dia from usuarios
     order by ativo desc, (papel = 'dono') desc, lower(nome) asc
   `;
   return somenteValidos(linhas);
@@ -58,7 +65,7 @@ export async function listarUsuarios(): Promise<Usuario[]> {
 
 export async function listarUsuariosAtivos(): Promise<Usuario[]> {
   const linhas = await sql<LinhaUsuario[]>`
-    select id, nome, email, papel, ativo from usuarios
+    select id, nome, email, papel, ativo, permissoes, limite_propostas_assistente_dia from usuarios
     where ativo order by (papel = 'dono') desc, lower(nome) asc
   `;
   return somenteValidos(linhas);
@@ -67,7 +74,7 @@ export async function listarUsuariosAtivos(): Promise<Usuario[]> {
 export async function lerUsuario(id: string): Promise<Usuario | null> {
   if (!FORMATO_ID.test(id)) return null;
   const linhas = await sql<LinhaUsuario[]>`
-    select id, nome, email, papel, ativo from usuarios where id = ${id} limit 1
+    select id, nome, email, papel, ativo, permissoes, limite_propostas_assistente_dia from usuarios where id = ${id} limit 1
   `;
   const linha = linhas[0];
   return linha ? converter(linha) : null;
@@ -76,7 +83,7 @@ export async function lerUsuario(id: string): Promise<Usuario | null> {
 /** Para o login: o usuário e o hash da senha, ou null se o e-mail não existe. */
 export async function lerCredenciais(email: string): Promise<{ usuario: Usuario; senhaHash: string } | null> {
   const linhas = await sql<(LinhaUsuario & { senha_hash: string })[]>`
-    select id, nome, email, papel, ativo, senha_hash from usuarios
+    select id, nome, email, papel, ativo, permissoes, limite_propostas_assistente_dia, senha_hash from usuarios
     where email = ${normalizarEmail(email)} limit 1
   `;
   const linha = linhas[0];
@@ -96,12 +103,18 @@ export async function criarUsuario(dados: {
   email: string;
   papel: Papel;
   senhaHash: string;
+  /** Sem informar, vale o padrão do papel */
+  permissoes?: Permissao[];
+  limitePropostasAssistenteDia?: number;
 }): Promise<Usuario> {
+  const permissoes = normalizarPermissoes(dados.permissoes ?? permissoesPadrao(dados.papel));
+  const limite = dados.limitePropostasAssistenteDia ?? LIMITE_ASSISTENTE_PADRAO;
   try {
     const linhas = await sql<LinhaUsuario[]>`
-      insert into usuarios (nome, email, senha_hash, papel)
-      values (${dados.nome.trim()}, ${normalizarEmail(dados.email)}, ${dados.senhaHash}, ${dados.papel})
-      returning id, nome, email, papel, ativo
+      insert into usuarios (nome, email, senha_hash, papel, permissoes, limite_propostas_assistente_dia)
+      values (${dados.nome.trim()}, ${normalizarEmail(dados.email)}, ${dados.senhaHash}, ${dados.papel},
+              ${permissoes}::text[], ${limite})
+      returning id, nome, email, papel, ativo, permissoes, limite_propostas_assistente_dia
     `;
     const usuario = linhas[0] ? converter(linhas[0]) : null;
     if (!usuario) throw new Error("O usuário não foi gravado");
@@ -122,9 +135,30 @@ export async function criarDonoInicial(dados: {
     insert into usuarios (nome, email, senha_hash, papel)
     select ${dados.nome}, ${normalizarEmail(dados.email)}, ${dados.senhaHash}, 'dono'
     where not exists (select 1 from usuarios)
-    returning id, nome, email, papel, ativo
+    returning id, nome, email, papel, ativo, permissoes, limite_propostas_assistente_dia
   `;
   return linhas[0] ? converter(linhas[0]) : null;
+}
+
+/** Troca papel, permissões e limite. Nunca deixa o sistema sem um dono ativo. */
+export async function atualizarAcessos(
+  id: string,
+  dados: { papel: Papel; permissoes: Permissao[]; limitePropostasAssistenteDia: number },
+): Promise<boolean> {
+  if (!FORMATO_ID.test(id)) return false;
+  const permissoes = normalizarPermissoes(dados.permissoes);
+  const r = await sql`
+    update usuarios
+       set papel = ${dados.papel}, permissoes = ${permissoes}::text[], limite_propostas_assistente_dia = ${dados.limitePropostasAssistenteDia}
+     where id = ${id}
+       and (
+         ${dados.papel === "dono"}
+         or papel <> 'dono'
+         or not ativo
+         or exists (select 1 from usuarios outro where outro.papel = 'dono' and outro.ativo and outro.id <> ${id})
+       )
+  `;
+  return r.count > 0;
 }
 
 export async function definirSenhaUsuario(id: string, senhaHash: string): Promise<boolean> {

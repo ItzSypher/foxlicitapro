@@ -6,7 +6,7 @@ import { registrarMensagem } from "@/lib/assistente/limite";
 import { interpretarRota } from "@/lib/assistente/rota";
 import { ErroAssistente, assistenteDisponivel, gerarTexto } from "@/lib/gemini";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
-import { lerSessao } from "@/lib/sessao";
+import { verificarPermissao } from "@/lib/sessao";
 
 export const maxDuration = 120;
 
@@ -24,8 +24,9 @@ function erro(mensagem: string, status: number) {
 
 /** Chat do assistente: histórico só no cliente; o contexto da página é montado aqui, no servidor. */
 export async function POST(request: Request) {
-  const sessao = await lerSessao();
-  if (!sessao) return erro("Sessão necessária.", 401);
+  const acesso = await verificarPermissao("usar_assistente");
+  if (!acesso.ok) return erro(acesso.erro, acesso.semSessao ? 401 : 403);
+  const sessao = acesso.sessao;
   if (!assistenteDisponivel()) return erro("O assistente ainda não está ativado.", 503);
 
   let corpo: unknown;

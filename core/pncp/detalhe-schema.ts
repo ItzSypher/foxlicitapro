@@ -35,6 +35,7 @@ export const compraSchema = z.object({
   valorTotalHomologado: numero,
   /** 1 = compra sem sigilo; 3 = totalmente sigilosa */
   orcamentoSigilosoCodigo: numero,
+  dataInclusao: texto,
   dataPublicacaoPncp: texto,
   dataAberturaProposta: texto,
   dataEncerramentoProposta: texto,

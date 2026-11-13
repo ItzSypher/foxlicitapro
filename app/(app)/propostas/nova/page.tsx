@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { temPermissao } from "@/core/permissoes";
 import { lerSessao } from "@/lib/sessao";
 import { EscolhaModelo } from "@/components/propostas/escolha-modelo";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
@@ -23,6 +24,8 @@ function primeiro(valor: string | string[] | undefined): string {
 
 export default async function NovaPropostaPage({ searchParams }: Props) {
   await connection();
+  const permitida = await lerSessao();
+  if (!permitida || !temPermissao(permitida, "editar_propostas")) redirect("/propostas");
   const params = await searchParams;
   const compra = primeiro(params.compra);
   const modeloPedido = primeiro(params.modelo);

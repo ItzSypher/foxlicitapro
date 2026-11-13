@@ -187,6 +187,16 @@ export async function propostaRecenteDoAssistente(compraId: string, minutos: num
   return linhas[0]?.id ?? null;
 }
 
+/** Propostas que o assistente criou para a pessoa no intervalo [de, ate). */
+export async function contarPropostasDoAssistente(usuarioId: string, de: Date, ate: Date): Promise<number> {
+  const [linha] = await sql<{ total: number }[]>`
+    select count(*)::int as total from propostas
+    where autor = 'assistente' and criado_por = ${usuarioId}
+      and criado_em >= ${de} and criado_em < ${ate}
+  `;
+  return linha?.total ?? 0;
+}
+
 export async function atualizarProposta(
   id: string,
   mudanca: { titulo: string; modelo: ModeloId; dados: DadosProposta; totalCentavos: number },

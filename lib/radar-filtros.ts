@@ -1,4 +1,5 @@
 import type { Faixa, ModalidadeId, OportunidadeComScore, Regiao } from "@/core/types";
+import { normalizarTexto } from "@/core/cnae-keywords";
 
 export type FiltroRegiao = "todo" | "nova-iguacu" | "baixada" | "capital";
 export type FiltroModalidade = "todas" | "dispensa" | "pregao";
@@ -231,4 +232,60 @@ export function fraseVazio(filtros: Filtros): string {
     capital: "na capital do Rio de Janeiro",
   };
   return `Nenhuma ${tipo} ${local[filtros.regiao]} hoje.`;
+}
+
+/** Busca por texto e palavras-chave do Radar. */
+export interface FiltroTexto {
+  /** Texto digitado; todas as palavras precisam aparecer (objeto, órgão, unidade ou município) */
+  busca: string;
+  /** Palavras-chave marcadas; basta uma aparecer (OU). Combina com a busca (E). */
+  palavras: ReadonlyArray<string>;
+}
+
+export const MAX_BUSCA = 100;
+export const MAX_PALAVRAS_SELECIONADAS = 20;
+
+/** Sem acento, sem caixa, só letras e dígitos separados por um espaço. */
+export function normalizarBusca(texto: string): string {
+  return normalizarTexto(texto.slice(0, 400));
+}
+
+/** Texto da busca pedido em ?q= (aparado e limitado). */
+export function lerBusca(params: { get(nome: string): string | null }): string {
+  return (params.get("q") ?? "").slice(0, MAX_BUSCA).trim();
+}
+
+/** Palavras-chave marcadas em ?pc= (separadas por vírgula), normalizadas e sem repetir. */
+export function lerPalavras(params: { get(nome: string): string | null }): string[] {
+  const vistos = new Set<string>();
+  for (const parte of (params.get("pc") ?? "").split(",")) {
+    const termo = normalizarBusca(parte);
+    if (termo !== "") vistos.add(termo);
+    if (vistos.size >= MAX_PALAVRAS_SELECIONADAS) break;
+  }
+  return [...vistos];
+}
+
+export function textoDaOportunidade(item: OportunidadeComScore): string {
+  return normalizarBusca(`${item.objeto} ${item.orgao} ${item.unidade} ${item.municipio}`);
+}
+
+export function temFiltroTexto(filtro: FiltroTexto): boolean {
+  return normalizarBusca(filtro.busca) !== "" || filtro.palavras.length > 0;
+}
+
+/** Aplica a busca (todas as palavras digitadas) e as palavras-chave (qualquer uma). Sem nada marcado, devolve a lista inteira. */
+export function filtrarPorTexto(
+  lista: ReadonlyArray<OportunidadeComScore>,
+  filtro: FiltroTexto,
+): OportunidadeComScore[] {
+  const palavrasDaBusca = normalizarBusca(filtro.busca).split(" ").filter((p) => p !== "");
+  const termos = filtro.palavras.map(normalizarBusca).filter((t) => t !== "");
+  if (palavrasDaBusca.length === 0 && termos.length === 0) return [...lista];
+  return lista.filter((item) => {
+    const texto = ` ${textoDaOportunidade(item)} `;
+    const buscaOk = palavrasDaBusca.every((p) => texto.includes(p));
+    const palavrasOk = termos.length === 0 || termos.some((t) => texto.includes(t));
+    return buscaOk && palavrasOk;
+  });
 }

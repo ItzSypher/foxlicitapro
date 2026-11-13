@@ -6,71 +6,28 @@ import { montarDadosIniciais, referenciasDoDetalhe, textoChaveCompra, totalPropo
 import { frentePredominante, sugerirModelo } from "@/core/proposta-modelos";
 import type { ChaveCompra, DetalheCompra } from "@/core/types-detalhe";
 import type { AnaliseAssistente, Sessao } from "@/core/types-equipe";
+import { mensagemLimiteAtingido, podeMontar } from "@/core/limite-diario";
 import { criarProposta, propostaRecenteDoAssistente } from "@/db/propostas";
 import { avisarPropostaEmRevisao } from "@/lib/avisos";
 import { ErroAssistente, assistenteDisponivel, gerarJson, nomeDoModelo, type ParteEntrada } from "@/lib/gemini";
 import {
   ESQUEMA_JSON_ANALISE,
   aplicarSugestoes,
-  escolherArquivoPrincipal,
   esquemaSaidaAnalise,
-  parecePdf,
   type SaidaAnalise,
 } from "./analise";
+import { restantesHoje } from "./cota";
+import { baixarPdfPrincipal } from "./edital-pdf";
 import { SISTEMA_PROPOSTA, textoPedidoProposta } from "./prompt";
 
 export type ResultadoMontagem = { ok: true; propostaId: string } | { ok: false; erro: string };
 
 /** Proposta do assistente criada há menos que isso para a mesma compra é devolvida em vez de duplicada. */
 const JANELA_DUPLICIDADE_MIN = 10;
-const MAX_PDF_BYTES = 15 * 1024 * 1024;
-const TIMEOUT_DOWNLOAD_MS = 25_000;
 const MAX_TOKENS_ANALISE = 16_000;
 
 /** Gerações em andamento nesta instância, por compra: cliques repetidos recebem a mesma resposta. */
 const emAndamento = new Map<string, Promise<ResultadoMontagem>>();
-
-/** Lê o corpo até o limite; passou dele, cancela a leitura e devolve null. */
-async function lerComLimite(resposta: Response, limite: number): Promise<Uint8Array | null> {
-  if (!resposta.body) return null;
-  const leitor = resposta.body.getReader();
-  const pedacos: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await leitor.read();
-    if (done) break;
-    total += value.length;
-    if (total > limite) {
-      await leitor.cancel().catch(() => undefined);
-      return null;
-    }
-    pedacos.push(value);
-  }
-  const inteiro = new Uint8Array(total);
-  let posicao = 0;
-  for (const p of pedacos) {
-    inteiro.set(p, posicao);
-    posicao += p.length;
-  }
-  return inteiro;
-}
-
-/** Baixa o PDF principal em base64; null quando é grande demais, não é PDF ou a baixa falha. */
-async function baixarPdfPrincipal(detalhe: DetalheCompra): Promise<string | null> {
-  const arquivo = escolherArquivoPrincipal(detalhe.arquivos);
-  if (!arquivo || !arquivo.url.startsWith("https://")) return null;
-  try {
-    const resposta = await fetch(arquivo.url, { signal: AbortSignal.timeout(TIMEOUT_DOWNLOAD_MS), cache: "no-store" });
-    if (!resposta.ok) return null;
-    const declarado = Number(resposta.headers.get("content-length"));
-    if (Number.isFinite(declarado) && declarado > MAX_PDF_BYTES) return null;
-    const bytes = await lerComLimite(resposta, MAX_PDF_BYTES);
-    if (bytes === null || !parecePdf(bytes)) return null;
-    return Buffer.from(bytes).toString("base64");
-  } catch {
-    return null;
-  }
-}
 
 function frenteProvavel(detalhe: DetalheCompra) {
   const casados = casarCnaes(detalhe.objeto);
@@ -91,6 +48,13 @@ async function executar(chave: ChaveCompra, sessao: Sessao): Promise<ResultadoMo
   const compraId = detalhe.numeroControle;
   const recente = await propostaRecenteDoAssistente(compraId, JANELA_DUPLICIDADE_MIN).catch(() => null);
   if (recente !== null) return { ok: true, propostaId: recente };
+
+  try {
+    const cota = await restantesHoje(sessao.usuarioId);
+    if (!podeMontar(cota) && !cota.ilimitada) return { ok: false, erro: mensagemLimiteAtingido(cota.limite) };
+  } catch {
+    return { ok: false, erro: "Não foi possível conferir o limite diário agora. Tente de novo." };
+  }
 
   const pdf = await baixarPdfPrincipal(detalhe);
   const modeloSugerido = sugerirModelo(detalhe, frenteProvavel(detalhe));

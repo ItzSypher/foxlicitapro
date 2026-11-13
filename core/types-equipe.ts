@@ -1,6 +1,8 @@
 /** Contrato de equipe, revisão de propostas, preferências e assistente. */
 
-export type Papel = "dono" | "gestor";
+import type { Permissao } from "@/core/permissoes";
+
+export type Papel = "dono" | "gestor" | "juridico";
 
 export interface Usuario {
   id: string;
@@ -8,13 +10,21 @@ export interface Usuario {
   email: string;
   papel: Papel;
   ativo: boolean;
+  permissoes: Permissao[];
+  /** Propostas por dia que a pessoa pode montar com o assistente (o dono não tem limite) */
+  limitePropostasAssistenteDia: number;
 }
 
-/** Quem está logado; vem da sessão assinada. */
-export interface Sessao {
+/** O que vai assinado no cookie: identidade e papel. As permissões vêm do banco a cada pedido. */
+export interface SessaoToken {
   usuarioId: string;
   nome: string;
   papel: Papel;
+}
+
+/** Quem está logado. */
+export interface Sessao extends SessaoToken {
+  permissoes: Permissao[];
 }
 
 export type StatusPropostaEquipe = "rascunho" | "em_revisao" | "aprovada" | "devolvida" | "pronta" | "enviada";

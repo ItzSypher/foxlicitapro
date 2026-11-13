@@ -52,6 +52,7 @@ function detalhe(parcial: Partial<DetalheCompra>): DetalheCompra {
     codigoIbge: "3303500",
     valorEstimado: null,
     valorHomologado: null,
+    dataInclusao: null,
     dataPublicacao: null,
     dataAbertura: null,
     dataEncerramento: null,

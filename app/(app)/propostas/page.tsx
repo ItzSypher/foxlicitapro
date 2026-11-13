@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { BotaoNovaProposta, ListaPropostas } from "@/components/propostas/lista-propostas";
 import { listarPropostas, type ResumoProposta } from "@/db/propostas";
+import { podeAgirNaRevisao } from "@/core/permissoes";
 import { exigirSessao } from "@/lib/sessao";
 
 export const metadata = { title: "Propostas · FoxLicita Pro" };
@@ -23,7 +24,7 @@ export default async function PropostasPage() {
           <h1 className="text-[22px] font-semibold leading-tight text-ink">Propostas</h1>
           <p className="text-sm text-muted-foreground">Edite, mande para revisão e envie depois de aprovada.</p>
         </div>
-        <BotaoNovaProposta />
+        {podeAgirNaRevisao(sessao, "enviar") ? <BotaoNovaProposta /> : null}
       </header>
       {propostas === null ? (
         <p role="alert" className="rounded-card border border-dashed border-control px-6 py-12 text-center text-sm text-ink">

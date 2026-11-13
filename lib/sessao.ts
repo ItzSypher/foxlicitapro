@@ -5,12 +5,14 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { COOKIE_SESSAO, DURACAO_SESSAO_SEGUNDOS, criarToken, lerToken } from "@/lib/auth";
 import { lerUsuario } from "@/db/usuarios";
-import type { Sessao } from "@/core/types-equipe";
+import { permissoesPadrao, temPermissao, type Permissao } from "@/core/permissoes";
+import type { Sessao, SessaoToken } from "@/core/types-equipe";
 
 /**
  * Sessão por usuário.
  * lerSessao: usuário logado ou null. exigirSessao: redireciona ao login sem sessão.
  * exigirDono: só o dono passa; gestor recebe erro de permissão.
+ * exigirPermissao / verificarPermissao: o dono passa sempre; os outros, só com a permissão marcada.
  * A assinatura do cookie vale 30 dias, mas pessoa desativada perde o acesso na hora (confere no banco).
  */
 const sessaoDoPedido = cache(async (): Promise<Sessao | null> => {
@@ -22,11 +24,11 @@ const sessaoDoPedido = cache(async (): Promise<Sessao | null> => {
   try {
     const usuario = await lerUsuario(sessao.usuarioId);
     if (!usuario || !usuario.ativo) return null;
-    return { usuarioId: usuario.id, nome: usuario.nome, papel: usuario.papel };
+    return { usuarioId: usuario.id, nome: usuario.nome, papel: usuario.papel, permissoes: usuario.permissoes };
   } catch (e) {
     // Banco fora do ar: mantém a sessão assinada para não prender ninguém num laço de login.
     console.error("[sessao] conferência no banco falhou:", e instanceof Error ? e.message : e);
-    return sessao;
+    return { ...sessao, permissoes: permissoesPadrao(sessao.papel) };
   }
 });
 
@@ -46,8 +48,34 @@ export async function exigirDono(): Promise<Sessao> {
   return sessao;
 }
 
+export const SEM_PERMISSAO = "Você não tem permissão para isso.";
+
+export class ErroPermissao extends Error {
+  constructor() {
+    super(SEM_PERMISSAO);
+    this.name = "ErroPermissao";
+  }
+}
+
+/** Exige a permissão; sem ela, lança ErroPermissao. Sem sessão, vai para o login. */
+export async function exigirPermissao(permissao: Permissao): Promise<Sessao> {
+  const sessao = await exigirSessao();
+  if (!temPermissao(sessao, permissao)) throw new ErroPermissao();
+  return sessao;
+}
+
+export type ResultadoPermissao = { ok: true; sessao: Sessao } | { ok: false; erro: string; semSessao: boolean };
+
+/** Versão sem exceção para server actions e rotas: devolve a mensagem pronta para a tela. */
+export async function verificarPermissao(permissao: Permissao): Promise<ResultadoPermissao> {
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, erro: "Sessão expirada. Entre de novo.", semSessao: true };
+  if (!temPermissao(sessao, permissao)) return { ok: false, erro: SEM_PERMISSAO, semSessao: false };
+  return { ok: true, sessao };
+}
+
 /** Grava o cookie da sessão (usado no login). */
-export async function iniciarSessao(sessao: Sessao): Promise<void> {
+export async function iniciarSessao(sessao: SessaoToken): Promise<void> {
   const segredo = process.env.APP_SECRET;
   if (!segredo) throw new Error("APP_SECRET não definido");
   const jar = await cookies();

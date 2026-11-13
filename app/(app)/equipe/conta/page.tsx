@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { rotuloPapel } from "@/lib/papel";
 import { exigirSessao } from "@/lib/sessao";
 import { FormSenha } from "./form-senha";
 
@@ -12,7 +13,7 @@ export default async function ContaPage() {
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Minha conta</h1>
         <p className="text-sm text-muted-foreground">
-          {sessao.nome} · {sessao.papel === "dono" ? "Dono" : "Gestor"}
+          {sessao.nome} · {rotuloPapel(sessao.papel)}
         </p>
       </header>
       <FormSenha />

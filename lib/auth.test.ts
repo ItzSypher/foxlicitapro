@@ -8,10 +8,10 @@ import {
   verificarSenha,
   DURACAO_SESSAO_SEGUNDOS,
 } from "./auth";
-import type { Sessao } from "@/core/types-equipe";
+import type { SessaoToken } from "@/core/types-equipe";
 
 const SEGREDO = "segredo-de-teste-com-mais-de-trinta-e-dois-caracteres";
-const sessao: Sessao = { usuarioId: "6f1d9c1e-0000-4000-8000-000000000001", nome: "Arthur Silva Moura", papel: "dono" };
+const sessao: SessaoToken = { usuarioId: "6f1d9c1e-0000-4000-8000-000000000001", nome: "Arthur Silva Moura", papel: "dono" };
 
 describe("senha com scrypt", () => {
   it("gera o formato esperado e confere a senha certa", async () => {

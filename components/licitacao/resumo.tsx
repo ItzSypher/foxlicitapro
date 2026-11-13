@@ -1,7 +1,6 @@
 import type { DetalheCompra } from "@/core/types-detalhe";
 import { formatarCnpj } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { dataHora } from "./dominio";
 import { CopiarCnpj } from "./copiar-cnpj";
 import { Secao } from "./secao";
 
@@ -44,18 +43,6 @@ export function Resumo({ d }: { d: DetalheCompra }) {
         <Fato rotulo="Amparo legal">{texto(d.amparoLegal)}</Fato>
         <Fato rotulo="Situação">{texto(d.situacao)}</Fato>
         <Fato rotulo="Registro de preços (SRP)">{d.srp ? "Sim" : "Não"}</Fato>
-        <Fato rotulo="Publicação" mono>
-          {texto(dataHora(d.dataPublicacao))}
-        </Fato>
-        <Fato rotulo="Abertura das propostas" mono>
-          {texto(dataHora(d.dataAbertura))}
-        </Fato>
-        <Fato rotulo="Encerramento" mono>
-          {texto(dataHora(d.dataEncerramento))}
-        </Fato>
-        <Fato rotulo="Última atualização" mono>
-          {texto(dataHora(d.dataAtualizacao))}
-        </Fato>
         <Fato rotulo="Unidade compradora">{texto(d.unidade)}</Fato>
         <Fato rotulo="Município/UF">{texto(local)}</Fato>
         <Fato rotulo="CNPJ do órgão">

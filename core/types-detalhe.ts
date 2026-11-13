@@ -57,6 +57,8 @@ export interface DetalheCompra {
   codigoIbge: string;
   valorEstimado: number | null;
   valorHomologado: number | null;
+  /** Quando o órgão incluiu a compra no PNCP; costuma coincidir com a divulgação */
+  dataInclusao: string | null;
   dataPublicacao: string | null;
   dataAbertura: string | null;
   dataEncerramento: string | null;

@@ -47,7 +47,7 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
     <div className="flex flex-col gap-4">
       {somenteLeitura ? (
         <p className="rounded-card border border-border bg-raised p-3 text-sm text-ink">
-          Só o dono altera as preferências.
+          Você pode ver, mas não pode alterar as preferências.
         </p>
       ) : null}
 

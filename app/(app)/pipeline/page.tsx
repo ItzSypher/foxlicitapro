@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { listarPipeline } from "@/db/pipeline";
 import { listarUsuariosAtivos } from "@/db/usuarios";
+import { temPermissao } from "@/core/permissoes";
 import { exigirSessao } from "@/lib/sessao";
 import { PipelineView } from "@/components/pipeline/pipeline-view";
 import { ehEtapa, type EtapaId, type ItemPipeline, type PessoaPipeline } from "@/components/pipeline/tipos";
@@ -46,6 +47,7 @@ export default async function PipelinePage({
       agoraInicial={momento()}
       usuarioId={sessao.usuarioId}
       pessoas={pessoas}
+      podeEditar={temPermissao(sessao, "mover_pipeline")}
     />
   );
 }

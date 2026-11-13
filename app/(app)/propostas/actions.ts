@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 import { avisarPropostaEmRevisao, avisarPropostaRevisada } from "@/lib/avisos";
-import { lerSessao } from "@/lib/sessao";
+import { podeAgirNaRevisao, type Permissao } from "@/core/permissoes";
+import { SEM_PERMISSAO, lerSessao, verificarPermissao } from "@/lib/sessao";
 import { DadosPropostaSchema, totalProposta, validarProposta } from "@/core/proposta";
 import { ehModeloId, type ModeloId } from "@/core/proposta-modelos";
 import { podeGerarLink, statusAposEdicao, podeEditar, transicao, type AcaoRevisao } from "@/core/revisao";
@@ -25,9 +26,12 @@ const SEM_SESSAO = "Sessão expirada. Entre de novo.";
 const FALHA = "Não foi possível salvar agora. Tente de novo.";
 const NAO_ENCONTRADA = "Proposta não encontrada.";
 
+type Acesso = { ok: true; sessao: Sessao } | { ok: false; mensagem: string };
+
 /** O proxy já exige sessão; aqui de novo, porque uma server action pode ser chamada por qualquer rota liberada. */
-async function sessaoAtual(): Promise<Sessao | null> {
-  return lerSessao();
+async function acesso(permissao: Permissao): Promise<Acesso> {
+  const v = await verificarPermissao(permissao);
+  return v.ok ? v : { ok: false, mensagem: v.erro };
 }
 
 const IdSchema = z.uuid();
@@ -44,7 +48,8 @@ const PedidoSalvarSchema = z.object({
 });
 
 export async function salvarPropostaAction(pedido: unknown): Promise<RespostaSalvar> {
-  if (!(await sessaoAtual())) return { ok: false, mensagem: SEM_SESSAO };
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
   const lido = PedidoSalvarSchema.safeParse(pedido);
   if (!lido.success) return { ok: false, mensagem: "Há um campo com valor inválido." };
   const { id, titulo, dados } = lido.data;
@@ -85,10 +90,11 @@ const AcaoSchema = z.enum(["enviar", "aprovar", "devolver", "retirar", "reabrir"
  * As regras de quem pode o quê ficam em core/revisao.ts.
  */
 export async function acaoRevisaoAction(id: string, acao: AcaoRevisao, nota?: string): Promise<RespostaRevisao> {
-  const sessao = await sessaoAtual();
+  const sessao = await lerSessao();
   if (!sessao) return { ok: false, mensagem: SEM_SESSAO };
   const acaoLida = AcaoSchema.safeParse(acao);
   if (!IdSchema.safeParse(id).success || !acaoLida.success) return { ok: false, mensagem: NAO_ENCONTRADA };
+  if (!podeAgirNaRevisao(sessao, acaoLida.data)) return { ok: false, mensagem: SEM_PERMISSAO };
 
   try {
     const p = await lerProposta(id);
@@ -148,7 +154,8 @@ export type RespostaLink =
 
 /** Gera um link novo de 15 dias e marca a proposta como enviada. Exige proposta aprovada (ou já enviada). */
 export async function gerarLinkAction(id: string): Promise<RespostaLink> {
-  if (!(await sessaoAtual())) return { ok: false, mensagem: SEM_SESSAO };
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   try {
     const p = await lerProposta(id);
@@ -167,7 +174,8 @@ export async function gerarLinkAction(id: string): Promise<RespostaLink> {
 }
 
 export async function revogarLinkAction(id: string): Promise<{ ok: boolean; mensagem?: string }> {
-  if (!(await sessaoAtual())) return { ok: false, mensagem: SEM_SESSAO };
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   try {
     await revogarToken(id);
@@ -178,8 +186,9 @@ export async function revogarLinkAction(id: string): Promise<{ ok: boolean; mens
 }
 
 export async function excluirPropostaAction(id: string): Promise<{ ok: false; mensagem: string }> {
-  const sessao = await sessaoAtual();
-  if (!sessao) return { ok: false, mensagem: SEM_SESSAO };
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
+  const sessao = a.sessao;
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   try {
     const p = await lerProposta(id);
@@ -195,8 +204,9 @@ export async function excluirPropostaAction(id: string): Promise<{ ok: false; me
 }
 
 export async function duplicarPropostaAction(id: string): Promise<{ ok: false; mensagem: string }> {
-  const sessao = await sessaoAtual();
-  if (!sessao) return { ok: false, mensagem: SEM_SESSAO };
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
+  const sessao = a.sessao;
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   let novoId: string;
   try {
@@ -219,8 +229,9 @@ export async function duplicarPropostaAction(id: string): Promise<{ ok: false; m
 
 /** Cria o rascunho (com a compra, se houver) e abre o editor. Chamada pelo formulário da escolha de modelo. */
 export async function criarRascunhoAction(formData: FormData): Promise<{ ok: false; mensagem: string }> {
-  const sessao = await sessaoAtual();
-  if (!sessao) return { ok: false, mensagem: SEM_SESSAO };
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
+  const sessao = a.sessao;
   const modeloBruto = formData.get("modelo");
   const compraBruta = formData.get("compra");
   if (!ehModeloId(modeloBruto)) return { ok: false, mensagem: "Escolha um modelo." };

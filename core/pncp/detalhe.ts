@@ -193,6 +193,7 @@ function montarDetalhe(
     codigoIbge: String(c.unidadeOrgao.codigoIbge ?? "").trim(),
     valorEstimado: sigiloso ? null : valorPositivo(c.valorTotalEstimado),
     valorHomologado: valorPositivo(c.valorTotalHomologado),
+    dataInclusao: paraIsoBrasilia(c.dataInclusao),
     dataPublicacao: paraIsoBrasilia(c.dataPublicacaoPncp),
     dataAbertura: paraIsoBrasilia(c.dataAberturaProposta),
     dataEncerramento: paraIsoBrasilia(c.dataEncerramentoProposta),

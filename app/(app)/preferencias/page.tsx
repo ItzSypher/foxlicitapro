@@ -1,13 +1,14 @@
 import { connection } from "next/server";
+import { temPermissao } from "@/core/permissoes";
 import { lerPreferencias } from "@/db/preferencias";
 import { lerSessao } from "@/lib/sessao";
 import { FormularioPreferencias } from "./formulario";
 
-/** Quem é o dono pode editar; qualquer falha ao ler a sessão vira "só leitura". */
-async function donoPodeEditar(): Promise<boolean> {
+/** Quem tem a permissão pode editar; qualquer falha ao ler a sessão vira "só leitura". */
+async function pessoaPodeEditar(): Promise<boolean> {
   try {
     const sessao = await lerSessao();
-    return sessao?.papel === "dono";
+    return sessao !== null && temPermissao(sessao, "editar_preferencias");
   } catch {
     return false;
   }
@@ -15,7 +16,7 @@ async function donoPodeEditar(): Promise<boolean> {
 
 export default async function PreferenciasPage() {
   await connection();
-  const [preferencias, podeEditar] = await Promise.all([lerPreferencias(), donoPodeEditar()]);
+  const [preferencias, podeEditar] = await Promise.all([lerPreferencias(), pessoaPodeEditar()]);
 
   return (
     <div className="flex max-w-[720px] flex-col gap-5">

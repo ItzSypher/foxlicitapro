@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CONTROLE } from "@/components/propostas/campos";
 import { TAMANHO_MAXIMO_NOTA, estaAprovada, podeRevisar, type AcaoRevisao } from "@/core/revisao";
 import type { AutorProposta, StatusPropostaEquipe } from "@/core/types-equipe";
+import type { AcessosProposta } from "@/components/propostas/editor";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -11,19 +12,21 @@ interface Props {
   autor: AutorProposta;
   criadoPor: string | null;
   usuarioId: string;
+  acessos: AcessosProposta;
   pendencias: number;
   pendente: boolean;
   aoAgir: (acao: AcaoRevisao, nota?: string) => void;
 }
 
 /** Botões do fluxo de revisão conforme o status e quem está olhando. */
-export function PainelRevisao({ status, autor, criadoPor, usuarioId, pendencias, pendente, aoAgir }: Props) {
+export function PainelRevisao({ status, autor, criadoPor, usuarioId, acessos, pendencias, pendente, aoAgir }: Props) {
   const [devolvendo, setDevolvendo] = useState(false);
   const [nota, setNota] = useState("");
   const revisor = podeRevisar(status, { usuarioId, criadoPor, autor });
   const largo = "w-full sm:w-auto sm:self-start";
 
   if (status === "rascunho" || status === "devolvida") {
+    if (!acessos.editar) return <p className="text-[13px] text-muted-foreground">Você pode consultar esta proposta.</p>;
     return (
       <div className="flex flex-col gap-2">
         <button
@@ -46,11 +49,16 @@ export function PainelRevisao({ status, autor, criadoPor, usuarioId, pendencias,
       return (
         <div className="flex flex-col gap-2">
           <p className="text-[13px] text-muted-foreground">Quem criou a proposta não a revisa. Ela aguarda outra pessoa.</p>
-          <button type="button" onClick={() => aoAgir("retirar")} disabled={pendente} className={cn(BOTAO_SECUNDARIO, largo)}>
-            Retirar da revisão
-          </button>
+          {acessos.editar ? (
+            <button type="button" onClick={() => aoAgir("retirar")} disabled={pendente} className={cn(BOTAO_SECUNDARIO, largo)}>
+              Retirar da revisão
+            </button>
+          ) : null}
         </div>
       );
+    }
+    if (!acessos.aprovar && !acessos.devolver) {
+      return <p className="text-[13px] text-muted-foreground">Aguardando revisão de quem pode aprovar.</p>;
     }
     return (
       <div className="flex flex-col gap-3">
@@ -83,12 +91,16 @@ export function PainelRevisao({ status, autor, criadoPor, usuarioId, pendencias,
           </div>
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row">
-            <button type="button" onClick={() => aoAgir("aprovar")} disabled={pendente} className={cn(BOTAO_PRIMARIO, "w-full sm:w-auto")}>
-              Aprovar
-            </button>
-            <button type="button" onClick={() => setDevolvendo(true)} disabled={pendente} className={cn(BOTAO_SECUNDARIO, "w-full sm:w-auto")}>
-              Devolver
-            </button>
+            {acessos.aprovar ? (
+              <button type="button" onClick={() => aoAgir("aprovar")} disabled={pendente} className={cn(BOTAO_PRIMARIO, "w-full sm:w-auto")}>
+                Aprovar
+              </button>
+            ) : null}
+            {acessos.devolver ? (
+              <button type="button" onClick={() => setDevolvendo(true)} disabled={pendente} className={cn(BOTAO_SECUNDARIO, "w-full sm:w-auto")}>
+                Devolver
+              </button>
+            ) : null}
           </div>
         )}
       </div>
@@ -98,10 +110,14 @@ export function PainelRevisao({ status, autor, criadoPor, usuarioId, pendencias,
   if (estaAprovada(status)) {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-[13px] text-muted-foreground">Aprovada. Use Enviar para gerar o link.</p>
-        <button type="button" onClick={() => aoAgir("reabrir")} disabled={pendente} className={cn(BOTAO_SECUNDARIO, largo)}>
-          Voltar para rascunho
-        </button>
+        <p className="text-[13px] text-muted-foreground">
+          {acessos.editar ? "Aprovada. Use Enviar para gerar o link." : "Aprovada."}
+        </p>
+        {acessos.aprovar ? (
+          <button type="button" onClick={() => aoAgir("reabrir")} disabled={pendente} className={cn(BOTAO_SECUNDARIO, largo)}>
+            Voltar para rascunho
+          </button>
+        ) : null}
       </div>
     );
   }

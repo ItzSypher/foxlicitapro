@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { salvarCotacao } from "@/db/cotacoes";
 import { calcularPrecificacao } from "@/core/precificacao";
+import { lerSessao } from "@/lib/sessao";
 import type { EntradaPrecificacao } from "@/core/precificacao";
 
 const PedidoSchema = z.object({
@@ -25,6 +26,7 @@ export type RespostaSalvar = { ok: true } | { ok: false; mensagem: string };
 
 /** O cálculo é refeito aqui: o servidor não confia no resultado que veio do navegador. */
 export async function salvarCotacaoAction(pedido: z.input<typeof PedidoSchema>): Promise<RespostaSalvar> {
+  if (!(await lerSessao())) return { ok: false, mensagem: "Entre de novo para salvar." };
   const lido = PedidoSchema.safeParse(pedido);
   if (!lido.success) {
     return { ok: false, mensagem: lido.error.issues[0]?.message ?? "Dados da cotação inválidos." };

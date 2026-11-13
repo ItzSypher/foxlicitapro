@@ -16,6 +16,7 @@ interface Props {
   pessoas: PessoaPipeline[];
   aoResponsavel: (id: string, responsavelId: string | null) => void;
   desktop: boolean;
+  podeEditar: boolean;
   arrastandoId: string | null;
   alvo: boolean;
   aoEntrarNoAlvo: (etapa: EtapaId) => void;
@@ -37,6 +38,7 @@ export function Coluna({
   pessoas,
   aoResponsavel,
   desktop,
+  podeEditar,
   arrastandoId,
   alvo,
   aoEntrarNoAlvo,
@@ -97,7 +99,8 @@ export function Coluna({
               agoraInicial={agoraInicial}
               pessoas={pessoas}
               aoResponsavel={aoResponsavel}
-              arrastavel={desktop}
+              podeEditar={podeEditar}
+              arrastavel={desktop && podeEditar}
               arrastando={arrastandoId === dado.id}
               aoIniciarArraste={aoIniciarArraste}
               aoTerminarArraste={aoTerminarArraste}

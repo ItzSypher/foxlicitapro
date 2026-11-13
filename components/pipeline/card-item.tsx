@@ -40,7 +40,17 @@ function Prazo({ encerramentoIso, agoraInicial }: { encerramentoIso: string; ago
   );
 }
 
-function Notas({ id, inicial, aoAbrir }: { id: string; inicial: string; aoAbrir: (aberto: boolean) => void }) {
+function Notas({
+  id,
+  inicial,
+  aoAbrir,
+  somenteLeitura,
+}: {
+  id: string;
+  inicial: string;
+  aoAbrir: (aberto: boolean) => void;
+  somenteLeitura: boolean;
+}) {
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState(inicial);
   const [base, setBase] = useState(inicial);
@@ -61,7 +71,7 @@ function Notas({ id, inicial, aoAbrir }: { id: string; inicial: string; aoAbrir:
   }
 
   function salvar() {
-    if (texto === base) return;
+    if (somenteLeitura || texto === base) return;
     setErro(null);
     iniciar(async () => {
       const r = await salvarNotas(id, texto);
@@ -101,6 +111,7 @@ function Notas({ id, inicial, aoAbrir }: { id: string; inicial: string; aoAbrir:
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onBlur={salvar}
+            readOnly={somenteLeitura}
             rows={4}
             maxLength={5000}
             aria-label="Notas do item"
@@ -247,10 +258,12 @@ function Responsavel({
   dado,
   pessoas,
   aoMudar,
+  somenteLeitura,
 }: {
   dado: ItemPipeline;
   pessoas: PessoaPipeline[];
   aoMudar: (responsavelId: string | null) => void;
+  somenteLeitura: boolean;
 }) {
   const id = `resp-${dado.id}`;
   // Responsável que saiu da equipe continua aparecendo, para o valor não sumir do seletor.
@@ -258,6 +271,16 @@ function Responsavel({
     dado.responsavelId !== null && !pessoas.some((p) => p.id === dado.responsavelId)
       ? { id: dado.responsavelId, nome: dado.responsavelNome ?? "Pessoa removida" }
       : null;
+  if (somenteLeitura) {
+    return (
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-muted-foreground">
+          {dado.criadoPorNome ? `Adicionado por ${dado.criadoPorNome}` : "Adicionado por pessoa não registrada"}
+        </p>
+        <p className="text-[13px] text-ink">Responsável: {dado.responsavelNome ?? "ninguém"}</p>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs text-muted-foreground">
@@ -289,6 +312,7 @@ interface Props {
   pessoas: PessoaPipeline[];
   aoResponsavel: (id: string, responsavelId: string | null) => void;
   agoraInicial: number;
+  podeEditar: boolean;
   arrastavel: boolean;
   arrastando: boolean;
   aoIniciarArraste: (id: string) => void;
@@ -302,6 +326,7 @@ export function CardItem({
   pessoas,
   aoResponsavel,
   agoraInicial,
+  podeEditar,
   arrastavel,
   arrastando,
   aoIniciarArraste,
@@ -351,13 +376,15 @@ export function CardItem({
           >
             Abrir
           </Link>
-          <MenuAcoes
-            etapa={dado.etapa}
-            itemId={dado.id}
-            linkPncp={pncp}
-            aoMover={(etapa) => aoMover(dado.id, etapa)}
-            aoPedirRemocao={() => setConfirmando(true)}
-          />
+          {podeEditar ? (
+            <MenuAcoes
+              etapa={dado.etapa}
+              itemId={dado.id}
+              linkPncp={pncp}
+              aoMover={(etapa) => aoMover(dado.id, etapa)}
+              aoPedirRemocao={() => setConfirmando(true)}
+            />
+          ) : null}
         </span>
       </div>
 
@@ -370,13 +397,18 @@ export function CardItem({
         </span>
       </p>
 
-      <Responsavel dado={dado} pessoas={pessoas} aoMudar={(r) => aoResponsavel(dado.id, r)} />
+      <Responsavel
+        dado={dado}
+        pessoas={pessoas}
+        aoMudar={(r) => aoResponsavel(dado.id, r)}
+        somenteLeitura={!podeEditar}
+      />
 
-      <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} />
+      <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} somenteLeitura={!podeEditar} />
 
       <Comentarios id={dado.id} total={dado.comentarios} aoAbrir={setComentariosAbertos} />
 
-      {confirmando ? (
+      {confirmando && podeEditar ? (
         <div role="group" aria-label="Confirmar remoção" className="flex flex-col gap-2 border-t border-border pt-3">
           <p className="text-[13px] leading-snug text-ink">
             Remover “{tituloCurto}” do pipeline?
@@ -400,8 +432,8 @@ export function CardItem({
         </div>
       ) : (
         <div className="flex flex-col gap-2 lg:hidden">
-          <SeletorEtapa valor={dado.etapa} aoMudar={(etapa) => aoMover(dado.id, etapa)} />
-          <div className="grid grid-cols-3 gap-2">
+          {podeEditar ? <SeletorEtapa valor={dado.etapa} aoMudar={(etapa) => aoMover(dado.id, etapa)} /> : null}
+          <div className={cn("grid gap-2", podeEditar ? "grid-cols-3" : "grid-cols-2")}>
             <Link href={`/calculadora?item=${encodeURIComponent(dado.id)}`} className={BOTAO_SECUNDARIO}>
               Cotar
             </Link>
@@ -409,13 +441,15 @@ export function CardItem({
               PNCP
               <ExternalLink aria-hidden="true" className="size-3.5" />
             </a>
-            <button
-              type="button"
-              onClick={() => setConfirmando(true)}
-              className={cn(BOTAO_SECUNDARIO, "text-negative")}
-            >
-              Remover
-            </button>
+            {podeEditar ? (
+              <button
+                type="button"
+                onClick={() => setConfirmando(true)}
+                className={cn(BOTAO_SECUNDARIO, "text-negative")}
+              >
+                Remover
+              </button>
+            ) : null}
           </div>
         </div>
       )}

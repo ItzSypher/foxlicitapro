@@ -5,6 +5,7 @@ import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { chaveDeNumeroControle, referenciasDoDetalhe } from "@/core/proposta";
 import { listarCotacoes } from "@/db/cotacoes";
 import { lerProposta, type Proposta } from "@/db/propostas";
+import { podeAgirNaRevisao } from "@/core/permissoes";
 import { exigirSessao } from "@/lib/sessao";
 
 export const metadata = { title: "Proposta · FoxLicita Pro" };
@@ -72,6 +73,11 @@ export default async function PropostaPage({ params, searchParams }: Props) {
       referencias={referencias}
       cotacao={cotacao}
       avisoSemItens={avisoBruto === "itens"}
+      acessos={{
+        editar: podeAgirNaRevisao(sessao, "enviar"),
+        aprovar: podeAgirNaRevisao(sessao, "aprovar"),
+        devolver: podeAgirNaRevisao(sessao, "devolver"),
+      }}
     />
   );
 }

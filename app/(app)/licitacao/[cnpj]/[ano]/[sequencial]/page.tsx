@@ -6,6 +6,8 @@ import { ArquivosCompra } from "@/components/licitacao/arquivos-compra";
 import { BarraAcoes } from "@/components/licitacao/barra-acoes";
 import { CabecalhoLicitacao } from "@/components/licitacao/cabecalho";
 import { gerarSinais, linhaIdentificacao, montarOportunidade } from "@/components/licitacao/dominio";
+import { DatasEdital } from "@/components/licitacao/datas-edital";
+import { FichaEditalSecao } from "@/components/licitacao/ficha-edital";
 import { ItensCompra } from "@/components/licitacao/itens-compra";
 import { ChipsSecoes, IndiceSecoes } from "@/components/licitacao/navegacao-secoes";
 import { NotaCriterios } from "@/components/licitacao/nota-criterios";
@@ -15,9 +17,14 @@ import { TextoEdital } from "@/components/licitacao/texto-edital";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { resumirObjeto } from "@/core/objeto";
 import { calcularScore } from "@/core/score";
+import type { FichaSalva } from "@/core/ficha";
 import type { OportunidadeComScore } from "@/core/types";
+import { lerFicha } from "@/db/fichas";
 import { idsNoPipeline } from "@/db/pipeline";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
+import { assistenteDisponivel } from "@/lib/gemini";
+import { temPermissao } from "@/core/permissoes";
+import { lerSessao } from "@/lib/sessao";
 
 /** A montagem da proposta pelo assistente (server action desta rota) pode levar mais de 1 minuto. */
 export const maxDuration = 300;
@@ -36,6 +43,11 @@ export default async function LicitacaoPage({ params }: Props) {
   const { cnpj, ano, sequencial } = await params;
   if (!/^\d{14}$/.test(cnpj) || !/^\d{4}$/.test(ano) || !/^\d{1,9}$/.test(sequencial)) notFound();
 
+  const sessao = await lerSessao();
+  const podeEditarPropostas = sessao !== null && temPermissao(sessao, "editar_propostas");
+  const podeLerEdital = sessao !== null && temPermissao(sessao, "usar_assistente");
+  const podeConfirmarFicha = podeEditarPropostas || (sessao !== null && temPermissao(sessao, "revisao_juridica"));
+
   const jar = await cookies();
   const frente = lerFrente(jar.get(COOKIE_FRENTE)?.value);
 
@@ -44,6 +56,7 @@ export default async function LicitacaoPage({ params }: Props) {
     idsNoPipeline().catch((): Set<string> => new Set()),
   ]);
   if (detalhe === null) notFound();
+  const ficha = await lerFicha(detalhe.numeroControle).catch((): FichaSalva | null => null);
 
   const agora = momento();
   const base = montarOportunidade(detalhe);
@@ -69,12 +82,20 @@ export default async function LicitacaoPage({ params }: Props) {
         linkOrigem={detalhe.linkOrigem}
         oportunidade={oportunidade}
         salvo={salvos.has(detalhe.numeroControle)}
+        podeCriarProposta={podeEditarPropostas}
+        podeUsarAssistente={podeEditarPropostas && podeLerEdital}
       />
 
       <ChipsSecoes />
 
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_160px] xl:gap-10">
         <div className="flex min-w-0 flex-col gap-8">
+          <DatasEdital datas={detalhe} agoraInicial={agora} />
+          <FichaEditalSecao compra={`${cnpj}-${ano}-${sequencial}`} inicial={ficha}
+            assistenteAtivo={assistenteDisponivel()}
+            podeLer={podeLerEdital}
+            podeConfirmar={podeConfirmarFicha}
+          />
           <Resumo d={detalhe} />
           <Sinais sinais={sinais} />
           <ItensCompra

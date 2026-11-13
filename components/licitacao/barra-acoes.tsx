@@ -20,6 +20,10 @@ interface Props {
   /** null quando faltam dados para montar a oportunidade; some o botão de salvar */
   oportunidade: OportunidadeComScore | null;
   salvo: boolean;
+  /** tem "editar_propostas" */
+  podeCriarProposta: boolean;
+  /** tem "usar_assistente" e "editar_propostas" */
+  podeUsarAssistente: boolean;
 }
 
 function Secundarias({ numeroControle, linkPncp, linkOrigem, salvo }: Pick<Props, "numeroControle" | "linkPncp" | "linkOrigem" | "salvo">) {
@@ -49,17 +53,19 @@ function Secundarias({ numeroControle, linkPncp, linkOrigem, salvo }: Pick<Props
  * Telefone: "Criar proposta" e "Salvar" ficam numa barra fixa acima da navegação inferior;
  * Cotar, PNCP e sistema de origem vêm numa linha na página. Desktop: tudo numa linha só.
  */
-export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportunidade, salvo }: Props) {
+export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportunidade, salvo, podeCriarProposta, podeUsarAssistente }: Props) {
   const compra = `${chave.cnpj}-${chave.ano}-${chave.sequencial}`;
-  // Sem chave configurada o botão não existe e a barra fica como sempre foi.
-  const assistente = assistenteDisponivel();
+  // Sem chave configurada, ou sem permissão, o botão não existe e a barra fica como sempre foi.
+  const assistente = assistenteDisponivel() && podeUsarAssistente;
   return (
     <>
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex items-start gap-2 border-t border-border bg-ground px-4 py-2 lg:static lg:z-auto lg:flex-wrap lg:items-center lg:border-t-0 lg:p-0">
-        <Link href={`/propostas/nova?compra=${compra}`} className={PRIMARIO}>
-          <FilePlus2 aria-hidden="true" className="size-4" />
-          Criar proposta
-        </Link>
+        {podeCriarProposta ? (
+          <Link href={`/propostas/nova?compra=${compra}`} className={PRIMARIO}>
+            <FilePlus2 aria-hidden="true" className="size-4" />
+            Criar proposta
+          </Link>
+        ) : null}
         {assistente ? (
           <div className="hidden lg:block">
             <BotaoAssistente compra={compra} />

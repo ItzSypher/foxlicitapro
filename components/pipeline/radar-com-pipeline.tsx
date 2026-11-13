@@ -15,10 +15,14 @@ interface Props {
   idsSalvos: string[];
   /** Termos de prioridade e de bloqueio do "Para você" */
   preferencias?: PreferenciasDeRecomendacao;
+  /** Sem a permissão de mexer no pipeline, o botão "Salvar" não aparece */
+  podeSalvar?: boolean;
+  /** Palavras-chave que a pessoa guardou */
+  palavrasSalvas?: string[];
 }
 
 /** Radar com o botão "Salvar no pipeline" no detalhe de cada oportunidade. */
-export function RadarComPipeline({ frente, resposta, visaoInicial, idsSalvos, preferencias }: Props) {
+export function RadarComPipeline({ frente, resposta, visaoInicial, idsSalvos, preferencias, podeSalvar = true, palavrasSalvas }: Props) {
   const salvos = useMemo(() => new Set(idsSalvos), [idsSalvos]);
   return (
     <RadarView
@@ -26,9 +30,12 @@ export function RadarComPipeline({ frente, resposta, visaoInicial, idsSalvos, pr
       resposta={resposta}
       visaoInicial={visaoInicial}
       preferencias={preferencias}
-      renderAcoes={(item: OportunidadeComScore) => (
-        <BotaoSalvarPipeline key={item.id} item={item} salvo={salvos.has(item.id)} />
-      )}
+      palavrasSalvas={palavrasSalvas}
+      renderAcoes={(item: OportunidadeComScore) =>
+        podeSalvar || salvos.has(item.id) ? (
+          <BotaoSalvarPipeline key={item.id} item={item} salvo={salvos.has(item.id)} />
+        ) : null
+      }
     />
   );
 }

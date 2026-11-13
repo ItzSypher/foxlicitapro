@@ -2,7 +2,10 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import type { RespostaRadar } from "@/core/types";
 import { RadarComPipeline } from "@/components/pipeline/radar-com-pipeline";
+import { temPermissao } from "@/core/permissoes";
 import { idsNoPipeline } from "@/db/pipeline";
+import { listarPalavrasChave } from "@/db/palavras-chave";
+import { lerSessao } from "@/lib/sessao";
 import { lerPreferencias } from "@/db/preferencias";
 import { obterRadar } from "@/lib/radar-dados";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
@@ -15,10 +18,12 @@ export default async function RadarPage() {
   const visaoInicial = lerVisao(jar.get(COOKIE_VISAO)?.value);
 
   // Radar e pipeline em paralelo; se o banco falhar, o Radar segue sem marcar os salvos.
-  const [resposta, ids, preferencias] = await Promise.all([
+  const sessao = await lerSessao();
+  const [resposta, ids, preferencias, palavras] = await Promise.all([
     obterRadar(frente).catch((): RespostaRadar | null => null),
     idsNoPipeline().catch((): Set<string> => new Set()),
     lerPreferencias(),
+    sessao ? listarPalavrasChave(sessao.usuarioId).catch((): string[] => []) : Promise.resolve<string[]>([]),
   ]);
 
   return (
@@ -28,6 +33,8 @@ export default async function RadarPage() {
       visaoInicial={visaoInicial}
       idsSalvos={[...ids]}
       preferencias={preferencias}
+      palavrasSalvas={palavras}
+      podeSalvar={sessao !== null && temPermissao(sessao, "mover_pipeline")}
     />
   );
 }

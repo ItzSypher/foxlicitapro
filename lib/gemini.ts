@@ -78,6 +78,7 @@ export interface PedidoApi {
   contents: ConteudoApi[];
   generationConfig: {
     maxOutputTokens: number;
+    temperature?: number;
     responseMimeType?: "application/json";
     responseJsonSchema?: EsquemaJson;
   };
@@ -101,8 +102,10 @@ export function montarPedido(p: {
   conteudos: ConteudoApi[];
   maxTokens: number;
   esquemaJson?: EsquemaJson;
+  temperatura?: number;
 }): PedidoApi {
   const generationConfig: PedidoApi["generationConfig"] = { maxOutputTokens: p.maxTokens };
+  if (p.temperatura !== undefined) generationConfig.temperature = p.temperatura;
   if (p.esquemaJson) {
     generationConfig.responseMimeType = "application/json";
     generationConfig.responseJsonSchema = p.esquemaJson;
@@ -278,6 +281,10 @@ export interface PedidoJson<T> {
   esquema: z.ZodType<T>;
   esquemaJson: EsquemaJson;
   maxTokens: number;
+  /** Opcional; baixa (ex.: 0.2) para extração fiel de documentos */
+  temperatura?: number;
+  /** true: sem a segunda chamada de correção; resposta fora do esquema já vira erro */
+  semCorrecao?: boolean;
 }
 
 /**
@@ -293,13 +300,14 @@ export async function gerarJson<T>(pedido: PedidoJson<T>, opcoes: OpcoesGemini =
         conteudos,
         maxTokens: pedido.maxTokens,
         esquemaJson: pedido.esquemaJson,
+        temperatura: pedido.temperatura,
       }),
       opcoes,
     );
     const validado = validarTexto(resposta.texto, pedido.esquema);
     if (validado.ok) return validado.valor;
 
-    if (tentativa >= 1) {
+    if (tentativa >= 1 || pedido.semCorrecao === true) {
       console.error("[assistente] resposta fora do esquema após nova tentativa:", validado.erros.length, "erro(s)");
       throw new ErroAssistente(
         resposta.finishReason === "MAX_TOKENS" ? "resposta-incompleta" : "resposta-invalida",

@@ -21,9 +21,13 @@ import {
   fraseRecomendadas,
   fraseResumo,
   fraseVazio,
+  filtrarPorTexto,
   lerAba,
+  lerBusca,
   lerFiltros,
   lerPagina,
+  lerPalavras,
+  normalizarBusca,
   resumir,
   type Aba,
   type FiltroModalidade,
@@ -37,6 +41,7 @@ import { CardOportunidade } from "./card-oportunidade";
 import { DetalheSheet } from "./detalhe-sheet";
 import { AvisoFalhaParcial, EstadoErro, EstadoVazio } from "./estados";
 import { BarraFiltros } from "./filtros";
+import { BuscaPalavras } from "./busca-palavras";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
 import { Paginacao } from "./paginacao";
 import { SeletorAba } from "./seletor-aba";
@@ -51,7 +56,7 @@ function textoFalhas(falhas: ReadonlyArray<ModalidadeId>): string | null {
   return null;
 }
 
-type ChaveParametro = "regiao" | "modalidade" | "ordem" | "ver" | "pagina" | "aba";
+type ChaveParametro = "regiao" | "modalidade" | "ordem" | "ver" | "pagina" | "aba" | "q" | "pc";
 
 /** Troca parâmetros da URL sem navegar; o Next sincroniza useSearchParams com o histórico. */
 function alterarUrl(mudancas: ReadonlyArray<readonly [ChaveParametro, string | null]>): void {
@@ -74,9 +79,11 @@ interface Props {
   renderAcoes?: (item: OportunidadeComScore) => React.ReactNode;
   /** Termos que o dono quer priorizar ou nunca ver em "Para você" */
   preferencias?: PreferenciasDeRecomendacao;
+  /** Palavras-chave que a pessoa guardou */
+  palavrasSalvas?: string[];
 }
 
-export function RadarView({ frente, resposta, visaoInicial, renderAcoes, preferencias }: Props) {
+export function RadarView({ frente, resposta, visaoInicial, renderAcoes, preferencias, palavrasSalvas = [] }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const filtros = useMemo(() => lerFiltros(params), [params]);
@@ -85,6 +92,12 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes, prefere
   const verParametro = params.get("ver");
   const visao: Visao = ehVisao(verParametro) ? verParametro : visaoInicial;
   const paginaPedida = lerPagina(params);
+
+  // A busca vive no estado (resposta na hora) e é copiada para a URL; as palavras-chave marcadas vivem na URL.
+  const [busca, setBusca] = useState(() => lerBusca(params));
+  const [salvas, setSalvas] = useState<string[]>(palavrasSalvas);
+  const urlTimer = useRef<number | null>(null);
+  const selecionadas = useMemo(() => lerPalavras(params).filter((p) => salvas.includes(p)), [params, salvas]);
 
   const [pendente, iniciar] = useTransition();
   const [frenteOtimista, definirFrenteOtimista] = useOptimistic(frente);
@@ -101,8 +114,10 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes, prefere
   }, [resposta]);
   const agora = useAgora(null, agoraInicial);
 
-  const todas = useMemo(() => filtrarEOrdenar(lista, filtros), [lista, filtros]);
-  const baseRecomendacao = useMemo(() => filtrar(lista, filtros), [lista, filtros]);
+  const listaTexto = useMemo(() => filtrarPorTexto(lista, { busca, palavras: selecionadas }), [lista, busca, selecionadas]);
+  const filtroTextoAtivo = normalizarBusca(busca) !== "" || selecionadas.length > 0;
+  const todas = useMemo(() => filtrarEOrdenar(listaTexto, filtros), [listaTexto, filtros]);
+  const baseRecomendacao = useMemo(() => filtrar(listaTexto, filtros), [listaTexto, filtros]);
   // O relógio de referência é o da busca: as recomendações não mudam a cada segundo.
   const recomendadas = useMemo(
     () => recomendar(baseRecomendacao, frente, new Date(agoraInicial), undefined, preferencias),
@@ -116,7 +131,7 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes, prefere
     () => (paraVoce ? recomendadas.map((r) => r.item) : todas),
     [paraVoce, recomendadas, todas],
   );
-  const contagens = useMemo(() => contarPorRegiao(lista), [lista]);
+  const contagens = useMemo(() => contarPorRegiao(listaTexto), [listaTexto]);
   const resumo = useMemo(() => resumir(lista, agora), [lista, agora]);
 
   // "Para você" mostra tudo de uma vez (no máximo 12): sem paginação.
@@ -146,6 +161,45 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes, prefere
         [chave, valor === padrao ? null : valor],
         ["pagina", null],
       ]);
+    },
+    [],
+  );
+
+  const buscar = useCallback((texto: string) => {
+    setBusca(texto);
+    if (urlTimer.current !== null) window.clearTimeout(urlTimer.current);
+    urlTimer.current = window.setTimeout(() => {
+      const limpo = texto.trim();
+      alterarUrl([
+        ["q", limpo === "" ? null : limpo.slice(0, 100)],
+        ["pagina", null],
+      ]);
+    }, 300);
+  }, []);
+
+  const alternarPalavra = useCallback(
+    (termo: string) => {
+      const proximas = selecionadas.includes(termo) ? selecionadas.filter((p) => p !== termo) : [...selecionadas, termo];
+      alterarUrl([
+        ["pc", proximas.length === 0 ? null : proximas.join(",")],
+        ["pagina", null],
+      ]);
+    },
+    [selecionadas],
+  );
+
+  const limparTexto = useCallback(() => {
+    setBusca("");
+    alterarUrl([
+      ["q", null],
+      ["pc", null],
+      ["pagina", null],
+    ]);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (urlTimer.current !== null) window.clearTimeout(urlTimer.current);
     },
     [],
   );
@@ -207,7 +261,7 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes, prefere
   const filtrosPadrao =
     filtros.regiao === FILTROS_PADRAO.regiao && filtros.modalidade === FILTROS_PADRAO.modalidade;
   const aviso = resposta ? textoFalhas(resposta.falhas) : null;
-  const chaveLista = `${aba}|${frenteOtimista}|${filtros.regiao}|${filtros.modalidade}|${filtros.ordem}|${visao}|${pagina}`;
+  const chaveLista = `${busca}|${selecionadas.join(",")}|${aba}|${frenteOtimista}|${filtros.regiao}|${filtros.modalidade}|${filtros.ordem}|${visao}|${pagina}`;
 
   return (
     <div className="flex flex-col gap-4 lg:gap-5">
@@ -254,6 +308,16 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes, prefere
             onEscolher={mudarAba}
           />
 
+          <BuscaPalavras
+            busca={busca}
+            aoBuscar={buscar}
+            salvas={salvas}
+            aoMudarSalvas={setSalvas}
+            selecionadas={selecionadas}
+            aoAlternar={alternarPalavra}
+            aoRemoverMarcada={alternarPalavra}
+          />
+
           <BarraFiltros
             filtros={filtros}
             contagens={contagens}
@@ -271,7 +335,13 @@ export function RadarView({ frente, resposta, visaoInicial, renderAcoes, prefere
 
           {aviso ? <AvisoFalhaParcial texto={aviso} /> : null}
 
-          {visiveis.length === 0 && paraVoce ? (
+          {visiveis.length === 0 && filtroTextoAtivo ? (
+            <EstadoVazio
+              frase="Nada encontrado com essa busca."
+              rotuloAcao="Limpar a busca"
+              onLimpar={limparTexto}
+            />
+          ) : visiveis.length === 0 && paraVoce ? (
             <EstadoVazio
               frase="Nenhuma oportunidade combina com o seu perfil agora."
               rotuloAcao="Ver todas"
