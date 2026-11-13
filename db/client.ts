@@ -10,7 +10,7 @@ import postgres from "postgres";
  * o postgres.js não percebe e a consulta seguinte espera para sempre. Por isso:
  * - depois de um intervalo sem uso, a conexão antiga é descartada e outra é aberta;
  * - conexões ociosas fecham rápido e nenhuma vive mais de 5 minutos;
- * - o banco cancela qualquer comando que passe de 20 s.
+ * - o banco cancela qualquer comando que passe de 9 s.
  */
 declare global {
   var __foxSql: postgres.Sql | undefined;
@@ -23,12 +23,12 @@ const RENOVAR_APOS_MS = 30_000;
 function criar(url: string): postgres.Sql {
   return postgres(url, {
     prepare: false,
-    max: 3,
+    max: 5,
     idle_timeout: 5,
     max_lifetime: 60 * 5,
     connect_timeout: 8,
     ssl: "require",
-    connection: { statement_timeout: 20_000 },
+    connection: { statement_timeout: 9_000 },
   });
 }
 
@@ -51,7 +51,7 @@ function obter(): postgres.Sql {
 }
 
 /** Consulta sem resposta por mais que isso: a conexão travou (socket morto ou protocolo pela metade). */
-const LIMITE_CONSULTA_MS = 25_000;
+const LIMITE_CONSULTA_MS = 10_000;
 
 /** Descarta a conexão travada; as consultas pendentes falham e a próxima abre outra. */
 function descartar(alvo: postgres.Sql): void {
