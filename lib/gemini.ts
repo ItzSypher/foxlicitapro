@@ -185,7 +185,8 @@ export function erroDoStatus(status: number, motivo = ""): ErroAssistente {
   if (status >= 500) {
     return new ErroAssistente("indisponivel", "O assistente está fora do ar agora. Tente de novo em instantes.", status);
   }
-  return new ErroAssistente("pedido-invalido", "O assistente não aceitou este pedido. Tente de novo ou reduza o conteúdo.", status);
+  const detalhe = motivo === "" ? `código ${status}` : motivo;
+  return new ErroAssistente("pedido-invalido", `O assistente não aceitou este pedido (${detalhe}).`, status);
 }
 
 function ehTimeout(e: unknown): boolean {
