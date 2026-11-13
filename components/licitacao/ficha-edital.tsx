@@ -114,7 +114,7 @@ function GruposDaFicha({ ficha }: { ficha: FichaEdital }) {
   const natureza = ficha.natureza.valor;
   return (
     <div className="flex flex-col gap-3">
-      <Colapsavel titulo="Pagamento e caixa" aberta selos={<SelosPagamento ficha={ficha} />}>
+      <Colapsavel titulo="Condições de pagamento" aberta selos={<SelosPagamento ficha={ficha} />}>
         <Grade>
           <Linha rotulo="Capital de giro">
             <span className="block">

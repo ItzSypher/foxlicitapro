@@ -38,6 +38,10 @@ export interface Preferencias {
   termosBloqueadosParaVoce: string[];
   emailsResumo: string[];
   resumoAtivo: boolean;
+  /** R$ máximo que o dono aceita pagar antes de receber, por licitação; null = sem limite */
+  capitalMaximo: number | null;
+  /** Dias máximos com o dinheiro parado; null = sem limite */
+  diasMaximosParado: number | null;
 }
 
 export interface ComentarioPipeline {

@@ -53,9 +53,11 @@ interface Props {
   pessoas: PessoaPipeline[];
   /** Quem só consulta não vê os controles de mover, remover, responsável e notas */
   podeEditar: boolean;
+  /** Pode marcar o checklist da revisão jurídica */
+  podeRevisar: boolean;
 }
 
-export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial, usuarioId, pessoas, podeEditar }: Props) {
+export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar }: Props) {
   if (itensServidor === null) {
     return (
       <div className="flex flex-col gap-4 lg:gap-6">
@@ -72,6 +74,7 @@ export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial,
       usuarioId={usuarioId}
       pessoas={pessoas}
       podeEditar={podeEditar}
+      podeRevisar={podeRevisar}
     />
   );
 }
@@ -83,6 +86,7 @@ function Quadro({
   usuarioId,
   pessoas,
   podeEditar,
+  podeRevisar,
 }: {
   itensServidor: ItemPipeline[];
   etapaInicial: EtapaId;
@@ -90,6 +94,7 @@ function Quadro({
   usuarioId: string;
   pessoas: PessoaPipeline[];
   podeEditar: boolean;
+  podeRevisar: boolean;
 }) {
   const [todos, aplicar] = useOptimistic(itensServidor, reduzir);
   const [soMeus, setSoMeus] = useState(false);
@@ -242,6 +247,7 @@ function Quadro({
                   aoResponsavel={trocarResponsavel}
                   desktop={desktop}
                   podeEditar={podeEditar}
+                  podeRevisar={podeRevisar}
                   arrastandoId={arrastandoId}
                   alvo={alvo === e.id}
                   aoEntrarNoAlvo={setAlvo}

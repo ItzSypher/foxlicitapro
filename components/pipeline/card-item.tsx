@@ -12,6 +12,7 @@ import { useAgora } from "@/lib/relogio";
 import { cn } from "@/lib/utils";
 import { formatarReais, textoFecha } from "./formato";
 import { MenuAcoes } from "./menu-acoes";
+import { RevisaoJuridica } from "./revisao-juridica";
 import { SeletorEtapa } from "./seletor-etapa";
 import type { EtapaId, ItemPipeline, PessoaPipeline } from "./tipos";
 
@@ -313,6 +314,8 @@ interface Props {
   aoResponsavel: (id: string, responsavelId: string | null) => void;
   agoraInicial: number;
   podeEditar: boolean;
+  /** Tem a permissão de revisão jurídica: pode marcar o checklist */
+  podeRevisar: boolean;
   arrastavel: boolean;
   arrastando: boolean;
   aoIniciarArraste: (id: string) => void;
@@ -327,6 +330,7 @@ export function CardItem({
   aoResponsavel,
   agoraInicial,
   podeEditar,
+  podeRevisar,
   arrastavel,
   arrastando,
   aoIniciarArraste,
@@ -403,6 +407,15 @@ export function CardItem({
         aoMudar={(r) => aoResponsavel(dado.id, r)}
         somenteLeitura={!podeEditar}
       />
+
+      {dado.etapa === "revisao_juridica" ? (
+        <RevisaoJuridica
+          key={dado.revisao.map((m) => `${m.passo}:${m.em}`).join("|")}
+          itemId={dado.id}
+          inicial={dado.revisao}
+          podeMarcar={podeRevisar}
+        />
+      ) : null}
 
       <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} somenteLeitura={!podeEditar} />
 

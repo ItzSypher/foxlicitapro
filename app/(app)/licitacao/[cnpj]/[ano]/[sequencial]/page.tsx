@@ -7,7 +7,9 @@ import { BarraAcoes } from "@/components/licitacao/barra-acoes";
 import { CabecalhoLicitacao } from "@/components/licitacao/cabecalho";
 import { gerarSinais, linhaIdentificacao, montarOportunidade } from "@/components/licitacao/dominio";
 import { DatasEdital } from "@/components/licitacao/datas-edital";
+import { Concorrentes } from "@/components/licitacao/concorrentes";
 import { FichaEditalSecao } from "@/components/licitacao/ficha-edital";
+import { PagamentoCaixa } from "@/components/licitacao/pagamento-caixa";
 import { ItensCompra } from "@/components/licitacao/itens-compra";
 import { ChipsSecoes, IndiceSecoes } from "@/components/licitacao/navegacao-secoes";
 import { NotaCriterios } from "@/components/licitacao/nota-criterios";
@@ -16,10 +18,15 @@ import { Sinais } from "@/components/licitacao/sinais";
 import { TextoEdital } from "@/components/licitacao/texto-edital";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { resumirObjeto } from "@/core/objeto";
+import { calcularCapitalGiro } from "@/core/capital-giro";
+import { montarResultado, type ResultadoConcorrentes } from "@/core/concorrentes";
 import { calcularScore } from "@/core/score";
 import type { FichaSalva } from "@/core/ficha";
 import type { OportunidadeComScore } from "@/core/types";
+import { lerAmostrasEmCache, lerBuscaRecente } from "@/db/concorrentes";
+import { listarCotacoes } from "@/db/cotacoes";
 import { lerFicha } from "@/db/fichas";
+import { lerPreferencias } from "@/db/preferencias";
 import { idsNoPipeline } from "@/db/pipeline";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
 import { assistenteDisponivel } from "@/lib/gemini";
@@ -56,11 +63,37 @@ export default async function LicitacaoPage({ params }: Props) {
     idsNoPipeline().catch((): Set<string> => new Set()),
   ]);
   if (detalhe === null) notFound();
-  const ficha = await lerFicha(detalhe.numeroControle).catch((): FichaSalva | null => null);
+  const [ficha, cotacoes, preferencias, amostras, busca] = await Promise.all([
+    lerFicha(detalhe.numeroControle).catch((): FichaSalva | null => null),
+    listarCotacoes(detalhe.numeroControle, 1).catch(() => []),
+    lerPreferencias(),
+    lerAmostrasEmCache().catch(() => []),
+    lerBuscaRecente(detalhe.numeroControle).catch(() => null),
+  ]);
+  const limites = { capitalMaximo: preferencias.capitalMaximo, diasMaximosParado: preferencias.diasMaximosParado };
+  const cotacao = cotacoes[0] ?? null;
+  const custoCotado = cotacao ? cotacao.entrada.custo + cotacao.entrada.frete + cotacao.entrada.extras : null;
+  const prazos = ficha
+    ? {
+        prazoEntregaDias: ficha.ficha.prazoEntregaDias.valor,
+        prazoPagamentoDias: ficha.ficha.prazoPagamentoDias.valor,
+        medicaoMensal: ficha.ficha.medicaoMensal.valor,
+        pagamentoAntecipado: ficha.ficha.pagamentoAntecipado.valor,
+      }
+    : null;
+  const giro = prazos ? calcularCapitalGiro(prazos) : null;
+  const concorrentes: ResultadoConcorrentes | null =
+    busca !== null ? montarResultado(amostras, detalhe.objeto, detalhe.uf, detalhe.numeroControle, detalhe.valorEstimado) : null;
 
   const agora = momento();
   const base = montarOportunidade(detalhe);
-  const score = base ? calcularScore(base, frente, new Date(agora)) : null;
+  const score = base ? calcularScore(base, frente, new Date(agora), {
+        limites,
+        custoTotal: custoCotado,
+        diasParado: giro?.dias ?? null,
+        pagamentoAntecipado: prazos?.pagamentoAntecipado ?? null,
+      })
+    : null;
   const oportunidade: OportunidadeComScore | null = base && score ? { ...base, score } : null;
   const sinais = gerarSinais(detalhe, frente, agora);
 
@@ -95,6 +128,22 @@ export default async function LicitacaoPage({ params }: Props) {
             assistenteAtivo={assistenteDisponivel()}
             podeLer={podeLerEdital}
             podeConfirmar={podeConfirmarFicha}
+          />
+          <PagamentoCaixa
+            numeroControle={detalhe.numeroControle}
+            custoCotado={custoCotado}
+            origemCusto={cotacao ? `cotação salva em ${new Date(cotacao.criadoEm).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : null}
+            prazos={prazos}
+            valorEstimado={detalhe.valorEstimado}
+            limites={limites}
+            agoraInicial={agora}
+          />
+          <Concorrentes
+            compra={`${cnpj}-${ano}-${sequencial}`}
+            inicial={concorrentes}
+            buscadoEmInicial={busca?.buscadoEm ?? null}
+            valorEstimado={detalhe.valorEstimado}
+            podeBuscar={podeEditarPropostas}
           />
           <Resumo d={detalhe} />
           <Sinais sinais={sinais} />

@@ -29,6 +29,8 @@ export const PREFERENCIAS_PADRAO: Readonly<Preferencias> = {
   ],
   emailsResumo: ["arthurfoxinfo@gmail.com"],
   resumoAtivo: true,
+  capitalMaximo: null,
+  diasMaximosParado: null,
 };
 
 export const MAX_TERMOS = 60;
@@ -69,6 +71,13 @@ export const preferenciasSchema = z
     termosBloqueadosParaVoce: z.array(termoSchema).max(MAX_TERMOS, "Muitos termos"),
     emailsResumo: z.array(z.string().trim().toLowerCase().pipe(z.email("E-mail inválido"))).max(MAX_EMAILS, "Muitos e-mails"),
     resumoAtivo: z.boolean(),
+    capitalMaximo: z.number("Capital máximo inválido").min(0, "Capital máximo inválido").max(1_000_000_000, "Capital máximo alto demais").nullish(),
+    diasMaximosParado: z
+      .number("Dias máximos inválido")
+      .int("Dias máximos precisa ser um número inteiro")
+      .min(0, "Dias máximos inválido")
+      .max(3650, "Dias máximos alto demais")
+      .nullish(),
   })
   .transform(
     (p): Preferencias => ({
@@ -76,6 +85,8 @@ export const preferenciasSchema = z
       termosBloqueadosParaVoce: normalizarTermos(p.termosBloqueadosParaVoce),
       emailsResumo: normalizarEmails(p.emailsResumo),
       resumoAtivo: p.resumoAtivo,
+      capitalMaximo: p.capitalMaximo ?? null,
+      diasMaximosParado: p.diasMaximosParado ?? null,
     }),
   );
 
@@ -86,5 +97,7 @@ export function preferenciasPadrao(): Preferencias {
     termosBloqueadosParaVoce: [...PREFERENCIAS_PADRAO.termosBloqueadosParaVoce],
     emailsResumo: [...PREFERENCIAS_PADRAO.emailsResumo],
     resumoAtivo: PREFERENCIAS_PADRAO.resumoAtivo,
+    capitalMaximo: PREFERENCIAS_PADRAO.capitalMaximo,
+    diasMaximosParado: PREFERENCIAS_PADRAO.diasMaximosParado,
   };
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import {
+  ErroRevisaoJuridica,
   adicionarComentario,
   atualizarNotas,
   definirResponsavel,
@@ -14,7 +15,9 @@ import {
   removerItem,
   salvarItem,
 } from "@/db/pipeline";
+import { definirPasso, listarMarcas } from "@/db/revisao-juridica";
 import { lerUsuario } from "@/db/usuarios";
+import { ehPassoJuridico, type MarcaJuridica } from "@/core/revisao-juridica";
 import { avisarResponsavel } from "@/lib/avisos";
 import { lerSessao, verificarPermissao } from "@/lib/sessao";
 import type { OportunidadeComScore } from "@/core/types";
@@ -22,7 +25,7 @@ import type { ComentarioPipeline, Sessao } from "@/core/types-equipe";
 import type { EtapaId, ResultadoAcao } from "@/components/pipeline/tipos";
 
 const idSchema = z.string().min(1).max(200);
-const etapaSchema = z.enum(["radar", "analisando", "cotando", "proposta", "disputa", "ganha", "perdida"]);
+const etapaSchema = z.enum(["radar", "analisando", "cotando", "revisao_juridica", "proposta", "disputa", "ganha", "perdida"]);
 const notasSchema = z.string().max(5000);
 const comentarioSchema = z.string().trim().min(1).max(2000);
 
@@ -73,11 +76,35 @@ export async function moverEtapa(id: string, etapa: EtapaId): Promise<ResultadoA
   const i = idSchema.safeParse(id);
   const e = etapaSchema.safeParse(etapa);
   if (!i.success || !e.success) return { ok: false, erro: ERRO_DADOS };
-  return executar(
-    () => moverItem(i.data, e.data, undefined, sessao.usuarioId),
-    "Não foi possível mover o item. Tente de novo.",
-    "Esse item não está mais no pipeline.",
-  );
+  try {
+    const achou = await moverItem(i.data, e.data, undefined, sessao.usuarioId);
+    if (!achou) return { ok: false, erro: "Esse item não está mais no pipeline." };
+    atualizarTelas();
+    return { ok: true };
+  } catch (erro) {
+    if (erro instanceof ErroRevisaoJuridica) return { ok: false, erro: erro.message };
+    console.error("[pipeline]", erro instanceof Error ? erro.message : erro);
+    return { ok: false, erro: "Não foi possível mover o item. Tente de novo." };
+  }
+}
+
+export type RespostaRevisao = { ok: true; marcas: MarcaJuridica[] } | { ok: false; erro: string };
+
+/** Marca ou desmarca um passo do checklist jurídico. Exige a permissão de revisão jurídica (o dono tem sempre). */
+export async function marcarPassoJuridicoAction(id: string, passo: string, marcado: boolean): Promise<RespostaRevisao> {
+  const v = await verificarPermissao("revisao_juridica");
+  if (!v.ok) return { ok: false, erro: v.erro };
+  const i = idSchema.safeParse(id);
+  if (!i.success || !ehPassoJuridico(passo) || typeof marcado !== "boolean") return { ok: false, erro: ERRO_DADOS };
+  try {
+    const valido = await definirPasso(i.data, passo, marcado, v.sessao.usuarioId);
+    if (!valido) return { ok: false, erro: "O item não está mais na revisão jurídica." };
+    atualizarTelas();
+    return { ok: true, marcas: await listarMarcas(i.data) };
+  } catch (erro) {
+    console.error("[pipeline]", erro instanceof Error ? erro.message : erro);
+    return { ok: false, erro: "Não foi possível salvar o checklist. Tente de novo." };
+  }
 }
 
 export async function removerDoPipeline(id: string): Promise<ResultadoAcao> {

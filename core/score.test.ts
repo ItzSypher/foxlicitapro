@@ -367,3 +367,59 @@ describe("objetos reais do PNCP (novembro de 2026)", () => {
     expect(calcularScore(o, "servicos", AGORA).frenteCasada).toBeNull();
   });
 });
+
+describe("critério caixa (limites do dono)", () => {
+  const limites = { capitalMaximo: 5_000, diasMaximosParado: 30 };
+
+  it("sem limites o critério não entra e a nota não muda", () => {
+    const sem = calcularScore(oportunidade(), "servicos", AGORA);
+    const nulos = calcularScore(oportunidade(), "servicos", AGORA, { limites: { capitalMaximo: null, diasMaximosParado: null } });
+    expect(sem.criterios.some((c) => c.id === "caixa")).toBe(false);
+    expect(nulos).toEqual(sem);
+    expect(sem.total).toBe(100);
+  });
+
+  it("dentro dos limites: 5 de 5 e nota 100", () => {
+    const s = calcularScore(oportunidade(), "servicos", AGORA, { limites, custoTotal: 3_000, diasParado: 20 });
+    const c = s.criterios.find((x) => x.id === "caixa");
+    expect(c).toMatchObject({ pontos: 5, maximo: 5, aConfirmar: false });
+    expect(s.total).toBe(100);
+    expect(s.alertas ?? []).not.toContain("Pede mais caixa do que você definiu");
+  });
+
+  it("capital informado acima do máximo: 0 pontos, nota proporcional e alerta", () => {
+    const s = calcularScore(oportunidade(), "servicos", AGORA, { limites, custoTotal: 9_000, diasParado: 20 });
+    const c = s.criterios.find((x) => x.id === "caixa");
+    expect(c?.pontos).toBe(0);
+    expect(s.total).toBe(95); // 100 de 105 pontos, na escala de 100
+    expect(s.alertas).toContain("Pede mais caixa do que você definiu");
+  });
+
+  it("dias parado acima do máximo também alerta", () => {
+    const s = calcularScore(oportunidade(), "servicos", AGORA, { limites, custoTotal: 1_000, diasParado: 75 });
+    expect(s.criterios.find((x) => x.id === "caixa")?.pontos).toBe(0);
+    expect(s.alertas).toContain("Pede mais caixa do que você definiu");
+  });
+
+  it("sem custo, estima pelo valor do edital: passa do máximo, 2 pontos a confirmar", () => {
+    // 80% de R$ 10.000 = R$ 8.000 > R$ 5.000
+    const s = calcularScore(oportunidade({ valorEstimado: 10_000 }), "servicos", AGORA, { limites });
+    const c = s.criterios.find((x) => x.id === "caixa");
+    expect(c).toMatchObject({ pontos: 2, aConfirmar: true });
+    expect(s.alertas?.[0]).toContain("Pede mais caixa do que você definiu");
+  });
+
+  it("sem dado nenhum: 3 pontos a confirmar, sem alerta", () => {
+    const s = calcularScore(oportunidade({ valorEstimado: null }), "servicos", AGORA, { limites });
+    const c = s.criterios.find((x) => x.id === "caixa");
+    expect(c).toMatchObject({ pontos: 3, aConfirmar: true });
+    expect(s.alertas ?? []).toEqual([]);
+  });
+
+  it("peso pequeno: estourar o caixa custa no máximo 5 pontos na escala de 100", () => {
+    const bom = calcularScore(oportunidade(), "servicos", AGORA, { limites, custoTotal: 100, diasParado: 1 });
+    const ruim = calcularScore(oportunidade(), "servicos", AGORA, { limites, custoTotal: 99_999, diasParado: 1 });
+    expect(bom.total - ruim.total).toBeLessThanOrEqual(5);
+    expect(bom.total - ruim.total).toBeGreaterThan(0);
+  });
+});

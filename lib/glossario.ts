@@ -29,6 +29,7 @@ export const EXPLICACAO_CRITERIO: Readonly<Record<CriterioId, string>> = {
   documentacao:
     "Dispensa costuma pedir só CNPJ, certidões e a proposta. Pregão pode exigir balanço e atestado de capacidade técnica. Confirme no edital.",
   valor: "Se o valor estimado cabe no limite de faturamento do MEI. Acima do teto anual, só disputando parte dos itens.",
+  caixa: "Se o dinheiro que você paga antes de receber, e por quantos dias, cabe nos limites definidos em Preferências. Peso pequeno.",
 };
 
 /** O que cada faixa da nota significa. */

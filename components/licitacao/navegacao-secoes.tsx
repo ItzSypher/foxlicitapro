@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 export const SECOES: ReadonlyArray<{ id: string; rotulo: string }> = [
   { id: "datas", rotulo: "Datas" },
   { id: "ficha", rotulo: "Ficha" },
+  { id: "caixa", rotulo: "Caixa" },
+  { id: "concorrentes", rotulo: "Concorrentes" },
   { id: "resumo", rotulo: "Resumo" },
   { id: "sinais", rotulo: "Sinais" },
   { id: "itens", rotulo: "Itens" },

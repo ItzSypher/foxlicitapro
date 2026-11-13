@@ -1,3 +1,4 @@
+import type { MarcaJuridica } from "@/core/revisao-juridica";
 import type { OportunidadeComScore } from "@/core/types";
 
 /** Tipos e regras puras do pipeline, compartilhados entre servidor e cliente. */
@@ -6,6 +7,7 @@ export const ETAPAS = [
   { id: "radar", rotulo: "No radar" },
   { id: "analisando", rotulo: "Analisando edital" },
   { id: "cotando", rotulo: "Cotando fornecedor" },
+  { id: "revisao_juridica", rotulo: "Revisão jurídica" },
   { id: "proposta", rotulo: "Proposta pronta" },
   { id: "disputa", rotulo: "Em disputa" },
   { id: "ganha", rotulo: "Ganha" },
@@ -18,6 +20,7 @@ export const ROTULO_ETAPA: Record<EtapaId, string> = {
   radar: "No radar",
   analisando: "Analisando edital",
   cotando: "Cotando fornecedor",
+  revisao_juridica: "Revisão jurídica",
   proposta: "Proposta pronta",
   disputa: "Em disputa",
   ganha: "Ganha",
@@ -25,7 +28,7 @@ export const ROTULO_ETAPA: Record<EtapaId, string> = {
 };
 
 /** Etapas em que a oportunidade ainda está viva. */
-export const ETAPAS_ATIVAS: readonly EtapaId[] = ["radar", "analisando", "cotando", "proposta", "disputa"];
+export const ETAPAS_ATIVAS: readonly EtapaId[] = ["radar", "analisando", "cotando", "revisao_juridica", "proposta", "disputa"];
 
 export function ehEtapa(valor: unknown): valor is EtapaId {
   return ETAPAS.some((e) => e.id === valor);
@@ -45,6 +48,8 @@ export interface ItemPipeline {
   responsavelId: string | null;
   responsavelNome: string | null;
   comentarios: number;
+  /** Passos do checklist jurídico já marcados (vazio para itens sem revisão) */
+  revisao: MarcaJuridica[];
 }
 
 /** Pessoa que pode ser responsável por um item */
@@ -86,6 +91,7 @@ export function montarResumo(
     radar: { quantidade: 0, valor: 0 },
     analisando: { quantidade: 0, valor: 0 },
     cotando: { quantidade: 0, valor: 0 },
+    revisao_juridica: { quantidade: 0, valor: 0 },
     proposta: { quantidade: 0, valor: 0 },
     disputa: { quantidade: 0, valor: 0 },
     ganha: { quantidade: 0, valor: 0 },

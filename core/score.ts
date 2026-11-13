@@ -1,3 +1,4 @@
+import { avaliarLimites, capitalNecessario, type LimitesCaixa } from "./caixa";
 import { casarCnaesComForca, type CasamentoCnae } from "./cnae-keywords";
 import { EMPRESA } from "./empresa";
 import type { Criterio, Faixa, Frente, Oportunidade, Regiao, Score } from "./types";
@@ -164,8 +165,56 @@ function faixaDoTotal(total: number): Faixa {
 /** Menos que isto para o prazo: não dá tempo de montar proposta. */
 export const MS_POUCO_TEMPO = 6 * 3_600_000;
 
+/** Peso do critério de caixa: pequeno, 5 pontos. Só entra quando o dono definiu algum limite. */
+export const PESO_CAIXA = 5;
+
+/**
+ * O que o score sabe sobre o caixa. `limites` vêm das Preferências; sem nenhum limite, o critério não entra.
+ * `custoTotal` (da cotação) e `diasParado` (da ficha) são opcionais: sem custo, o capital é estimado pelo valor do edital.
+ */
+export interface ContextoCaixa {
+  limites: LimitesCaixa;
+  custoTotal?: number | null;
+  diasParado?: number | null;
+  pagamentoAntecipado?: boolean | null;
+}
+
+/**
+ * Passou de um limite: 0 pontos (ou 2, quando só o capital estimado pelo valor passou). Dentro dos limites: 5,
+ * ou 4 quando parte é estimada ou falta dado. Nada para comparar: 3, a confirmar.
+ * Devolve null quando o dono não definiu limite algum.
+ */
+function criterioCaixa(o: Oportunidade, ctx: ContextoCaixa | undefined): { criterio: Criterio; alerta: string | null } | null {
+  if (!ctx || (ctx.limites.capitalMaximo === null && ctx.limites.diasMaximosParado === null)) return null;
+  const base = { id: "caixa" as const, rotulo: "Caixa necessário", maximo: PESO_CAIXA };
+  const capital = capitalNecessario(ctx.custoTotal ?? null, o.valorEstimado);
+  const dias = ctx.diasParado ?? null;
+  const a = avaliarLimites(capital, dias, ctx.pagamentoAntecipado ?? null, ctx.limites);
+
+  if (a.excede) {
+    const soEstimado = !a.excedeDias && capital?.fonte === "estimado";
+    return {
+      criterio: { ...base, pontos: soEstimado ? 2 : 0, aConfirmar: soEstimado, motivo: a.motivos.join("; ") },
+      alerta: soEstimado ? `${a.alerta ?? ""} (estimado pelo valor do edital)` : a.alerta,
+    };
+  }
+  if (capital === null && dias === null) {
+    return { criterio: { ...base, pontos: 3, aConfirmar: true, motivo: "Sem dados para comparar com seus limites de caixa" }, alerta: null };
+  }
+  const aConfirmar = a.faltaDado || capital?.fonte === "estimado";
+  return {
+    criterio: {
+      ...base,
+      pontos: aConfirmar ? 4 : PESO_CAIXA,
+      aConfirmar,
+      motivo: aConfirmar ? "Dentro dos seus limites de caixa, com parte estimada" : "Dentro dos seus limites de caixa",
+    },
+    alerta: null,
+  };
+}
+
 /** Pontua uma oportunidade de 0 a 100 para a frente ativa. Função pura. */
-export function calcularScore(o: Oportunidade, frente: Frente, agora: Date = new Date()): Score {
+export function calcularScore(o: Oportunidade, frente: Frente, agora: Date = new Date(), caixa?: ContextoCaixa): Score {
   const casados = casarCnaesComForca(o.objeto);
   const outraFrente: Frente = frente === "servicos" ? "produtos" : "servicos";
   const ativos = melhorPrimeiro(casados[frente]);
@@ -179,7 +228,13 @@ export function calcularScore(o: Oportunidade, frente: Frente, agora: Date = new
     criterioValor(o),
   ];
 
-  const total = criterios.reduce((soma, c) => soma + c.pontos, 0);
+  const cx = criterioCaixa(o, caixa);
+  if (cx) criterios.push(cx.criterio);
+
+  // Com o critério de caixa o máximo passa de 100; a nota volta à escala de 100 proporcionalmente.
+  const soma = criterios.reduce((acc, c) => acc + c.pontos, 0);
+  const somaMaximos = criterios.reduce((acc, c) => acc + c.maximo, 0);
+  const total = cx ? Math.round((soma * 100) / somaMaximos) : soma;
   const semMatch = ativos.length === 0 && outros.length === 0;
   const frenteCasada: Frente | null = ativos.length > 0 ? frente : outros.length > 0 ? outraFrente : null;
 
@@ -189,6 +244,7 @@ export function calcularScore(o: Oportunidade, frente: Frente, agora: Date = new
   const alertas: string[] = [];
   if (poucoTempo) alertas.push("Fecha em menos de 6 h: pouco tempo para montar proposta");
   if (o.valorEstimado !== null && o.valorEstimado > TETO_MEI_ANO_CHEIO) alertas.push("Valor acima do teto anual do MEI");
+  if (cx?.alerta) alertas.push(cx.alerta);
   if (frenteCasada === outraFrente) {
     alertas.push(`Casou só com a outra frente (${outraFrente === "produtos" ? "produtos" : "serviços"})`);
   }

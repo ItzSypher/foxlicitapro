@@ -4,6 +4,8 @@ import { z } from "zod";
 import { sql } from "@/db/client";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ComentarioPipeline } from "@/core/types-equipe";
+import { validarSaidaDaRevisao, type MarcaJuridica } from "@/core/revisao-juridica";
+import { listarMarcasPorItem, paraMarca } from "@/db/revisao-juridica";
 import {
   ETAPAS,
   ROTULO_ETAPA,
@@ -14,14 +16,22 @@ import {
 } from "@/components/pipeline/tipos";
 
 export { ETAPAS, ROTULO_ETAPA };
+
+/** Saída da "Revisão jurídica" para frente sem o checklist completo. A mensagem já é para a tela. */
+export class ErroRevisaoJuridica extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "ErroRevisaoJuridica";
+  }
+}
 export type { EtapaId, ItemPipeline, ResumoPipeline };
 
-const etapaSchema = z.enum(["radar", "analisando", "cotando", "proposta", "disputa", "ganha", "perdida"]);
+const etapaSchema = z.enum(["radar", "analisando", "cotando", "revisao_juridica", "proposta", "disputa", "ganha", "perdida"]);
 
 const dataIso = z.string().refine((v) => !Number.isNaN(Date.parse(v)), "data inválida");
 
 const criterioSchema = z.object({
-  id: z.enum(["cnae", "modalidade", "local", "documentacao", "valor"]),
+  id: z.enum(["cnae", "modalidade", "local", "documentacao", "valor", "caixa"]),
   rotulo: z.string(),
   pontos: z.number(),
   maximo: z.number(),
@@ -98,6 +108,7 @@ export async function listarPipeline(): Promise<ItemPipeline[]> {
     left join usuarios r on r.id = i.responsavel
     order by i.ordem asc, i.criado_em asc
   `;
+  const marcas = await listarMarcasPorItem().catch((): Map<string, MarcaJuridica[]> => new Map());
   const itens: ItemPipeline[] = [];
   for (const linha of linhas) {
     const lida = linhaSchema.safeParse(linha);
@@ -119,6 +130,7 @@ export async function listarPipeline(): Promise<ItemPipeline[]> {
       responsavelId: d.responsavel,
       responsavelNome: d.responsavel_nome,
       comentarios: d.comentarios,
+      revisao: marcas.get(d.id) ?? [],
     });
   }
   return itens;
@@ -183,6 +195,22 @@ export async function moverItem(
     const atual = await tx`select etapa from pipeline_itens where id = ${id} for update`;
     if (atual.length === 0) return false;
     const origem = etapaSchema.parse(atual[0]?.etapa);
+
+    if (origem === "revisao_juridica" && origem !== destino) {
+      const linhasMarcas = await tx`
+        select p.item_id, p.passo, p.marcado_por, u.nome as marcado_por_nome, p.marcado_em
+        from revisao_juridica_passos p
+        left join usuarios u on u.id = p.marcado_por
+        where p.item_id = ${id}
+      `;
+      const marcas: MarcaJuridica[] = [];
+      for (const l of linhasMarcas) {
+        const m = paraMarca(l);
+        if (m) marcas.push({ passo: m.passo, porId: m.porId, porNome: m.porNome, em: m.em });
+      }
+      const permitido = validarSaidaDaRevisao(origem, destino, marcas);
+      if (!permitido.ok) throw new ErroRevisaoJuridica(permitido.erro);
+    }
 
     let novaOrdem = ordem;
     if (novaOrdem === undefined) {

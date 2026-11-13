@@ -48,6 +48,7 @@ export default async function PipelinePage({
       usuarioId={sessao.usuarioId}
       pessoas={pessoas}
       podeEditar={temPermissao(sessao, "mover_pipeline")}
+      podeRevisar={temPermissao(sessao, "revisao_juridica")}
     />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatarNumeroBR, parseNumeroBR } from "@/components/calculadora/numero";
 import type { Preferencias } from "@/core/types-equipe";
 import { cn } from "@/lib/utils";
 import { salvarPreferenciasAction } from "./actions";
@@ -18,18 +19,32 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
   const [bloqueados, setBloqueados] = useState<string[]>(inicial.termosBloqueadosParaVoce);
   const [emails, setEmails] = useState<string[]>(inicial.emailsResumo);
   const [resumoAtivo, setResumoAtivo] = useState(inicial.resumoAtivo);
+  const [capital, setCapital] = useState(inicial.capitalMaximo === null ? "" : formatarNumeroBR(inicial.capitalMaximo));
+  const [dias, setDias] = useState(inicial.diasMaximosParado === null ? "" : String(inicial.diasMaximosParado));
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [salvando, iniciar] = useTransition();
   const somenteLeitura = !podeEditar;
 
   function salvar() {
     setAviso(null);
+    const capitalMaximo = parseNumeroBR(capital);
+    const diasMaximosParado = parseNumeroBR(dias);
+    if (Number.isNaN(capitalMaximo) || (capitalMaximo !== null && capitalMaximo < 0)) {
+      setAviso({ tom: "erro", texto: "Capital máximo: digite um valor em reais, como 5000." });
+      return;
+    }
+    if (Number.isNaN(diasMaximosParado) || (diasMaximosParado !== null && (diasMaximosParado < 0 || !Number.isInteger(diasMaximosParado)))) {
+      setAviso({ tom: "erro", texto: "Dias máximos parado: digite um número inteiro de dias, como 45." });
+      return;
+    }
     iniciar(async () => {
       const resultado = await salvarPreferenciasAction({
         termosPrioritarios: prioritarios,
         termosBloqueadosParaVoce: bloqueados,
         emailsResumo: emails,
         resumoAtivo,
+        capitalMaximo,
+        diasMaximosParado,
       });
       if (!resultado.ok) {
         setAviso({ tom: "erro", texto: resultado.erro });
@@ -39,6 +54,8 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
       setBloqueados(resultado.preferencias.termosBloqueadosParaVoce);
       setEmails(resultado.preferencias.emailsResumo);
       setResumoAtivo(resultado.preferencias.resumoAtivo);
+      setCapital(resultado.preferencias.capitalMaximo === null ? "" : formatarNumeroBR(resultado.preferencias.capitalMaximo));
+      setDias(resultado.preferencias.diasMaximosParado === null ? "" : String(resultado.preferencias.diasMaximosParado));
       setAviso({ tom: "ok", texto: "Preferências salvas. O Radar já usa os novos termos." });
     });
   }
@@ -116,6 +133,43 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
           </span>
           <span className="sr-only">{resumoAtivo ? "Ligado" : "Desligado"}</span>
         </button>
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4" aria-labelledby="titulo-caixa">
+        <div>
+          <h2 id="titulo-caixa" className="text-base font-semibold text-ink">
+            Limites de caixa
+          </h2>
+          <p className="text-[13px] text-muted-foreground">
+            Licitação que pedir mais que isso recebe o alerta “Pede mais caixa do que você definiu” e perde um pouco de nota. Vazio = sem limite.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink">
+            Capital máximo por licitação (R$)
+            <input
+              type="text"
+              inputMode="decimal"
+              value={capital}
+              onChange={(e) => setCapital(e.target.value)}
+              disabled={somenteLeitura}
+              placeholder="Ex.: 5000"
+              className="h-11 w-full rounded-control border border-control bg-raised px-3 text-base text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink">
+            Dias máximos com dinheiro parado
+            <input
+              type="text"
+              inputMode="numeric"
+              value={dias}
+              onChange={(e) => setDias(e.target.value)}
+              disabled={somenteLeitura}
+              placeholder="Ex.: 45"
+              className="h-11 w-full rounded-control border border-control bg-raised px-3 text-base text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60"
+            />
+          </label>
+        </div>
       </section>
 
       {somenteLeitura ? null : (

@@ -1,14 +1,23 @@
 import { buscarContratacoes } from "./pncp/client";
 import { normalizarLista } from "./pncp/normalize";
+import type { LimitesCaixa } from "./caixa";
 import { calcularScore } from "./score";
 import type { Frente, ModalidadeId, Oportunidade, OportunidadeComScore, RespostaRadar } from "./types";
 
-/** Pontua para a frente ativa, descarta as encerradas e ordena por nota e depois por prazo. */
-export function pontuarEOrdenar(lista: readonly Oportunidade[], frente: Frente, agora: Date): OportunidadeComScore[] {
+/**
+ * Pontua para a frente ativa, descarta as encerradas e ordena por nota e depois por prazo.
+ * Com `limites` de caixa do dono, o critério de caixa entra (capital estimado pelo valor do edital).
+ */
+export function pontuarEOrdenar(
+  lista: readonly Oportunidade[],
+  frente: Frente,
+  agora: Date,
+  limites?: LimitesCaixa,
+): OportunidadeComScore[] {
   const agoraMs = agora.getTime();
   return lista
     .filter((o) => new Date(o.dataEncerramento).getTime() > agoraMs)
-    .map((o) => ({ ...o, score: calcularScore(o, frente, agora) }))
+    .map((o) => ({ ...o, score: calcularScore(o, frente, agora, limites ? { limites } : undefined) }))
     .sort(
       (a, b) =>
         b.score.total - a.score.total ||
@@ -21,7 +30,7 @@ export function pontuarEOrdenar(lista: readonly Oportunidade[], frente: Frente, 
  * Lança erro apenas quando as duas modalidades falham sem trazer nenhum item.
  * O painel usa o cache do banco (lib/radar-dados.ts); esta função fica para a API e para a coleta.
  */
-export async function buscarRadar(frente: Frente): Promise<RespostaRadar> {
+export async function buscarRadar(frente: Frente, limites?: LimitesCaixa): Promise<RespostaRadar> {
   const agora = new Date();
   const resultados = await buscarContratacoes({ agora });
 
@@ -33,7 +42,7 @@ export async function buscarRadar(frente: Frente): Promise<RespostaRadar> {
   }
 
   return {
-    oportunidades: pontuarEOrdenar(normalizarLista(brutas, agora), frente, agora),
+    oportunidades: pontuarEOrdenar(normalizarLista(brutas, agora), frente, agora, limites),
     atualizadoEm: agora.toISOString(),
     falhas,
   };

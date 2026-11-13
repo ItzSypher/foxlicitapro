@@ -35,7 +35,7 @@ export interface Oportunidade {
 
 export type Faixa = "go" | "atencao" | "nogo";
 
-export type CriterioId = "cnae" | "modalidade" | "local" | "documentacao" | "valor";
+export type CriterioId = "cnae" | "modalidade" | "local" | "documentacao" | "valor" | "caixa";
 
 export interface Criterio {
   id: CriterioId;

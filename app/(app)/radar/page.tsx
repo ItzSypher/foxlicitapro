@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { connection } from "next/server";
+import type { LimitesCaixa } from "@/core/caixa";
 import type { RespostaRadar } from "@/core/types";
 import { RadarComPipeline } from "@/components/pipeline/radar-com-pipeline";
 import { temPermissao } from "@/core/permissoes";
@@ -19,10 +20,11 @@ export default async function RadarPage() {
 
   // Radar e pipeline em paralelo; se o banco falhar, o Radar segue sem marcar os salvos.
   const sessao = await lerSessao();
-  const [resposta, ids, preferencias, palavras] = await Promise.all([
-    obterRadar(frente).catch((): RespostaRadar | null => null),
+  const preferencias = await lerPreferencias();
+  const limites: LimitesCaixa = { capitalMaximo: preferencias.capitalMaximo, diasMaximosParado: preferencias.diasMaximosParado };
+  const [resposta, ids, palavras] = await Promise.all([
+    obterRadar(frente, limites).catch((): RespostaRadar | null => null),
     idsNoPipeline().catch((): Set<string> => new Set()),
-    lerPreferencias(),
     sessao ? listarPalavrasChave(sessao.usuarioId).catch((): string[] => []) : Promise.resolve<string[]>([]),
   ]);
 

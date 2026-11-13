@@ -30,7 +30,25 @@ describe("preferenciasSchema", () => {
       termosBloqueadosParaVoce: ["video monitoramento"],
       emailsResumo: ["dono@empresa.com.br"],
       resumoAtivo: false,
+      capitalMaximo: null,
+      diasMaximosParado: null,
     });
+  });
+
+  it("aceita os limites de caixa e deixa nulo quando ausentes", () => {
+    const base = { termosPrioritarios: [], termosBloqueadosParaVoce: [], emailsResumo: [], resumoAtivo: true };
+    expect(preferenciasSchema.parse({ ...base, capitalMaximo: 5000, diasMaximosParado: 45 })).toMatchObject({
+      capitalMaximo: 5000,
+      diasMaximosParado: 45,
+    });
+    expect(preferenciasSchema.parse(base)).toMatchObject({ capitalMaximo: null, diasMaximosParado: null });
+  });
+
+  it("recusa limite de caixa negativo ou dias quebrados", () => {
+    const base = { termosPrioritarios: [], termosBloqueadosParaVoce: [], emailsResumo: [], resumoAtivo: true };
+    expect(preferenciasSchema.safeParse({ ...base, capitalMaximo: -1 }).success).toBe(false);
+    expect(preferenciasSchema.safeParse({ ...base, diasMaximosParado: 10.5 }).success).toBe(false);
+    expect(preferenciasSchema.safeParse({ ...base, diasMaximosParado: -3 }).success).toBe(false);
   });
 
   it("recusa e-mail inválido", () => {

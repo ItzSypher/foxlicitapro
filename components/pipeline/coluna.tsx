@@ -17,6 +17,7 @@ interface Props {
   aoResponsavel: (id: string, responsavelId: string | null) => void;
   desktop: boolean;
   podeEditar: boolean;
+  podeRevisar: boolean;
   arrastandoId: string | null;
   alvo: boolean;
   aoEntrarNoAlvo: (etapa: EtapaId) => void;
@@ -39,6 +40,7 @@ export function Coluna({
   aoResponsavel,
   desktop,
   podeEditar,
+  podeRevisar,
   arrastandoId,
   alvo,
   aoEntrarNoAlvo,
@@ -100,6 +102,7 @@ export function Coluna({
               pessoas={pessoas}
               aoResponsavel={aoResponsavel}
               podeEditar={podeEditar}
+              podeRevisar={podeRevisar}
               arrastavel={desktop && podeEditar}
               arrastando={arrastandoId === dado.id}
               aoIniciarArraste={aoIniciarArraste}

@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { buscarContratacoes, MODALIDADES } from "@/core/pncp/client";
 import { normalizarLista } from "@/core/pncp/normalize";
+import type { LimitesCaixa } from "@/core/caixa";
 import { buscarRadar, pontuarEOrdenar } from "@/core/radar";
 import type { Frente, ModalidadeId, Oportunidade, RespostaRadar } from "@/core/types";
 import { gravarModalidade, lerCacheRadar, marcarFalha, pegarTrava, soltarTrava, type LinhaCache } from "@/db/radar-cache";
@@ -53,11 +54,12 @@ export async function atualizarRadar(): Promise<ResumoColeta> {
   }
 }
 
-function montarResposta(cache: LinhaCache[], frente: Frente, agora: Date): RespostaRadar {
+function montarResposta(cache: LinhaCache[], frente: Frente, agora: Date, limites?: LimitesCaixa): RespostaRadar {
   const oportunidades = pontuarEOrdenar(
     cache.flatMap((c) => c.oportunidades),
     frente,
     agora,
+    limites,
   );
   const falhas = MODALIDADES.filter((m) => {
     const linha = cache.find((c) => c.modalidadeId === m);
@@ -71,19 +73,19 @@ function montarResposta(cache: LinhaCache[], frente: Frente, agora: Date): Respo
  * Radar do painel: lê o cache do banco na hora e, se estiver velho, coleta de novo depois da resposta.
  * Sem cache nenhum (primeiro uso), coleta antes de responder. Sem banco, cai para a consulta ao vivo.
  */
-export async function obterRadar(frente: Frente): Promise<RespostaRadar> {
+export async function obterRadar(frente: Frente, limites?: LimitesCaixa): Promise<RespostaRadar> {
   const agora = new Date();
   let cache: LinhaCache[];
   try {
     cache = await lerCacheRadar();
   } catch {
-    return buscarRadar(frente);
+    return buscarRadar(frente, limites);
   }
 
   if (cache.length === 0) {
     await atualizarRadar();
     cache = await lerCacheRadar();
-    if (cache.length === 0) return buscarRadar(frente);
+    if (cache.length === 0) return buscarRadar(frente, limites);
   } else {
     const velho =
       cache.length < MODALIDADES.length ||
@@ -91,5 +93,5 @@ export async function obterRadar(frente: Frente): Promise<RespostaRadar> {
     if (velho) after(() => atualizarRadar().then(() => undefined));
   }
 
-  return montarResposta(cache, frente, agora);
+  return montarResposta(cache, frente, agora, limites);
 }
