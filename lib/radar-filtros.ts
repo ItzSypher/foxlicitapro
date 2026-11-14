@@ -31,9 +31,6 @@ export function lerAba(params: { get(nome: string): string | null }): Aba {
 export const COOKIE_VISAO = "visao";
 export const VISAO_PADRAO: Visao = "cards";
 
-/** Itens por página em cada visualização. */
-export const POR_PAGINA: Record<Visao, number> = { cards: 12, lista: 25 };
-
 export const VISOES: ReadonlyArray<{ id: Visao; rotulo: string }> = [
   { id: "cards", rotulo: "Cards" },
   { id: "lista", rotulo: "Lista" },

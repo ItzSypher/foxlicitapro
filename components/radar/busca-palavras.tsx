@@ -10,6 +10,8 @@ interface Props {
   /** Texto do campo de busca */
   busca: string;
   aoBuscar: (texto: string) => void;
+  /** Enter: aplica a busca já, sem esperar a pausa da digitação */
+  aoAplicar: (texto: string) => void;
   /** Palavras-chave guardadas pela pessoa */
   salvas: string[];
   aoMudarSalvas: (lista: string[]) => void;
@@ -18,17 +20,21 @@ interface Props {
   aoAlternar: (termo: string) => void;
   /** Chamada quando uma palavra marcada é apagada */
   aoRemoverMarcada: (termo: string) => void;
+  /** Palavra acabou de ser guardada: limpa a busca e marca a palavra */
+  aoGuardar: (termo: string) => void;
 }
 
 /** Busca fixa no topo e palavras-chave como chips que rolam na horizontal. Alvos de toque de 44 px. */
 export function BuscaPalavras({
   busca,
   aoBuscar,
+  aoAplicar,
   salvas,
   aoMudarSalvas,
   selecionadas,
   aoAlternar,
   aoRemoverMarcada,
+  aoGuardar,
 }: Props) {
   const [editando, setEditando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -42,8 +48,7 @@ export function BuscaPalavras({
       const r = await adicionarPalavraAction(busca);
       if (r.ok) {
         aoMudarSalvas(r.palavras);
-        aoBuscar("");
-        if (!selecionadas.includes(termoDigitado)) aoAlternar(termoDigitado);
+        aoGuardar(termoDigitado);
       } else {
         setErro(r.erro);
       }
@@ -65,8 +70,16 @@ export function BuscaPalavras({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="sticky top-[52px] z-10 -mx-4 flex items-center gap-2 bg-ground px-4 py-2 lg:static lg:mx-0 lg:px-0 lg:py-0">
+    <>
+      {/* Sem div em volta: o sticky precisa de um pai tão alto quanto a página para fixar no topo do celular. */}
+      <form
+        role="search"
+        onSubmit={(evento) => {
+          evento.preventDefault();
+          aoAplicar(busca);
+        }}
+        className="sticky top-[52px] z-10 -mx-4 flex items-center gap-2 border-b border-border bg-ground px-4 py-2 lg:static lg:mx-0 lg:border-b-0 lg:px-0 lg:py-0"
+      >
         <div className="relative min-w-0 flex-1">
           <Search
             aria-hidden="true"
@@ -76,6 +89,7 @@ export function BuscaPalavras({
             type="search"
             value={busca}
             onChange={(e) => aoBuscar(e.target.value)}
+            enterKeyHint="search"
             maxLength={100}
             placeholder="Buscar por objeto, órgão ou município"
             aria-label="Buscar oportunidades"
@@ -98,14 +112,14 @@ export function BuscaPalavras({
             type="button"
             onClick={salvarDigitado}
             disabled={pendente}
-            aria-label={`Guardar ${termoDigitado} como palavra-chave`}
+            aria-label={`Salvar ${termoDigitado} como palavra-chave`}
             className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border border-control bg-transparent px-3 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 lg:h-9"
           >
             <Plus aria-hidden="true" className="size-4" />
-            <span className="hidden sm:inline">Guardar</span>
+            <span className="hidden sm:inline">Salvar palavra</span>
           </button>
         ) : null}
-      </div>
+      </form>
 
       {salvas.length > 0 ? (
         <div className="flex items-center gap-2">
@@ -156,6 +170,6 @@ export function BuscaPalavras({
           {erro}
         </p>
       ) : null}
-    </div>
+    </>
   );
 }

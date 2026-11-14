@@ -52,9 +52,17 @@ function chaveConfigurada(): string {
   return (process.env.GEMINI_API_KEY ?? "").trim().replace(/^["']|["']$/g, "").trim();
 }
 
+const NOME_VALIDO = /^[A-Za-z0-9._-]+$/;
+
 export function nomeDoModelo(): string {
   const configurado = (process.env.GEMINI_MODEL ?? "").trim();
-  return /^[A-Za-z0-9._-]+$/.test(configurado) ? configurado : MODELO_PADRAO;
+  return NOME_VALIDO.test(configurado) ? configurado : MODELO_PADRAO;
+}
+
+/** Modelo da ficha do edital: GEMINI_MODEL_FICHA se válido; senão o mesmo do resto do assistente. */
+export function nomeDoModeloFicha(): string {
+  const configurado = (process.env.GEMINI_MODEL_FICHA ?? "").trim();
+  return NOME_VALIDO.test(configurado) ? configurado : nomeDoModelo();
 }
 
 export type ParteEntrada = { tipo: "texto"; texto: string } | { tipo: "pdf"; base64: string };
@@ -164,7 +172,7 @@ export function motivoDoErro(corpo: unknown): string {
   return partes.join(": ").slice(0, 300);
 }
 
-export function erroDoStatus(status: number, motivo = ""): ErroAssistente {
+export function erroDoStatus(status: number, motivo = "", modelo: string = nomeDoModelo()): ErroAssistente {
   if (/credit|billing|prepay/i.test(motivo)) {
     return new ErroAssistente(
       "indisponivel",
@@ -182,7 +190,7 @@ export function erroDoStatus(status: number, motivo = ""): ErroAssistente {
   if (status === 404 || /model/i.test(motivo)) {
     return new ErroAssistente(
       "modelo-indisponivel",
-      `O modelo configurado não está disponível para esta chave (${nomeDoModelo()}). Ajuste GEMINI_MODEL na Vercel.`,
+      `O modelo configurado não está disponível para esta chave (${modelo}). Ajuste GEMINI_MODEL na Vercel.`,
       status,
     );
   }
@@ -208,12 +216,16 @@ function esperar(ms: number): Promise<void> {
 }
 
 /** Uma chamada ao generateContent, com timeout de 60 s e 1 nova tentativa em 429, 5xx ou falha de rede. */
-async function chamar(pedido: PedidoApi, opcoes: OpcoesGemini): Promise<{ texto: string; finishReason: string | null }> {
+async function chamar(
+  pedido: PedidoApi,
+  opcoes: OpcoesGemini,
+  modelo: string = nomeDoModelo(),
+): Promise<{ texto: string; finishReason: string | null }> {
   const chave = chaveConfigurada();
   if (chave === "") throw new ErroAssistente("sem-chave", "O assistente ainda não está ativado.");
   const fetchImpl = opcoes.fetchImpl ?? fetch;
   const espera = opcoes.esperaRetryMs ?? ESPERA_RETRY_MS;
-  const url = urlDoModelo(nomeDoModelo());
+  const url = urlDoModelo(modelo);
   const corpo = JSON.stringify(pedido);
 
   for (let tentativa = 0; ; tentativa += 1) {
@@ -245,7 +257,7 @@ async function chamar(pedido: PedidoApi, opcoes: OpcoesGemini): Promise<{ texto:
     if (!resposta.ok) {
       const motivo = motivoDoErro(await resposta.json().catch(() => null));
       console.error("[assistente] falha na API:", resposta.status, motivo);
-      throw erroDoStatus(resposta.status, motivo);
+      throw erroDoStatus(resposta.status, motivo, modelo);
     }
     let json: unknown;
     try {
@@ -285,6 +297,8 @@ export interface PedidoJson<T> {
   temperatura?: number;
   /** true: sem a segunda chamada de correção; resposta fora do esquema já vira erro */
   semCorrecao?: boolean;
+  /** Modelo desta chamada; sem ele vale GEMINI_MODEL (ou o padrão) */
+  modelo?: string;
 }
 
 /**
@@ -303,6 +317,7 @@ export async function gerarJson<T>(pedido: PedidoJson<T>, opcoes: OpcoesGemini =
         temperatura: pedido.temperatura,
       }),
       opcoes,
+      pedido.modelo,
     );
     const validado = validarTexto(resposta.texto, pedido.esquema);
     if (validado.ok) return validado.valor;

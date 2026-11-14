@@ -3,7 +3,7 @@ import { z } from "zod";
 
 vi.mock("server-only", () => ({}));
 
-import { ErroAssistente, assistenteDisponivel, gerarJson, gerarTexto, montarPedido, nomeDoModelo, urlDoModelo } from "./gemini";
+import { ErroAssistente, assistenteDisponivel, gerarJson, gerarTexto, montarPedido, nomeDoModelo, nomeDoModeloFicha, urlDoModelo } from "./gemini";
 
 const CHAVE = "chave-secreta-de-teste";
 const OPCOES = { esperaRetryMs: 0 };
@@ -17,6 +17,7 @@ function respostaGemini(texto: string, extra: Record<string, unknown> = {}): Res
 beforeEach(() => {
   process.env.GEMINI_API_KEY = CHAVE;
   delete process.env.GEMINI_MODEL;
+  delete process.env.GEMINI_MODEL_FICHA;
 });
 
 afterEach(() => {
@@ -31,6 +32,18 @@ describe("configuração", () => {
     expect(assistenteDisponivel()).toBe(false);
     delete process.env.GEMINI_API_KEY;
     expect(assistenteDisponivel()).toBe(false);
+  });
+
+  it("a ficha usa GEMINI_MODEL_FICHA, depois GEMINI_MODEL, depois o padrão", () => {
+    delete process.env.GEMINI_MODEL_FICHA;
+    expect(nomeDoModeloFicha()).toBe("gemini-3.8-flash");
+    process.env.GEMINI_MODEL = "gemini-4-hydrogen";
+    expect(nomeDoModeloFicha()).toBe("gemini-4-hydrogen");
+    process.env.GEMINI_MODEL_FICHA = "gemini-4-lite";
+    expect(nomeDoModeloFicha()).toBe("gemini-4-lite");
+    process.env.GEMINI_MODEL_FICHA = "../x?y=1";
+    expect(nomeDoModeloFicha()).toBe("gemini-4-hydrogen");
+    delete process.env.GEMINI_MODEL_FICHA;
   });
 
   it("usa GEMINI_MODEL quando válido e o padrão caso contrário", () => {

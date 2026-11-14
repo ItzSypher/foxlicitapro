@@ -5,6 +5,7 @@ import { normalizarLista } from "@/core/pncp/normalize";
 import type { LimitesCaixa } from "@/core/caixa";
 import { buscarRadar, pontuarEOrdenar } from "@/core/radar";
 import type { Frente, ModalidadeId, Oportunidade, RespostaRadar } from "@/core/types";
+import { montarPaginaRadar, type ConsultaRadar, type PaginaRadar } from "@/lib/radar-pagina";
 import { gravarModalidade, lerCacheRadar, marcarFalha, pegarTrava, soltarTrava, type LinhaCache } from "@/db/radar-cache";
 
 /** Depois desse tempo o cache é servido, mas uma nova coleta começa em segundo plano. */
@@ -94,4 +95,17 @@ export async function obterRadar(frente: Frente, limites?: LimitesCaixa): Promis
   }
 
   return montarResposta(cache, frente, agora, limites);
+}
+
+/** Radar já filtrado, ordenado e paginado no servidor: só a página atual vai ao navegador. */
+export function paginaDaResposta(resposta: RespostaRadar, consulta: ConsultaRadar): PaginaRadar {
+  const referencia = Date.parse(resposta.atualizadoEm);
+  return montarPaginaRadar(
+    resposta.oportunidades,
+    consulta,
+    Date.now(),
+    Number.isNaN(referencia) ? Date.now() : referencia,
+    resposta.atualizadoEm,
+    resposta.falhas,
+  );
 }

@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { itensPaginacao } from "@/lib/radar-filtros";
+import { POR_PAGINA_OPCOES } from "@/lib/radar-pagina";
 import { cn } from "@/lib/utils";
 
 const BASE_BOTAO =
@@ -13,25 +14,48 @@ interface Props {
   inicio: number;
   fim: number;
   total: number;
+  /** Sem isto o seletor "Por página" não aparece */
+  porPagina?: number;
+  /** true enquanto o servidor monta a página pedida */
+  ocupado?: boolean;
   onIr: (pagina: number) => void;
+  onPorPagina?: (quantidade: number) => void;
 }
 
 /** "1–12 de 880" e os controles. No telefone: "Anterior · 2 de 37 · Próxima". */
-export function Paginacao({ pagina, totalPaginas, inicio, fim, total, onIr }: Props) {
-  const anterior = pagina > 1;
-  const proxima = pagina < totalPaginas;
+export function Paginacao({ pagina, totalPaginas, inicio, fim, total, porPagina, ocupado = false, onIr, onPorPagina }: Props) {
+  const anterior = pagina > 1 && !ocupado;
+  const proxima = pagina < totalPaginas && !ocupado;
 
   return (
     <nav
       aria-label="Paginação"
       className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
     >
-      <p className="text-center text-[13px] text-muted-foreground md:text-left md:text-sm">
-        <span className="font-mono tabular-nums">
-          {inicio}–{fim}
-        </span>{" "}
-        de <span className="font-mono tabular-nums">{total}</span>
-      </p>
+      <div className="flex items-center justify-between gap-3 md:justify-start md:gap-4">
+        <p className="text-[13px] text-muted-foreground md:text-sm">
+          <span className="font-mono tabular-nums">
+            {inicio}–{fim}
+          </span>{" "}
+          de <span className="font-mono tabular-nums">{total}</span>
+        </p>
+        {porPagina !== undefined && onPorPagina ? (
+        <label className="flex items-center gap-2 text-[13px] text-muted-foreground md:text-sm">
+          Por página
+          <select
+            value={porPagina}
+            onChange={(evento) => onPorPagina(Number(evento.target.value))}
+            className="h-11 cursor-pointer rounded-control border border-border bg-surface px-2 font-mono text-sm tabular-nums text-ink outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand md:h-9"
+          >
+            {POR_PAGINA_OPCOES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        ) : null}
+      </div>
 
       {totalPaginas > 1 ? (
         <>

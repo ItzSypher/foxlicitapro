@@ -8,15 +8,31 @@ import { idsNoPipeline } from "@/db/pipeline";
 import { listarPalavrasChave } from "@/db/palavras-chave";
 import { lerSessao } from "@/lib/sessao";
 import { lerPreferencias } from "@/db/preferencias";
-import { obterRadar } from "@/lib/radar-dados";
+import { obterRadar, paginaDaResposta } from "@/lib/radar-dados";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
-import { COOKIE_VISAO, lerVisao } from "@/lib/radar-filtros";
+import { COOKIE_VISAO, lerAba, lerBusca, lerFiltros, lerPagina, lerPalavras, lerVisao } from "@/lib/radar-filtros";
+import { lerPorPagina } from "@/lib/radar-pagina";
 
-export default async function RadarPage() {
+type ParametrosDaUrl = Record<string, string | string[] | undefined>;
+
+/** Mesma interface de URLSearchParams.get, sobre os searchParams do Next (o primeiro valor vale). */
+function lerParametros(bruto: ParametrosDaUrl): { get(nome: string): string | null } {
+  return {
+    get(nome) {
+      const valor = bruto[nome];
+      if (Array.isArray(valor)) return valor[0] ?? null;
+      return valor ?? null;
+    },
+  };
+}
+
+export default async function RadarPage({ searchParams }: { searchParams: Promise<ParametrosDaUrl> }) {
   await connection();
   const jar = await cookies();
   const frente = lerFrente(jar.get(COOKIE_FRENTE)?.value);
-  const visaoInicial = lerVisao(jar.get(COOKIE_VISAO)?.value);
+  const params = lerParametros(await searchParams);
+  // ?ver= vence o cookie da visualização.
+  const visao = lerVisao(params.get("ver") ?? jar.get(COOKIE_VISAO)?.value);
 
   // Radar e pipeline em paralelo; se o banco falhar, o Radar segue sem marcar os salvos.
   const sessao = await lerSessao();
@@ -28,13 +44,27 @@ export default async function RadarPage() {
     sessao ? listarPalavrasChave(sessao.usuarioId).catch((): string[] => []) : Promise.resolve<string[]>([]),
   ]);
 
+  const pagina = resposta
+    ? paginaDaResposta(resposta, {
+        frente,
+        filtros: lerFiltros(params),
+        aba: lerAba(params),
+        busca: lerBusca(params),
+        palavras: lerPalavras(params),
+        palavrasSalvas: palavras,
+        pagina: lerPagina(params),
+        porPagina: lerPorPagina(params),
+        preferencias,
+      })
+    : null;
+
   return (
     <RadarComPipeline
       frente={frente}
-      resposta={resposta}
-      visaoInicial={visaoInicial}
+      pagina={pagina}
+      visao={visao}
+      buscaInicial={lerBusca(params)}
       idsSalvos={[...ids]}
-      preferencias={preferencias}
       palavrasSalvas={palavras}
       podeSalvar={sessao !== null && temPermissao(sessao, "mover_pipeline")}
     />

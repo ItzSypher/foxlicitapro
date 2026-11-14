@@ -31,13 +31,24 @@ export async function lerFicha(idPncp: string): Promise<FichaSalva | null> {
   };
 }
 
-/** Grava (ou substitui) a ficha. Ficha nova volta a ficar "não conferida". */
-export async function gravarFicha(idPncp: string, ficha: FichaEdital, usuarioId: string): Promise<void> {
+/** Markdown do edital guardado com a ficha; null se a ficha não existe ou o edital era escaneado. */
+export async function lerEditalMd(idPncp: string): Promise<string | null> {
+  const linhas = await sql<Array<{ edital_md: string | null }>>`
+    select edital_md from fichas_edital where id_pncp = ${idPncp}`;
+  return linhas[0]?.edital_md ?? null;
+}
+
+/**
+ * Grava (ou substitui) a ficha. Ficha nova volta a ficar "não conferida".
+ * `editalMd` é o texto do edital em Markdown; null mantém o que já estava guardado.
+ */
+export async function gravarFicha(idPncp: string, ficha: FichaEdital, usuarioId: string, editalMd: string | null = null): Promise<void> {
   await sql`
-    insert into fichas_edital (id_pncp, ficha, gerada_em, gerada_por, confirmada_por, confirmada_em)
-    values (${idPncp}, ${sql.json(JSON.parse(JSON.stringify(ficha)))}, now(), ${usuarioId}, null, null)
+    insert into fichas_edital (id_pncp, ficha, edital_md, gerada_em, gerada_por, confirmada_por, confirmada_em)
+    values (${idPncp}, ${sql.json(JSON.parse(JSON.stringify(ficha)))}, ${editalMd}, now(), ${usuarioId}, null, null)
     on conflict (id_pncp) do update
-      set ficha = excluded.ficha, gerada_em = excluded.gerada_em, gerada_por = excluded.gerada_por,
+      set ficha = excluded.ficha, edital_md = coalesce(excluded.edital_md, fichas_edital.edital_md),
+          gerada_em = excluded.gerada_em, gerada_por = excluded.gerada_por,
           confirmada_por = null, confirmada_em = null`;
 }
 

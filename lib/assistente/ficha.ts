@@ -4,9 +4,9 @@ import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { textoChaveCompra } from "@/core/proposta";
 import type { ChaveCompra, DetalheCompra } from "@/core/types-detalhe";
 import type { Sessao } from "@/core/types-equipe";
-import { gravarFicha, lerFicha } from "@/db/fichas";
-import { ErroAssistente, assistenteDisponivel, gerarJson, type EsquemaJson, type OpcoesGemini } from "@/lib/gemini";
-import { baixarPdfPrincipal } from "./edital-pdf";
+import { gravarFicha, lerEditalMd, lerFicha } from "@/db/fichas";
+import { ErroAssistente, assistenteDisponivel, gerarJson, nomeDoModeloFicha, type EsquemaJson, type OpcoesGemini, type ParteEntrada } from "@/lib/gemini";
+import { lerEditalPrincipal, type EditalLido } from "./edital-pdf";
 import { textoLicitacao } from "./prompt";
 
 export type ResultadoFicha = { ok: true; ficha: FichaSalva } | { ok: false; erro: string };
@@ -16,7 +16,7 @@ const MAX_TOKENS_FICHA = 4096;
 /** Baixa: a ficha extrai o que está escrito, não cria texto. */
 export const TEMPERATURA_FICHA = 0.2;
 
-export const SISTEMA_FICHA = `Você é analista de licitações e trabalha para uma empresa MEI de TI. Leia o edital em PDF (anexo) e preencha a ficha do edital no formato pedido. Um gestor vai conferir tudo.
+export const SISTEMA_FICHA = `Você é analista de licitações e trabalha para uma empresa MEI de TI. Leia o edital (anexo em PDF ou em texto Markdown, com um título "## Página N" por página) e preencha a ficha do edital no formato pedido. Um gestor vai conferir tudo.
 
 BASE LEGAL
 - Lei 14.133/2021 (licitações e contratos) e Lei Complementar 123/2006 (tratamento favorecido a ME/EPP/MEI).
@@ -26,7 +26,7 @@ Empresa nova, MEI, com pouco capital de giro. O objetivo é ter receita mensal r
 
 REGRAS
 1. Não invente. Só preencha o que o edital diz. Campo de texto ausente: valor "${NAO_INFORMADO}". Número ou sim/não ausente: null. Natureza ausente: "nao-informado". Lista ausente: lista vazia.
-2. trecho: citação curta do edital (até 100 caracteres) que sustenta o valor; null quando o campo não está no edital. pagina: número da página do PDF onde o trecho está; null se não souber.
+2. trecho: citação curta do edital (até 100 caracteres) que sustenta o valor; null quando o campo não está no edital. pagina: número da página do edital onde o trecho está (o N do título "## Página N", se vier em texto); null se não souber.
 3. prazoPagamentoDias e prazoEntregaDias: número de dias do edital (se for em dias úteis, use o número escrito e diga "dias úteis" no trecho). Se o prazo for dado em horas ou meses, converta para dias. Prazo "imediato" ou sem número: null.
 4. medicaoMensal: true só se o pagamento depende de medição ou apuração mensal. pagamentoAntecipado: true só se o edital prevê pagar antes da entrega ou da execução; em condicao, diga a condição em uma frase (ex.: "até 30% do valor, com garantia").
 5. garantiaContratualPercentual: percentual do valor do contrato exigido como garantia; null se não houver exigência.
@@ -108,10 +108,12 @@ export const ESQUEMA_JSON_FICHA: EsquemaJson = {
   additionalProperties: false,
 };
 
-/** Mensagem do usuário: dados da licitação (o PDF vai em outra parte). */
-export function textoPedidoFicha(d: DetalheCompra): string {
+/** Mensagem do usuário: dados da licitação (o edital vai em outra parte). */
+export function textoPedidoFicha(d: DetalheCompra, formato: EditalLido["tipo"] = "pdf"): string {
   return [
-    "O edital principal desta licitação está anexo em PDF.",
+    formato === "pdf"
+      ? "O edital principal desta licitação está anexo em PDF."
+      : "O edital principal desta licitação está acima, em texto Markdown (um título \"## Página N\" por página).",
     "",
     "DADOS DA LICITAÇÃO (do PNCP)",
     textoLicitacao(d),
@@ -120,20 +122,27 @@ export function textoPedidoFicha(d: DetalheCompra): string {
   ].join("\n");
 }
 
-/** Uma chamada ao assistente com o PDF; lança ErroAssistente em falha. */
-export async function gerarFichaEdital(detalhe: DetalheCompra, pdfBase64: string, opcoes: OpcoesGemini = {}): Promise<FichaEdital> {
+/** Partes do pedido: o edital (texto ou PDF inline) e os dados da licitação. */
+export function partesDoPedidoFicha(detalhe: DetalheCompra, edital: EditalLido): ParteEntrada[] {
+  const pedido: ParteEntrada = { tipo: "texto", texto: textoPedidoFicha(detalhe, edital.tipo) };
+  if (edital.tipo === "pdf") return [{ tipo: "pdf", base64: edital.base64 }, pedido];
+  return [{ tipo: "texto", texto: `EDITAL (Markdown)
+
+${edital.markdown}` }, pedido];
+}
+
+/** Uma chamada ao assistente com o edital (texto, ou PDF se escaneado); lança ErroAssistente em falha. */
+export async function gerarFichaEdital(detalhe: DetalheCompra, edital: EditalLido, opcoes: OpcoesGemini = {}): Promise<FichaEdital> {
   return gerarJson(
     {
       sistema: SISTEMA_FICHA,
-      partes: [
-        { tipo: "pdf", base64: pdfBase64 },
-        { tipo: "texto", texto: textoPedidoFicha(detalhe) },
-      ],
+      partes: partesDoPedidoFicha(detalhe, edital),
       esquema: FichaEditalSchema,
       esquemaJson: ESQUEMA_JSON_FICHA,
       maxTokens: MAX_TOKENS_FICHA,
       temperatura: TEMPERATURA_FICHA,
       semCorrecao: true,
+      modelo: nomeDoModeloFicha(),
     },
     opcoes,
   );
@@ -142,15 +151,20 @@ export async function gerarFichaEdital(detalhe: DetalheCompra, pdfBase64: string
 /** Dependências trocáveis nos testes. */
 export interface DependenciasFicha {
   buscarDetalhe: (chave: ChaveCompra) => Promise<DetalheCompra | null>;
-  baixarPdf: (detalhe: DetalheCompra) => Promise<string | null>;
+  /** Baixa o PDF e o converte em texto (ou o devolve inline se for escaneado); null se não abriu */
+  lerEdital: (detalhe: DetalheCompra) => Promise<EditalLido | null>;
+  /** Markdown do edital guardado junto da ficha, para reler sem baixar de novo */
+  lerEditalMd: (idPncp: string) => Promise<string | null>;
   lerFicha: (idPncp: string) => Promise<FichaSalva | null>;
-  gravarFicha: (idPncp: string, ficha: FichaEdital, usuarioId: string) => Promise<void>;
+  /** `editalMd` null mantém o texto já guardado */
+  gravarFicha: (idPncp: string, ficha: FichaEdital, usuarioId: string, editalMd: string | null) => Promise<void>;
   opcoesGemini?: OpcoesGemini;
 }
 
 const DEPENDENCIAS_PADRAO: DependenciasFicha = {
   buscarDetalhe: (chave) => buscarDetalheCompra(chave),
-  baixarPdf: baixarPdfPrincipal,
+  lerEdital: lerEditalPrincipal,
+  lerEditalMd,
   lerFicha,
   gravarFicha,
 };
@@ -180,14 +194,17 @@ async function executar(
 
   if (!assistenteDisponivel()) return { ok: false, erro: "O assistente ainda não está ativado." };
 
-  const pdf = await deps.baixarPdf(detalhe);
-  if (pdf === null) {
+  // O texto do edital guardado na leitura anterior evita baixar e converter o PDF outra vez.
+  const guardado = await deps.lerEditalMd(idPncp).catch(() => null);
+  const edital: EditalLido | null =
+    guardado !== null && guardado !== "" ? { tipo: "texto", markdown: guardado } : await deps.lerEdital(detalhe);
+  if (edital === null) {
     return { ok: false, erro: "Não consegui abrir o PDF do edital. Abra o edital pelo PNCP ou tente de novo em instantes." };
   }
 
   let ficha: FichaEdital;
   try {
-    ficha = await gerarFichaEdital(detalhe, pdf, deps.opcoesGemini);
+    ficha = await gerarFichaEdital(detalhe, edital, deps.opcoesGemini);
   } catch (e) {
     if (e instanceof ErroAssistente) return { ok: false, erro: e.message };
     console.error("[assistente] falha inesperada na ficha:", e instanceof Error ? e.name : "erro");
@@ -195,7 +212,7 @@ async function executar(
   }
 
   try {
-    await deps.gravarFicha(idPncp, ficha, sessao.usuarioId);
+    await deps.gravarFicha(idPncp, ficha, sessao.usuarioId, edital.tipo === "texto" ? edital.markdown : null);
   } catch {
     return { ok: false, erro: "A ficha ficou pronta, mas não foi possível salvar. Tente de novo." };
   }
