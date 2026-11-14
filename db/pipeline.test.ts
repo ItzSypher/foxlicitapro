@@ -44,48 +44,72 @@ const ficticio: OportunidadeComScore = {
 describe.skipIf(!process.env.DATABASE_URL)("pipeline no banco", () => {
   type Modulo = typeof import("./pipeline");
   let m: Modulo;
+  let E = "";
+  let E2 = "";
+  let limpar: (id: string) => Promise<void> = async () => undefined;
 
   beforeAll(async () => {
     m = await import("./pipeline");
-    await m.removerItem(ID);
+    const t = await import("./empresa-teste");
+    limpar = t.removerEmpresaDeTeste;
+    E = await t.criarEmpresaDeTeste();
+    E2 = await t.criarEmpresaDeTeste();
   }, 30_000);
 
   afterAll(async () => {
-    await m.removerItem(ID);
+    await limpar(E);
+    await limpar(E2);
     const { sql } = await import("./client");
     await sql.end({ timeout: 5 });
   }, 30_000);
 
   it("salva, move, anota, lê o histórico e remove", async () => {
-    expect((await m.salvarItem(ficticio)).criado).toBe(true);
-    expect((await m.salvarItem(ficticio)).criado).toBe(false);
-    expect((await m.idsNoPipeline()).has(ID)).toBe(true);
+    expect((await m.salvarItem(E, ficticio)).criado).toBe(true);
+    expect((await m.salvarItem(E, ficticio)).criado).toBe(false);
+    expect((await m.idsNoPipeline(E)).has(ID)).toBe(true);
 
-    expect(await m.moverItem(ID, "cotando")).toBe(true);
-    expect(await m.moverItem(ID, "cotando")).toBe(true);
-    expect(await m.moverItem(ID, "ganha")).toBe(true);
-    expect(await m.atualizarNotas(ID, "nota de teste")).toBe(true);
+    expect(await m.moverItem(E, ID, "cotando")).toBe(true);
+    expect(await m.moverItem(E, ID, "cotando")).toBe(true);
+    expect(await m.moverItem(E, ID, "ganha")).toBe(true);
+    expect(await m.atualizarNotas(E, ID, "nota de teste")).toBe(true);
 
-    const itens = await m.listarPipeline();
+    const itens = await m.listarPipeline(E);
     const achado = itens.find((i) => i.id === ID);
     expect(achado?.etapa).toBe("ganha");
     expect(achado?.notas).toBe("nota de teste");
     expect(achado?.item.objeto).toBe(ficticio.objeto);
 
-    const historico = await m.listarHistorico(ID);
+    const historico = await m.listarHistorico(E, ID);
     expect(historico.map((h) => [h.de, h.para])).toEqual([
       [null, "radar"],
       ["radar", "cotando"],
       ["cotando", "ganha"],
     ]);
 
-    const resumo = await m.resumoPipeline();
+    const resumo = await m.resumoPipeline(E);
     expect(resumo.ganhas).toBeGreaterThanOrEqual(1);
     expect(resumo.taxaVitoria).not.toBeNull();
 
-    expect(await m.moverItem("TESTE-NAO-EXISTE", "radar")).toBe(false);
-    expect(await m.removerItem(ID)).toBe(true);
-    expect((await m.idsNoPipeline()).has(ID)).toBe(false);
-    expect(await m.listarHistorico(ID)).toEqual([]);
+    expect(await m.moverItem(E, "TESTE-NAO-EXISTE", "radar")).toBe(false);
+    expect(await m.removerItem(E, ID)).toBe(true);
+    expect((await m.idsNoPipeline(E)).has(ID)).toBe(false);
+    expect(await m.listarHistorico(E, ID)).toEqual([]);
+  }, 60_000);
+
+  it("não mostra nem mexe em dados de outra empresa", async () => {
+    await m.salvarItem(E, ficticio);
+    expect((await m.idsNoPipeline(E2)).has(ID)).toBe(false);
+    expect((await m.listarPipeline(E2)).some((i) => i.id === ID)).toBe(false);
+    expect(await m.moverItem(E2, ID, "ganha")).toBe(false);
+    expect(await m.atualizarNotas(E2, ID, "invasão")).toBe(false);
+    expect(await m.removerItem(E2, ID)).toBe(false);
+    expect(await m.listarHistorico(E2, ID)).toEqual([]);
+    // Item da outra empresa não aparece nem mexe nos números desta.
+    const outro = { ...ficticio, id: `${ID}-B` };
+    expect((await m.salvarItem(E2, outro)).criado).toBe(true);
+    expect((await m.listarPipeline(E)).some((i) => i.id === outro.id)).toBe(false);
+    await m.moverItem(E2, outro.id, "perdida");
+    expect((await m.listarPipeline(E)).find((i) => i.id === ID)?.etapa).toBe("radar");
+    expect((await m.resumoPipeline(E)).perdidas).toBe(0);
   }, 60_000);
 });

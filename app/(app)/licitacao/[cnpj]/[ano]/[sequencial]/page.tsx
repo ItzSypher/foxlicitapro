@@ -31,7 +31,8 @@ import { idsNoPipeline } from "@/db/pipeline";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
 import { assistenteDisponivel } from "@/lib/gemini";
 import { temPermissao } from "@/core/permissoes";
-import { lerSessao } from "@/lib/sessao";
+import { exigirSessao } from "@/lib/sessao";
+import { perfilAtual } from "@/lib/empresa-atual";
 
 /** A montagem da proposta pelo assistente (server action desta rota) pode levar mais de 1 minuto. */
 export const maxDuration = 300;
@@ -50,7 +51,8 @@ export default async function LicitacaoPage({ params }: Props) {
   const { cnpj, ano, sequencial } = await params;
   if (!/^\d{14}$/.test(cnpj) || !/^\d{4}$/.test(ano) || !/^\d{1,9}$/.test(sequencial)) notFound();
 
-  const sessao = await lerSessao();
+  const sessao = await exigirSessao();
+  const perfil = await perfilAtual();
   const podeEditarPropostas = sessao !== null && temPermissao(sessao, "editar_propostas");
   const podeLerEdital = sessao !== null && temPermissao(sessao, "usar_assistente");
   const podeConfirmarFicha = podeEditarPropostas || (sessao !== null && temPermissao(sessao, "revisao_juridica"));
@@ -60,13 +62,13 @@ export default async function LicitacaoPage({ params }: Props) {
 
   const [detalhe, salvos] = await Promise.all([
     buscarDetalheCompra({ cnpj, ano: Number(ano), sequencial: Number(sequencial) }),
-    idsNoPipeline().catch((): Set<string> => new Set()),
+    idsNoPipeline(sessao.empresaId).catch((): Set<string> => new Set()),
   ]);
   if (detalhe === null) notFound();
   const [ficha, cotacoes, preferencias, amostras, busca] = await Promise.all([
     lerFicha(detalhe.numeroControle).catch((): FichaSalva | null => null),
-    listarCotacoes(detalhe.numeroControle, 1).catch(() => []),
-    lerPreferencias(),
+    listarCotacoes(sessao.empresaId, detalhe.numeroControle, 1).catch(() => []),
+    lerPreferencias(sessao.empresaId),
     lerAmostrasEmCache().catch(() => []),
     lerBuscaRecente(detalhe.numeroControle).catch(() => null),
   ]);
@@ -92,10 +94,10 @@ export default async function LicitacaoPage({ params }: Props) {
         custoTotal: custoCotado,
         diasParado: giro?.dias ?? null,
         pagamentoAntecipado: prazos?.pagamentoAntecipado ?? null,
-      })
+      }, perfil)
     : null;
   const oportunidade: OportunidadeComScore | null = base && score ? { ...base, score } : null;
-  const sinais = gerarSinais(detalhe, frente, agora);
+  const sinais = gerarSinais(detalhe, frente, agora, perfil);
 
   return (
     <div className="flex min-w-0 flex-col gap-6 pb-20 lg:pb-0">

@@ -26,7 +26,8 @@ export type RespostaSalvar = { ok: true } | { ok: false; mensagem: string };
 
 /** O cálculo é refeito aqui: o servidor não confia no resultado que veio do navegador. */
 export async function salvarCotacaoAction(pedido: z.input<typeof PedidoSchema>): Promise<RespostaSalvar> {
-  if (!(await lerSessao())) return { ok: false, mensagem: "Entre de novo para salvar." };
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, mensagem: "Entre de novo para salvar." };
   const lido = PedidoSchema.safeParse(pedido);
   if (!lido.success) {
     return { ok: false, mensagem: lido.error.issues[0]?.message ?? "Dados da cotação inválidos." };
@@ -48,7 +49,7 @@ export async function salvarCotacaoAction(pedido: z.input<typeof PedidoSchema>):
   if (!resultado.ok) return { ok: false, mensagem: "Corrija os campos em vermelho antes de salvar." };
 
   try {
-    await salvarCotacao({
+    await salvarCotacao(sessao.empresaId, {
       itemId: p.itemId,
       descricao: p.descricao,
       frente: p.frente,

@@ -14,7 +14,7 @@ export default async function EquipePage() {
 
   let usuarios: Usuario[] | null;
   try {
-    usuarios = await listarUsuarios();
+    usuarios = await listarUsuarios(sessao.empresaId);
   } catch (e) {
     console.error("[equipe] leitura falhou:", e instanceof Error ? e.message : e);
     usuarios = null;

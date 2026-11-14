@@ -6,6 +6,8 @@ import { chaveDeNumeroControle, referenciasDoDetalhe } from "@/core/proposta";
 import { listarCotacoes } from "@/db/cotacoes";
 import { lerProposta, type Proposta } from "@/db/propostas";
 import { podeAgirNaRevisao } from "@/core/permissoes";
+import { emitenteDoPerfil } from "@/core/proposta-emitente";
+import { perfilAtual } from "@/lib/empresa-atual";
 import { exigirSessao } from "@/lib/sessao";
 
 export const metadata = { title: "Proposta · FoxLicita Pro" };
@@ -26,10 +28,10 @@ async function lerReferencias(compraId: string | null): Promise<Record<number, n
   }
 }
 
-async function lerCotacao(compraId: string | null): Promise<{ precoMinimo: number; precoAlvo: number } | null> {
+async function lerCotacao(empresaId: string, compraId: string | null): Promise<{ precoMinimo: number; precoAlvo: number } | null> {
   if (compraId === null) return null;
   try {
-    const [ultima] = await listarCotacoes(compraId, 1);
+    const [ultima] = await listarCotacoes(empresaId, compraId, 1);
     return ultima ? { precoMinimo: ultima.precoMinimo, precoAlvo: ultima.precoAlvo } : null;
   } catch {
     return null;
@@ -45,10 +47,14 @@ export default async function PropostaPage({ params, searchParams }: Props) {
   await connection();
   const sessao = await exigirSessao();
   const [{ id }, { aviso }] = await Promise.all([params, searchParams]);
-  const proposta = await lerProposta(id);
+  const proposta = await lerProposta(sessao.empresaId, id);
   if (!proposta) notFound();
 
-  const [referencias, cotacao] = await Promise.all([lerReferencias(proposta.compraId), lerCotacao(proposta.compraId)]);
+  const [referencias, cotacao, perfil] = await Promise.all([
+    lerReferencias(proposta.compraId),
+    lerCotacao(sessao.empresaId, proposta.compraId),
+    perfilAtual(),
+  ]);
   const avisoBruto = Array.isArray(aviso) ? aviso[0] : aviso;
 
   return (
@@ -73,6 +79,7 @@ export default async function PropostaPage({ params, searchParams }: Props) {
       referencias={referencias}
       cotacao={cotacao}
       avisoSemItens={avisoBruto === "itens"}
+      emitente={emitenteDoPerfil(perfil)}
       acessos={{
         editar: podeAgirNaRevisao(sessao, "enviar"),
         aprovar: podeAgirNaRevisao(sessao, "aprovar"),

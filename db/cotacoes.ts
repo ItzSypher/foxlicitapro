@@ -68,12 +68,13 @@ function paraNumero(valor: string | number | null): number | null {
 }
 
 /** Grava a cotação e devolve o id. O resultado fica guardado junto da entrada que o gerou. */
-export async function salvarCotacao(nova: NovaCotacao): Promise<string> {
+export async function salvarCotacao(empresaId: string, nova: NovaCotacao): Promise<string> {
   const entrada = EntradaSchema.parse(nova.entrada);
   const resultado: postgres.JSONValue = JSON.parse(JSON.stringify(nova.calculo));
   const linhas = await sql<{ id: string }[]>`
-    insert into cotacoes (item_id, descricao, frente, cnae, regime, entrada, resultado, preco_minimo, preco_alvo)
+    insert into cotacoes (empresa_id, item_id, descricao, frente, cnae, regime, entrada, resultado, preco_minimo, preco_alvo)
     values (
+      ${empresaId},
       ${nova.itemId},
       ${nova.descricao},
       ${nova.frente},
@@ -104,11 +105,11 @@ interface LinhaCotacao {
 }
 
 /** Cotações de uma oportunidade ou, com itemId nulo, as mais recentes de todas. Linhas com jsonb inválido são ignoradas. */
-export async function listarCotacoes(itemId: string | null, limite: number): Promise<CotacaoSalva[]> {
+export async function listarCotacoes(empresaId: string, itemId: string | null, limite: number): Promise<CotacaoSalva[]> {
   const linhas = await sql<LinhaCotacao[]>`
     select id, item_id, descricao, frente, cnae, entrada, preco_minimo, preco_alvo, criado_em
     from cotacoes
-    where ${itemId === null ? sql`true` : sql`item_id = ${itemId}`}
+    where empresa_id = ${empresaId} and ${itemId === null ? sql`true` : sql`item_id = ${itemId}`}
     order by criado_em desc
     limit ${Math.max(1, Math.min(50, Math.trunc(limite)))}
   `;
@@ -142,9 +143,9 @@ interface LinhaItem {
 }
 
 /** Item do pipeline com o que a calculadora pré-preenche; null se não existe ou o jsonb é inválido. */
-export async function lerItemParaCotacao(id: string): Promise<ItemParaCotacao | null> {
+export async function lerItemParaCotacao(empresaId: string, id: string): Promise<ItemParaCotacao | null> {
   const linhas = await sql<LinhaItem[]>`
-    select id, dados, valor_estimado from pipeline_itens where id = ${id} limit 1
+    select id, dados, valor_estimado from pipeline_itens where empresa_id = ${empresaId} and id = ${id} limit 1
   `;
   const linha = linhas[0];
   if (!linha) return null;

@@ -50,22 +50,23 @@ const PedidoSalvarSchema = z.object({
 export async function salvarPropostaAction(pedido: unknown): Promise<RespostaSalvar> {
   const a = await acesso("editar_propostas");
   if (!a.ok) return { ok: false, mensagem: a.mensagem };
+  const empresaId = a.sessao.empresaId;
   const lido = PedidoSalvarSchema.safeParse(pedido);
   if (!lido.success) return { ok: false, mensagem: "Há um campo com valor inválido." };
   const { id, titulo, dados } = lido.data;
   const modelo = lido.data.modelo as ModeloId;
 
   try {
-    const atual = await lerProposta(id);
+    const atual = await lerProposta(empresaId, id);
     if (!atual) return { ok: false, mensagem: NAO_ENCONTRADA };
     if (!podeEditar(atual.status)) {
       return { ok: false, mensagem: "A proposta está em revisão. Retire da revisão para editar." };
     }
-    const salvoEm = await atualizarProposta(id, { titulo, modelo, dados, totalCentavos: totalProposta(dados) });
+    const salvoEm = await atualizarProposta(empresaId, id, { titulo, modelo, dados, totalCentavos: totalProposta(dados) });
     if (!salvoEm) return { ok: false, mensagem: NAO_ENCONTRADA };
 
     const status = statusAposEdicao(atual.status, validarProposta(dados, modelo).length === 0);
-    if (status !== atual.status) await definirStatus(id, status, status === "rascunho" ? null : undefined);
+    if (status !== atual.status) await definirStatus(empresaId, id, status, status === "rascunho" ? null : undefined);
     revalidatePath("/propostas");
     return { ok: true, salvoEm: salvoEm.toISOString(), status };
   } catch {
@@ -97,7 +98,7 @@ export async function acaoRevisaoAction(id: string, acao: AcaoRevisao, nota?: st
   if (!podeAgirNaRevisao(sessao, acaoLida.data)) return { ok: false, mensagem: SEM_PERMISSAO };
 
   try {
-    const p = await lerProposta(id);
+    const p = await lerProposta(sessao.empresaId, id);
     if (!p) return { ok: false, mensagem: NAO_ENCONTRADA };
 
     const decisao = transicao(p.status, acaoLida.data, {
@@ -114,16 +115,17 @@ export async function acaoRevisaoAction(id: string, acao: AcaoRevisao, nota?: st
       acaoLida.data === "aprovar" || acaoLida.data === "devolver"
         ? { revisadoPor: sessao.usuarioId, nota: notaFinal }
         : null;
-    const gravou = await definirStatus(id, decisao.status, revisao, p.status);
+    const gravou = await definirStatus(sessao.empresaId, id, decisao.status, revisao, p.status);
     if (!gravou) return { ok: false, mensagem: "A proposta mudou enquanto você olhava. Recarregue a página." };
 
     if (acaoLida.data === "enviar") {
       after(() =>
-        avisarPropostaEmRevisao({ id, titulo: p.titulo, autorId: sessao.usuarioId, autorNome: sessao.nome }),
+        avisarPropostaEmRevisao({ empresaId: sessao.empresaId, id, titulo: p.titulo, autorId: sessao.usuarioId, autorNome: sessao.nome }),
       );
     } else if (revisao) {
       after(() =>
         avisarPropostaRevisada({
+          empresaId: sessao.empresaId,
           id,
           titulo: p.titulo,
           autorId: p.criadoPor,
@@ -158,14 +160,14 @@ export async function gerarLinkAction(id: string): Promise<RespostaLink> {
   if (!a.ok) return { ok: false, mensagem: a.mensagem };
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   try {
-    const p = await lerProposta(id);
+    const p = await lerProposta(a.sessao.empresaId, id);
     if (!p) return { ok: false, mensagem: NAO_ENCONTRADA };
     if (!podeGerarLink(p.status)) {
       return { ok: false, mensagem: "A proposta precisa ser aprovada antes de ser enviada." };
     }
-    const gerado = await gerarTokenPublico(id, 15);
+    const gerado = await gerarTokenPublico(a.sessao.empresaId, id, 15);
     if (!gerado) return { ok: false, mensagem: FALHA };
-    await definirStatus(id, "enviada");
+    await definirStatus(a.sessao.empresaId, id, "enviada");
     revalidatePath("/propostas");
     return { ok: true, token: gerado.token, expira: gerado.expira, status: "enviada" };
   } catch {
@@ -178,7 +180,7 @@ export async function revogarLinkAction(id: string): Promise<{ ok: boolean; mens
   if (!a.ok) return { ok: false, mensagem: a.mensagem };
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   try {
-    await revogarToken(id);
+    await revogarToken(a.sessao.empresaId, id);
     return { ok: true };
   } catch {
     return { ok: false, mensagem: "Não foi possível revogar agora. Tente de novo." };
@@ -191,11 +193,11 @@ export async function excluirPropostaAction(id: string): Promise<{ ok: false; me
   const sessao = a.sessao;
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   try {
-    const p = await lerProposta(id);
+    const p = await lerProposta(sessao.empresaId, id);
     if (p && sessao.papel !== "dono" && p.criadoPor !== sessao.usuarioId) {
       return { ok: false, mensagem: "Só o dono ou quem criou a proposta pode excluí-la." };
     }
-    await excluirProposta(id);
+    await excluirProposta(sessao.empresaId, id);
   } catch {
     return { ok: false, mensagem: "Não foi possível excluir agora. Tente de novo." };
   }
@@ -210,9 +212,9 @@ export async function duplicarPropostaAction(id: string): Promise<{ ok: false; m
   if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
   let novoId: string;
   try {
-    const p = await lerProposta(id);
+    const p = await lerProposta(sessao.empresaId, id);
     if (!p) return { ok: false, mensagem: NAO_ENCONTRADA };
-    novoId = await criarProposta({
+    novoId = await criarProposta(sessao.empresaId, {
       compraId: p.compraId,
       modelo: p.modelo,
       titulo: `${p.titulo} (cópia)`.slice(0, 160),
@@ -236,7 +238,7 @@ export async function criarRascunhoAction(formData: FormData): Promise<{ ok: fal
   const compraBruta = formData.get("compra");
   if (!ehModeloId(modeloBruto)) return { ok: false, mensagem: "Escolha um modelo." };
   const compra = typeof compraBruta === "string" && compraBruta !== "" ? compraBruta : null;
-  const criado = await criarRascunho(modeloBruto, compra, sessao.usuarioId);
+  const criado = await criarRascunho(sessao.empresaId, modeloBruto, compra, sessao.usuarioId);
   if (criado === null) return { ok: false, mensagem: "Não foi possível criar a proposta agora. Tente de novo." };
   redirect(criado.semItens ? `/propostas/${criado.id}?aviso=itens` : `/propostas/${criado.id}`);
 }

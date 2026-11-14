@@ -10,7 +10,7 @@ import type { EditalLido } from "./edital-pdf";
 import { ESQUEMA_JSON_FICHA, TEMPERATURA_FICHA, obterFichaEdital, textoPedidoFicha, type DependenciasFicha } from "./ficha";
 
 const CHAVE = { cnpj: "10779511000107", ano: 2026, sequencial: 235 };
-const SESSAO: Sessao = { usuarioId: "11111111-1111-4111-8111-111111111111", nome: "Ana", papel: "gestor", permissoes: [] };
+const SESSAO: Sessao = { usuarioId: "11111111-1111-4111-8111-111111111111", nome: "Ana", papel: "gestor", empresaId: "e1", superadmin: false, permissoes: [] };
 const ID_PNCP = "10779511000107-1-000235/2026";
 
 const DETALHE: DetalheCompra = {
@@ -178,7 +178,7 @@ describe("obterFichaEdital", () => {
     const deps = montarDependencias(banco, fetchImpl as unknown as typeof fetch);
 
     await obterFichaEdital(CHAVE, SESSAO, false, deps);
-    const outra: Sessao = { usuarioId: "22222222-2222-4222-8222-222222222222", nome: "Beto", papel: "dono", permissoes: [] };
+    const outra: Sessao = { usuarioId: "22222222-2222-4222-8222-222222222222", nome: "Beto", papel: "dono", empresaId: "e1", superadmin: false, permissoes: [] };
     const r = await obterFichaEdital(CHAVE, outra, false, deps);
 
     expect(r.ok).toBe(true);

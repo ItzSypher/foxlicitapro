@@ -13,14 +13,21 @@ const EMAIL = `teste-${Date.now()}@teste.invalid`;
 describe.skipIf(!process.env.DATABASE_URL)("usuários no banco", () => {
   type Modulo = typeof import("./usuarios");
   let m: Modulo;
-  let criadoId: string | null = null;
+  let E = "";
+  let E2 = "";
+  let limpar: (id: string) => Promise<void> = async () => undefined;
 
   beforeAll(async () => {
     m = await import("./usuarios");
+    const t = await import("./empresa-teste");
+    limpar = t.removerEmpresaDeTeste;
+    E = await t.criarEmpresaDeTeste();
+    E2 = await t.criarEmpresaDeTeste();
   }, 30_000);
 
   afterAll(async () => {
-    if (criadoId) await m.excluirUsuario(criadoId);
+    await limpar(E);
+    await limpar(E2);
     const { sql } = await import("./client");
     await sql.end({ timeout: 5 });
   }, 30_000);
@@ -29,16 +36,16 @@ describe.skipIf(!process.env.DATABASE_URL)("usuários no banco", () => {
     const { hashSenha, verificarSenha } = await import("@/lib/auth");
 
     const criado = await m.criarUsuario({
+      empresaId: E,
       nome: "Pessoa de Teste",
       email: EMAIL.toUpperCase(),
       papel: "gestor",
       senhaHash: await hashSenha("senha-inicial-1"),
     });
-    criadoId = criado.id;
     expect(criado).toMatchObject({ nome: "Pessoa de Teste", email: EMAIL, papel: "gestor", ativo: true });
 
     await expect(
-      m.criarUsuario({ nome: "Outra", email: EMAIL, papel: "gestor", senhaHash: await hashSenha("x") }),
+      m.criarUsuario({ empresaId: E, nome: "Outra", email: EMAIL, papel: "gestor", senhaHash: await hashSenha("x") }),
     ).rejects.toBeInstanceOf(m.EmailJaCadastrado);
 
     const credenciais = await m.lerCredenciais(EMAIL);
@@ -46,19 +53,24 @@ describe.skipIf(!process.env.DATABASE_URL)("usuários no banco", () => {
     expect(await verificarSenha("senha-inicial-1", credenciais?.senhaHash ?? "")).toBe(true);
     expect(await m.lerCredenciais("ninguem@teste.invalid")).toBeNull();
 
-    expect(await m.definirSenhaUsuario(criado.id, await hashSenha("senha-nova-2"))).toBe(true);
+    expect(await m.definirSenhaUsuario(E, criado.id, await hashSenha("senha-nova-2"))).toBe(true);
     expect(await verificarSenha("senha-nova-2", (await m.lerSenhaHash(criado.id)) ?? "")).toBe(true);
 
-    expect((await m.listarUsuariosAtivos()).some((u) => u.id === criado.id)).toBe(true);
-    expect(await m.definirAtivo(criado.id, false)).toBe(true);
+    expect((await m.listarUsuariosAtivos(E)).some((u) => u.id === criado.id)).toBe(true);
+    expect(await m.definirAtivo(E, criado.id, false)).toBe(true);
     expect((await m.lerUsuario(criado.id))?.ativo).toBe(false);
-    expect((await m.listarUsuariosAtivos()).some((u) => u.id === criado.id)).toBe(false);
-    expect((await m.listarUsuarios()).some((u) => u.id === criado.id)).toBe(true);
-    expect(await m.emailsDosUsuarios([criado.id])).toEqual([]);
+    expect((await m.listarUsuariosAtivos(E)).some((u) => u.id === criado.id)).toBe(false);
+    expect((await m.listarUsuarios(E)).some((u) => u.id === criado.id)).toBe(true);
+    expect(await m.emailsDosUsuarios(E, [criado.id])).toEqual([]);
 
-    expect(await m.excluirUsuario(criado.id)).toBe(true);
-    criadoId = null;
+    // Outra empresa não enxerga nem mexe na pessoa.
+    expect((await m.listarUsuarios(E2)).some((u) => u.id === criado.id)).toBe(false);
+    expect(await m.lerUsuarioDaEmpresa(E2, criado.id)).toBeNull();
+    expect(await m.excluirUsuario(E2, criado.id)).toBe(false);
+    expect(await m.definirAtivo(E2, criado.id, true)).toBe(false);
+
+    expect(await m.excluirUsuario(E, criado.id)).toBe(true);
     expect(await m.lerUsuario(criado.id)).toBeNull();
-    expect(await m.excluirUsuario(criado.id)).toBe(false);
+    expect(await m.excluirUsuario(E, criado.id)).toBe(false);
   }, 60_000);
 });

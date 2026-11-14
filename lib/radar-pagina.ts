@@ -1,3 +1,4 @@
+import type { PerfilEmpresa } from "@/core/perfil";
 import { recomendar, type PreferenciasDeRecomendacao } from "@/core/recomendacao";
 import type { Frente, ModalidadeId, OportunidadeComScore } from "@/core/types";
 import {
@@ -61,6 +62,8 @@ export interface ConsultaRadar {
   pagina: number;
   porPagina: number;
   preferencias?: PreferenciasDeRecomendacao;
+  /** Perfil da empresa logada; sem ele, vale o perfil de origem (testes) */
+  perfil?: PerfilEmpresa;
 }
 
 /** O que o cliente recebe: só a página atual e os totais das abas e dos filtros. */
@@ -102,7 +105,7 @@ export function montarPaginaRadar(
   const porTexto = filtrarPorTexto(oportunidades, { busca: consulta.busca, palavras: selecionadas });
   const todas = filtrarEOrdenar(porTexto, consulta.filtros);
   const base = filtrar(porTexto, consulta.filtros);
-  const recomendadas = recomendar(base, consulta.frente, new Date(referencia), undefined, consulta.preferencias);
+  const recomendadas = recomendar(base, consulta.frente, new Date(referencia), undefined, consulta.preferencias, consulta.perfil);
 
   const paraVoce = consulta.aba === "para-voce";
   const visiveis = paraVoce ? recomendadas.map((r) => r.item) : todas;

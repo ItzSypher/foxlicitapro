@@ -4,11 +4,13 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Building2,
   Calculator,
   Columns3,
   Ellipsis,
   FileText,
   Radar,
+  ShieldCheck,
   SlidersHorizontal,
   UserRound,
   Users,
@@ -31,6 +33,8 @@ interface Destino {
   subareas?: ReadonlyArray<string>;
   /** Só aparece para este papel */
   somentePara?: Papel;
+  /** Só aparece para quem administra todas as empresas */
+  somenteSuperadmin?: boolean;
 }
 
 const PRINCIPAIS: ReadonlyArray<Destino> = [
@@ -43,15 +47,19 @@ const PRINCIPAIS: ReadonlyArray<Destino> = [
 const SECUNDARIOS: ReadonlyArray<Destino> = [
   { href: "/preferencias", rotulo: "Preferências", rotuloCurto: "Preferências", icone: SlidersHorizontal },
   { href: "/equipe", rotulo: "Equipe", rotuloCurto: "Equipe", icone: Users, somentePara: "dono" },
+  { href: "/empresa", rotulo: "Empresa", rotuloCurto: "Empresa", icone: Building2, somentePara: "dono" },
+  { href: "/admin/empresas", rotulo: "Empresas", rotuloCurto: "Empresas", icone: ShieldCheck, somenteSuperadmin: true },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/preferencias", "/equipe"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   nome: string;
   papel: Papel;
+  superadmin?: boolean;
 }
+
 
 export interface DadosNav {
   /** null enquanto a sessão carrega: o item "Equipe" fica escondido */
@@ -67,7 +75,11 @@ function estaAtivo(destino: Destino, caminho: string): boolean {
 }
 
 function visiveis(lista: ReadonlyArray<Destino>, usuario: UsuarioNav | null): Destino[] {
-  return lista.filter((d) => d.somentePara === undefined || d.somentePara === usuario?.papel);
+  return lista.filter(
+    (d) =>
+      (d.somentePara === undefined || d.somentePara === usuario?.papel) &&
+      (!d.somenteSuperadmin || usuario?.superadmin === true),
+  );
 }
 
 function Selo({ quantidade, className }: { quantidade: number; className?: string }) {

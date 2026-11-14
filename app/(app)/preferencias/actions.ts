@@ -18,7 +18,7 @@ export async function salvarPreferenciasAction(entrada: Preferencias): Promise<R
   }
 
   try {
-    const salvas = await salvarPreferencias(validado.data);
+    const salvas = await salvarPreferencias(v.sessao.empresaId, validado.data);
     return { ok: true, preferencias: salvas };
   } catch {
     return { ok: false, erro: "Não foi possível salvar agora. Tente de novo em instantes." };

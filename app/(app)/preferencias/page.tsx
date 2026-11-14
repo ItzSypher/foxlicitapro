@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { temPermissao } from "@/core/permissoes";
 import { lerPreferencias } from "@/db/preferencias";
-import { lerSessao } from "@/lib/sessao";
+import { exigirSessao, lerSessao } from "@/lib/sessao";
 import { FormularioPreferencias } from "./formulario";
 
 /** Quem tem a permissão pode editar; qualquer falha ao ler a sessão vira "só leitura". */
@@ -16,7 +16,8 @@ async function pessoaPodeEditar(): Promise<boolean> {
 
 export default async function PreferenciasPage() {
   await connection();
-  const [preferencias, podeEditar] = await Promise.all([lerPreferencias(), pessoaPodeEditar()]);
+  const sessao = await exigirSessao();
+  const [preferencias, podeEditar] = await Promise.all([lerPreferencias(sessao.empresaId), pessoaPodeEditar()]);
 
   return (
     <div className="flex max-w-[720px] flex-col gap-5">

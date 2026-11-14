@@ -28,6 +28,7 @@ import { FaixaRevisao } from "@/components/propostas/faixa-revisao";
 import { PainelRevisao } from "@/components/propostas/painel-revisao";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { totalProposta, validarProposta, valorPorExtenso } from "@/core/proposta";
+import type { Emitente } from "@/core/proposta-emitente";
 import { MODELOS, obterModelo, type ModeloId } from "@/core/proposta-modelos";
 import { podeEditar, type AcaoRevisao } from "@/core/revisao";
 import type { DadosProposta } from "@/core/types-detalhe";
@@ -68,6 +69,7 @@ interface Props {
   referencias: Record<number, number>;
   cotacao: { precoMinimo: number; precoAlvo: number } | null;
   avisoSemItens: boolean;
+  emitente: Emitente;
   /** O que esta pessoa pode fazer; o servidor confere de novo em cada ação */
   acessos: AcessosProposta;
 }
@@ -107,7 +109,7 @@ function aplicarPadroes(f: Formulario, novo: ModeloId): Formulario {
   };
 }
 
-export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens, acessos }: Props) {
+export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens, acessos, emitente }: Props) {
   const [form, setForm] = useState<Formulario>(() =>
     dadosParaFormulario(proposta.titulo, proposta.modelo, proposta.dados, referencias),
   );
@@ -468,7 +470,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
         <div className={cn("min-w-0", aba === "previa" ? "block" : "hidden", "xl:block")}>
           <div className="rounded-card bg-raised p-2 xl:sticky xl:top-8 xl:max-h-[calc(100dvh-4rem)] xl:overflow-y-auto">
             <PreviaEscalada>
-              <DocumentoProposta dados={dados} modeloId={form.modelo} />
+              <DocumentoProposta dados={dados} modeloId={form.modelo} emitente={emitente} />
             </PreviaEscalada>
           </div>
           <div aria-hidden className="h-20 xl:hidden" />
@@ -489,6 +491,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
           if (novoStatus) setStatus(novoStatus);
         }}
         aoSalvar={persistir}
+        emitente={emitente}
       />
 
       <Sheet open={excluirAberto} onOpenChange={setExcluirAberto}>

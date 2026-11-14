@@ -16,7 +16,7 @@ import {
   salvarItem,
 } from "@/db/pipeline";
 import { definirPasso, listarMarcas } from "@/db/revisao-juridica";
-import { lerUsuario } from "@/db/usuarios";
+import { lerUsuarioDaEmpresa } from "@/db/usuarios";
 import { ehPassoJuridico, type MarcaJuridica } from "@/core/revisao-juridica";
 import { avisarResponsavel } from "@/lib/avisos";
 import { lerSessao, verificarPermissao } from "@/lib/sessao";
@@ -61,7 +61,7 @@ export async function salvarNoPipeline(item: OportunidadeComScore): Promise<Resu
   if (!lido.success) return { ok: false, erro: ERRO_DADOS };
   return executar(
     async () => {
-      await salvarItem(lido.data, sessao.usuarioId);
+      await salvarItem(sessao.empresaId, lido.data, sessao.usuarioId);
       return true;
     },
     "Não foi possível salvar no pipeline. Tente de novo.",
@@ -77,7 +77,7 @@ export async function moverEtapa(id: string, etapa: EtapaId): Promise<ResultadoA
   const e = etapaSchema.safeParse(etapa);
   if (!i.success || !e.success) return { ok: false, erro: ERRO_DADOS };
   try {
-    const achou = await moverItem(i.data, e.data, undefined, sessao.usuarioId);
+    const achou = await moverItem(sessao.empresaId, i.data, e.data, undefined, sessao.usuarioId);
     if (!achou) return { ok: false, erro: "Esse item não está mais no pipeline." };
     atualizarTelas();
     return { ok: true };
@@ -97,10 +97,10 @@ export async function marcarPassoJuridicoAction(id: string, passo: string, marca
   const i = idSchema.safeParse(id);
   if (!i.success || !ehPassoJuridico(passo) || typeof marcado !== "boolean") return { ok: false, erro: ERRO_DADOS };
   try {
-    const valido = await definirPasso(i.data, passo, marcado, v.sessao.usuarioId);
+    const valido = await definirPasso(v.sessao.empresaId, i.data, passo, marcado, v.sessao.usuarioId);
     if (!valido) return { ok: false, erro: "O item não está mais na revisão jurídica." };
     atualizarTelas();
-    return { ok: true, marcas: await listarMarcas(i.data) };
+    return { ok: true, marcas: await listarMarcas(v.sessao.empresaId, i.data) };
   } catch (erro) {
     console.error("[pipeline]", erro instanceof Error ? erro.message : erro);
     return { ok: false, erro: "Não foi possível salvar o checklist. Tente de novo." };
@@ -112,8 +112,9 @@ export async function removerDoPipeline(id: string): Promise<ResultadoAcao> {
   if (!v.ok) return { ok: false, erro: v.erro };
   const i = idSchema.safeParse(id);
   if (!i.success) return { ok: false, erro: ERRO_DADOS };
+  const empresaId = v.sessao.empresaId;
   return executar(
-    () => removerItem(i.data),
+    () => removerItem(empresaId, i.data),
     "Não foi possível remover o item. Tente de novo.",
     "Esse item não está mais no pipeline.",
   );
@@ -125,8 +126,9 @@ export async function salvarNotas(id: string, notas: string): Promise<ResultadoA
   const i = idSchema.safeParse(id);
   const n = notasSchema.safeParse(notas);
   if (!i.success || !n.success) return { ok: false, erro: ERRO_DADOS };
+  const empresaId = v.sessao.empresaId;
   return executar(
-    () => atualizarNotas(i.data, n.data),
+    () => atualizarNotas(empresaId, i.data, n.data),
     "Não foi possível salvar as notas. Tente de novo.",
     "Esse item não está mais no pipeline.",
   );
@@ -143,16 +145,17 @@ export async function definirResponsavelAction(id: string, responsavelId: string
 
   try {
     if (r.data !== null) {
-      const alvo = await lerUsuario(r.data);
+      const alvo = await lerUsuarioDaEmpresa(sessao.empresaId, r.data);
       if (!alvo || !alvo.ativo) return { ok: false, erro: "Essa pessoa não está mais na equipe." };
     }
-    const resultado = await definirResponsavel(i.data, r.data);
+    const resultado = await definirResponsavel(sessao.empresaId, i.data, r.data);
     if (!resultado.existe) return { ok: false, erro: "Esse item não está mais no pipeline." };
     if (resultado.mudou && r.data !== null && r.data !== sessao.usuarioId) {
       const novoResponsavel = r.data;
       after(async () => {
-        const objeto = (await lerObjetoItem(i.data)) ?? "uma oportunidade";
+        const objeto = (await lerObjetoItem(sessao.empresaId, i.data)) ?? "uma oportunidade";
         await avisarResponsavel({
+          empresaId: sessao.empresaId,
           itemId: i.data,
           objeto,
           responsavelId: novoResponsavel,
@@ -171,11 +174,12 @@ export async function definirResponsavelAction(id: string, responsavelId: string
 export type RespostaComentarios = { ok: true; comentarios: ComentarioPipeline[] } | { ok: false; erro: string };
 
 export async function lerComentariosAction(id: string): Promise<RespostaComentarios> {
-  if (!(await lerSessao())) return { ok: false, erro: SEM_SESSAO };
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, erro: SEM_SESSAO };
   const i = idSchema.safeParse(id);
   if (!i.success) return { ok: false, erro: ERRO_DADOS };
   try {
-    return { ok: true, comentarios: await listarComentarios(i.data) };
+    return { ok: true, comentarios: await listarComentarios(sessao.empresaId, i.data) };
   } catch (e) {
     console.error("[pipeline]", e instanceof Error ? e.message : e);
     return { ok: false, erro: "Não foi possível carregar os comentários." };
@@ -190,10 +194,10 @@ export async function comentarAction(id: string, texto: string): Promise<Respost
   const t = comentarioSchema.safeParse(texto);
   if (!i.success || !t.success) return { ok: false, erro: "Escreva o comentário antes de enviar." };
   try {
-    const novo = await adicionarComentario(i.data, sessao.usuarioId, t.data);
+    const novo = await adicionarComentario(sessao.empresaId, i.data, sessao.usuarioId, t.data);
     if (!novo) return { ok: false, erro: "Esse item não está mais no pipeline." };
     revalidatePath("/pipeline");
-    return { ok: true, comentarios: await listarComentarios(i.data) };
+    return { ok: true, comentarios: await listarComentarios(sessao.empresaId, i.data) };
   } catch (e) {
     console.error("[pipeline]", e instanceof Error ? e.message : e);
     return { ok: false, erro: "Não foi possível comentar agora. Tente de novo." };

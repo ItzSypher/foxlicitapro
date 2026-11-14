@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { buscarRadar } from "@/core/radar";
+import { perfilAtual } from "@/lib/empresa-atual";
 
 const consultaSchema = z.object({
   frente: z.enum(["servicos", "produtos"]).default("servicos"),
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const radar = await buscarRadar(consulta.data.frente);
+    const radar = await buscarRadar(consulta.data.frente, undefined, await perfilAtual());
     return Response.json(radar);
   } catch (erro) {
     const mensagem = erro instanceof Error ? erro.message : "Falha ao consultar o PNCP";

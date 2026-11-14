@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { COOKIE_SESSAO, DURACAO_SESSAO_SEGUNDOS, criarToken, lerToken } from "@/lib/auth";
 import { lerUsuario } from "@/db/usuarios";
-import { permissoesPadrao, temPermissao, type Permissao } from "@/core/permissoes";
+import { temPermissao, type Permissao } from "@/core/permissoes";
 import type { Sessao, SessaoToken } from "@/core/types-equipe";
 
 /**
@@ -13,7 +13,8 @@ import type { Sessao, SessaoToken } from "@/core/types-equipe";
  * lerSessao: usuário logado ou null. exigirSessao: redireciona ao login sem sessão.
  * exigirDono: só o dono passa; gestor recebe erro de permissão.
  * exigirPermissao / verificarPermissao: o dono passa sempre; os outros, só com a permissão marcada.
- * A assinatura do cookie vale 30 dias, mas pessoa desativada perde o acesso na hora (confere no banco).
+ * A assinatura do cookie vale 30 dias, mas pessoa desativada (ou de empresa desativada) perde o acesso na hora (confere no banco).
+ * A sessão carrega empresaId, lido do banco a cada pedido: toda consulta de dados da empresa se filtra por ele.
  */
 const sessaoDoPedido = cache(async (): Promise<Sessao | null> => {
   const jar = await cookies();
@@ -24,11 +25,18 @@ const sessaoDoPedido = cache(async (): Promise<Sessao | null> => {
   try {
     const usuario = await lerUsuario(sessao.usuarioId);
     if (!usuario || !usuario.ativo) return null;
-    return { usuarioId: usuario.id, nome: usuario.nome, papel: usuario.papel, permissoes: usuario.permissoes };
+    return {
+      usuarioId: usuario.id,
+      nome: usuario.nome,
+      papel: usuario.papel,
+      empresaId: usuario.empresaId,
+      superadmin: usuario.superadmin,
+      permissoes: usuario.permissoes,
+    };
   } catch (e) {
-    // Banco fora do ar: mantém a sessão assinada para não prender ninguém num laço de login.
+    // Sem o banco não há empresa para escopar os dados: a página mostra o erro em vez de adivinhar a empresa.
     console.error("[sessao] conferência no banco falhou:", e instanceof Error ? e.message : e);
-    return { ...sessao, permissoes: permissoesPadrao(sessao.papel) };
+    throw e;
   }
 });
 
@@ -45,6 +53,13 @@ export async function exigirSessao(): Promise<Sessao> {
 export async function exigirDono(): Promise<Sessao> {
   const sessao = await exigirSessao();
   if (sessao.papel !== "dono") throw new Error("Apenas o dono pode fazer isso.");
+  return sessao;
+}
+
+/** Só o superadmin passa (administração das empresas). */
+export async function exigirSuperadmin(): Promise<Sessao> {
+  const sessao = await exigirSessao();
+  if (!sessao.superadmin) throw new ErroPermissao();
   return sessao;
 }
 

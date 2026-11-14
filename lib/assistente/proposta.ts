@@ -1,6 +1,7 @@
 import "server-only";
 import { after } from "next/server";
 import { casarCnaes } from "@/core/cnae-keywords";
+import type { PerfilEmpresa } from "@/core/perfil";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { montarDadosIniciais, referenciasDoDetalhe, textoChaveCompra, totalProposta, tituloPadrao } from "@/core/proposta";
 import { frentePredominante, sugerirModelo } from "@/core/proposta-modelos";
@@ -18,7 +19,8 @@ import {
 } from "./analise";
 import { restantesHoje } from "./cota";
 import { baixarPdfPrincipal } from "./edital-pdf";
-import { SISTEMA_PROPOSTA, textoPedidoProposta } from "./prompt";
+import { perfilDaEmpresa } from "@/lib/empresa-atual";
+import { sistemaProposta, textoPedidoProposta } from "./prompt";
 
 export type ResultadoMontagem = { ok: true; propostaId: string } | { ok: false; erro: string };
 
@@ -29,8 +31,8 @@ const MAX_TOKENS_ANALISE = 16_000;
 /** Gerações em andamento nesta instância, por compra: cliques repetidos recebem a mesma resposta. */
 const emAndamento = new Map<string, Promise<ResultadoMontagem>>();
 
-function frenteProvavel(detalhe: DetalheCompra) {
-  const casados = casarCnaes(detalhe.objeto);
+function frenteProvavel(detalhe: DetalheCompra, perfil: PerfilEmpresa) {
+  const casados = casarCnaes(detalhe.objeto, perfil);
   return frentePredominante(detalhe, casados.servicos.length > casados.produtos.length ? "servicos" : "produtos");
 }
 
@@ -46,7 +48,7 @@ async function executar(chave: ChaveCompra, sessao: Sessao): Promise<ResultadoMo
   if (detalhe === null) return { ok: false, erro: "Esta licitação não foi encontrada." };
 
   const compraId = detalhe.numeroControle;
-  const recente = await propostaRecenteDoAssistente(compraId, JANELA_DUPLICIDADE_MIN).catch(() => null);
+  const recente = await propostaRecenteDoAssistente(sessao.empresaId, compraId, JANELA_DUPLICIDADE_MIN).catch(() => null);
   if (recente !== null) return { ok: true, propostaId: recente };
 
   try {
@@ -56,16 +58,23 @@ async function executar(chave: ChaveCompra, sessao: Sessao): Promise<ResultadoMo
     return { ok: false, erro: "Não foi possível conferir o limite diário agora. Tente de novo." };
   }
 
+  let perfil: PerfilEmpresa;
+  try {
+    perfil = await perfilDaEmpresa(sessao.empresaId);
+  } catch {
+    return { ok: false, erro: "Não foi possível ler o perfil da empresa agora. Tente de novo." };
+  }
+
   const pdf = await baixarPdfPrincipal(detalhe);
-  const modeloSugerido = sugerirModelo(detalhe, frenteProvavel(detalhe));
+  const modeloSugerido = sugerirModelo(detalhe, frenteProvavel(detalhe, perfil));
   const partes: ParteEntrada[] = [];
   if (pdf !== null) partes.push({ tipo: "pdf", base64: pdf });
-  partes.push({ tipo: "texto", texto: textoPedidoProposta(detalhe, modeloSugerido, pdf !== null) });
+  partes.push({ tipo: "texto", texto: textoPedidoProposta(detalhe, modeloSugerido, pdf !== null, perfil) });
 
   let saida: SaidaAnalise;
   try {
     saida = await gerarJson({
-      sistema: SISTEMA_PROPOSTA,
+      sistema: sistemaProposta(perfil),
       partes,
       esquema: esquemaSaidaAnalise(detalhe.itens.map((i) => i.numero)),
       esquemaJson: ESQUEMA_JSON_ANALISE,
@@ -89,7 +98,7 @@ async function executar(chave: ChaveCompra, sessao: Sessao): Promise<ResultadoMo
   const titulo = tituloPadrao(aplicado.dados);
 
   try {
-    const id = await criarProposta({
+    const id = await criarProposta(sessao.empresaId, {
       compraId,
       modelo: saida.modeloId,
       titulo,
@@ -100,7 +109,7 @@ async function executar(chave: ChaveCompra, sessao: Sessao): Promise<ResultadoMo
       status: "em_revisao",
       analise,
     });
-    after(() => avisarPropostaEmRevisao({ id, titulo, autorId: sessao.usuarioId, autorNome: sessao.nome }));
+    after(() => avisarPropostaEmRevisao({ empresaId: sessao.empresaId, id, titulo, autorId: sessao.usuarioId, autorNome: sessao.nome }));
     return { ok: true, propostaId: id };
   } catch {
     return { ok: false, erro: "A análise ficou pronta, mas não foi possível salvar a proposta. Tente de novo." };

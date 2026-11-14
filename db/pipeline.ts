@@ -97,18 +97,19 @@ export interface EventoHistorico {
 }
 
 /** Todos os itens, por etapa e ordem. Linhas com `dados` inválidos são ignoradas e registradas. */
-export async function listarPipeline(): Promise<ItemPipeline[]> {
+export async function listarPipeline(empresaId: string): Promise<ItemPipeline[]> {
   const linhas = await sql`
     select i.id, i.etapa, i.ordem, i.dados, i.notas, i.criado_em, i.atualizado_em,
            i.criado_por, c.nome as criado_por_nome,
            i.responsavel, r.nome as responsavel_nome,
-           (select count(*)::int from pipeline_comentarios k where k.item_id = i.id) as comentarios
+           (select count(*)::int from pipeline_comentarios k where k.empresa_id = i.empresa_id and k.item_id = i.id) as comentarios
     from pipeline_itens i
     left join usuarios c on c.id = i.criado_por
     left join usuarios r on r.id = i.responsavel
+    where i.empresa_id = ${empresaId}
     order by i.ordem asc, i.criado_em asc
   `;
-  const marcas = await listarMarcasPorItem().catch((): Map<string, MarcaJuridica[]> => new Map());
+  const marcas = await listarMarcasPorItem(empresaId).catch((): Map<string, MarcaJuridica[]> => new Map());
   const itens: ItemPipeline[] = [];
   for (const linha of linhas) {
     const lida = linhaSchema.safeParse(linha);
@@ -136,13 +137,14 @@ export async function listarPipeline(): Promise<ItemPipeline[]> {
   return itens;
 }
 
-export async function idsNoPipeline(): Promise<Set<string>> {
-  const linhas = await sql`select id from pipeline_itens`;
+export async function idsNoPipeline(empresaId: string): Promise<Set<string>> {
+  const linhas = await sql`select id from pipeline_itens where empresa_id = ${empresaId}`;
   return new Set(linhas.map((l) => String(l.id)));
 }
 
 /** Insere na etapa "radar", no fim da coluna. Se já existe, só atualiza os dados da oportunidade. */
 export async function salvarItem(
+  empresaId: string,
   o: OportunidadeComScore,
   criadoPor: string | null = null,
 ): Promise<{ criado: boolean }> {
@@ -152,11 +154,12 @@ export async function salvarItem(
 
   return sql.begin(async (tx) => {
     const [linha] = await tx`
-      insert into pipeline_itens (id, etapa, ordem, dados, score, faixa, valor_estimado, data_encerramento, criado_por)
+      insert into pipeline_itens (empresa_id, id, etapa, ordem, dados, score, faixa, valor_estimado, data_encerramento, criado_por)
       values (
+        ${empresaId},
         ${dados.id},
         'radar',
-        (select coalesce(max(ordem), 0) + 1 from pipeline_itens where etapa = 'radar'),
+        (select coalesce(max(ordem), 0) + 1 from pipeline_itens where empresa_id = ${empresaId} and etapa = 'radar'),
         ${tx.json(json)},
         ${Math.round(dados.score.total)},
         ${dados.score.faixa},
@@ -164,7 +167,7 @@ export async function salvarItem(
         ${encerramento},
         ${criadoPor}
       )
-      on conflict (id) do update set
+      on conflict (empresa_id, id) do update set
         dados = excluded.dados,
         score = excluded.score,
         faixa = excluded.faixa,
@@ -176,7 +179,7 @@ export async function salvarItem(
     const criado = linha?.criado === true;
     if (criado) {
       await tx`
-        insert into pipeline_historico (item_id, de, para, usuario_id) values (${dados.id}, null, 'radar', ${criadoPor})
+        insert into pipeline_historico (empresa_id, item_id, de, para, usuario_id) values (${empresaId}, ${dados.id}, null, 'radar', ${criadoPor})
       `;
     }
     return { criado };
@@ -185,6 +188,7 @@ export async function salvarItem(
 
 /** Muda de etapa e registra o histórico na mesma transação. Sem `ordem`, vai para o fim da coluna. */
 export async function moverItem(
+  empresaId: string,
   id: string,
   etapa: EtapaId,
   ordem?: number,
@@ -192,7 +196,7 @@ export async function moverItem(
 ): Promise<boolean> {
   const destino = etapaSchema.parse(etapa);
   return sql.begin(async (tx) => {
-    const atual = await tx`select etapa from pipeline_itens where id = ${id} for update`;
+    const atual = await tx`select etapa from pipeline_itens where empresa_id = ${empresaId} and id = ${id} for update`;
     if (atual.length === 0) return false;
     const origem = etapaSchema.parse(atual[0]?.etapa);
 
@@ -201,7 +205,7 @@ export async function moverItem(
         select p.item_id, p.passo, p.marcado_por, u.nome as marcado_por_nome, p.marcado_em
         from revisao_juridica_passos p
         left join usuarios u on u.id = p.marcado_por
-        where p.item_id = ${id}
+        where p.empresa_id = ${empresaId} and p.item_id = ${id}
       `;
       const marcas: MarcaJuridica[] = [];
       for (const l of linhasMarcas) {
@@ -216,7 +220,7 @@ export async function moverItem(
     if (novaOrdem === undefined) {
       const [m] = await tx`
         select coalesce(max(ordem), 0) + 1 as proxima
-        from pipeline_itens where etapa = ${destino} and id <> ${id}
+        from pipeline_itens where empresa_id = ${empresaId} and etapa = ${destino} and id <> ${id}
       `;
       novaOrdem = Number(m?.proxima ?? 1);
     }
@@ -224,25 +228,25 @@ export async function moverItem(
     await tx`
       update pipeline_itens
       set etapa = ${destino}, ordem = ${novaOrdem}, atualizado_em = now()
-      where id = ${id}
+      where empresa_id = ${empresaId} and id = ${id}
     `;
     if (origem !== destino) {
       await tx`
-        insert into pipeline_historico (item_id, de, para, usuario_id) values (${id}, ${origem}, ${destino}, ${usuarioId})
+        insert into pipeline_historico (empresa_id, item_id, de, para, usuario_id) values (${empresaId}, ${id}, ${origem}, ${destino}, ${usuarioId})
       `;
     }
     return true;
   });
 }
 
-export async function removerItem(id: string): Promise<boolean> {
-  const r = await sql`delete from pipeline_itens where id = ${id}`;
+export async function removerItem(empresaId: string, id: string): Promise<boolean> {
+  const r = await sql`delete from pipeline_itens where empresa_id = ${empresaId} and id = ${id}`;
   return r.count > 0;
 }
 
-export async function atualizarNotas(id: string, notas: string): Promise<boolean> {
+export async function atualizarNotas(empresaId: string, id: string, notas: string): Promise<boolean> {
   const r = await sql`
-    update pipeline_itens set notas = ${notas}, atualizado_em = now() where id = ${id}
+    update pipeline_itens set notas = ${notas}, atualizado_em = now() where empresa_id = ${empresaId} and id = ${id}
   `;
   return r.count > 0;
 }
@@ -251,23 +255,28 @@ const FORMATO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 /** Define (ou tira, com null) o responsável. Devolve se o item existe e se o responsável mudou. */
 export async function definirResponsavel(
+  empresaId: string,
   id: string,
   responsavelId: string | null,
 ): Promise<{ existe: boolean; mudou: boolean }> {
   if (responsavelId !== null && !FORMATO_ID.test(responsavelId)) return { existe: false, mudou: false };
   return sql.begin(async (tx) => {
-    const atual = await tx`select responsavel from pipeline_itens where id = ${id} for update`;
+    const atual = await tx`select responsavel from pipeline_itens where empresa_id = ${empresaId} and id = ${id} for update`;
     if (atual.length === 0) return { existe: false, mudou: false };
+    if (responsavelId !== null) {
+      const dono = await tx`select 1 from usuarios where id = ${responsavelId} and empresa_id = ${empresaId}`;
+      if (dono.length === 0) return { existe: false, mudou: false };
+    }
     const anterior = (atual[0]?.responsavel ?? null) as string | null;
     if (anterior === responsavelId) return { existe: true, mudou: false };
-    await tx`update pipeline_itens set responsavel = ${responsavelId}, atualizado_em = now() where id = ${id}`;
+    await tx`update pipeline_itens set responsavel = ${responsavelId}, atualizado_em = now() where empresa_id = ${empresaId} and id = ${id}`;
     return { existe: true, mudou: true };
   });
 }
 
 /** Texto do objeto da oportunidade, para avisos. */
-export async function lerObjetoItem(id: string): Promise<string | null> {
-  const linhas = await sql`select dados->>'objeto' as objeto from pipeline_itens where id = ${id}`;
+export async function lerObjetoItem(empresaId: string, id: string): Promise<string | null> {
+  const linhas = await sql`select dados->>'objeto' as objeto from pipeline_itens where empresa_id = ${empresaId} and id = ${id}`;
   const objeto: unknown = linhas[0]?.objeto;
   return typeof objeto === "string" ? objeto : null;
 }
@@ -286,12 +295,12 @@ function paraComentario(linha: unknown): ComentarioPipeline {
 }
 
 /** Do mais antigo ao mais novo. */
-export async function listarComentarios(itemId: string): Promise<ComentarioPipeline[]> {
+export async function listarComentarios(empresaId: string, itemId: string): Promise<ComentarioPipeline[]> {
   const linhas = await sql`
     select k.id, k.item_id, u.nome as autor, k.texto, k.em
     from pipeline_comentarios k
     left join usuarios u on u.id = k.usuario_id
-    where k.item_id = ${itemId}
+    where k.empresa_id = ${empresaId} and k.item_id = ${itemId}
     order by k.em asc, k.id asc
     limit 200
   `;
@@ -300,16 +309,17 @@ export async function listarComentarios(itemId: string): Promise<ComentarioPipel
 
 /** Null quando o item não existe mais. */
 export async function adicionarComentario(
+  empresaId: string,
   itemId: string,
   usuarioId: string,
   texto: string,
 ): Promise<ComentarioPipeline | null> {
-  const existe = await sql`select 1 from pipeline_itens where id = ${itemId}`;
+  const existe = await sql`select 1 from pipeline_itens where empresa_id = ${empresaId} and id = ${itemId}`;
   if (existe.length === 0) return null;
   const linhas = await sql`
     with novo as (
-      insert into pipeline_comentarios (item_id, usuario_id, texto)
-      values (${itemId}, ${usuarioId}, ${texto})
+      insert into pipeline_comentarios (empresa_id, item_id, usuario_id, texto)
+      values (${empresaId}, ${itemId}, ${usuarioId}, ${texto})
       returning id, item_id, usuario_id, texto, em
     )
     select novo.id, novo.item_id, u.nome as autor, novo.texto, novo.em
@@ -318,9 +328,9 @@ export async function adicionarComentario(
   return linhas[0] ? paraComentario(linhas[0]) : null;
 }
 
-export async function listarHistorico(id: string): Promise<EventoHistorico[]> {
+export async function listarHistorico(empresaId: string, id: string): Promise<EventoHistorico[]> {
   const linhas = await sql`
-    select de, para, em from pipeline_historico where item_id = ${id} order by em asc, id asc
+    select de, para, em from pipeline_historico where empresa_id = ${empresaId} and item_id = ${id} order by em asc, id asc
   `;
   return linhas.map((l) => {
     const e = historicoSchema.parse(l);
@@ -328,10 +338,11 @@ export async function listarHistorico(id: string): Promise<EventoHistorico[]> {
   });
 }
 
-export async function resumoPipeline(): Promise<ResumoPipeline> {
+export async function resumoPipeline(empresaId: string): Promise<ResumoPipeline> {
   const linhas = await sql`
     select etapa, sum(valor_estimado)::float8 as valor, count(*)::int as quantidade
     from pipeline_itens
+    where empresa_id = ${empresaId}
     group by etapa
   `;
   const agregadas = linhas.map((l) => ({

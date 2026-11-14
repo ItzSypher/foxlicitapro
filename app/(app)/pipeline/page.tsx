@@ -11,9 +11,9 @@ function momento(): number {
   return Date.now();
 }
 
-async function lerPessoas(): Promise<PessoaPipeline[]> {
+async function lerPessoas(empresaId: string): Promise<PessoaPipeline[]> {
   try {
-    return (await listarUsuariosAtivos()).map((u) => ({ id: u.id, nome: u.nome }));
+    return (await listarUsuariosAtivos(empresaId)).map((u) => ({ id: u.id, nome: u.nome }));
   } catch (e) {
     console.error("[pipeline] equipe indisponível:", e instanceof Error ? e.message : e);
     return [];
@@ -33,12 +33,12 @@ export default async function PipelinePage({
 
   let itens: ItemPipeline[] | null;
   try {
-    itens = await listarPipeline();
+    itens = await listarPipeline(sessao.empresaId);
   } catch (e) {
     console.error("[pipeline] leitura falhou:", e instanceof Error ? e.message : e);
     itens = null;
   }
-  const pessoas = await lerPessoas();
+  const pessoas = await lerPessoas(sessao.empresaId);
 
   return (
     <PipelineView

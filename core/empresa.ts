@@ -1,6 +1,10 @@
+import type { PerfilEmpresa } from "./perfil";
 import type { Frente } from "./types";
 
-/** Dados cadastrais da empresa usados no cálculo de elegibilidade e de limite MEI. */
+/**
+ * Dados de origem da primeira empresa. O painel lê o perfil do banco (lib/empresa-atual.ts);
+ * este arquivo alimenta a migração 010 e serve de fixture dos testes.
+ */
 export const EMPRESA = {
   razaoSocial: "70.048.886 ARTHUR SILVA MOURA",
   cnpj: "70.048.886/0001-29",
@@ -61,3 +65,25 @@ export function frenteDoCnae(codigo: string): Frente | undefined {
 export function descricaoDoCnae(codigo: string): string | undefined {
   return TODOS_CNAES.find((c) => c.codigo === codigo)?.descricao;
 }
+
+/** Perfil da empresa de origem, no formato do banco. Padrão das funções puras de core/ nos testes. */
+export const PERFIL_ORIGEM: PerfilEmpresa = {
+  id: "origem",
+  cnpj: EMPRESA.cnpj,
+  razaoSocial: EMPRESA.razaoSocial,
+  nomeFantasia: null,
+  porte: "mei",
+  uf: EMPRESA.uf,
+  municipio: EMPRESA.municipio,
+  dataAbertura: EMPRESA.dataAbertura,
+  cnaes: [
+    ...CNAES_SERVICOS.map((c) => ({ codigo: c.codigo, descricao: c.descricao, frente: "servicos" as const, principal: c.principal })),
+    ...CNAES_PRODUTOS.map((c) => ({ codigo: c.codigo, descricao: c.descricao, frente: "produtos" as const, principal: c.principal })),
+  ],
+  regioes: ["nova-iguacu", "baixada", "capital", "rj"],
+  endereco: "Rua João Batista Rodrigues, 70, Casa, Da Luz",
+  cep: "26260-340",
+  telefone: "(21) 9942-9781",
+  email: "arthurfoxinfo@gmail.com",
+  responsavel: "Arthur Silva Moura",
+};

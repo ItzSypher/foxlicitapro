@@ -2,9 +2,11 @@ import "server-only";
 import { normalizarTexto, regexDoTermo, removerSetorDeSistemas } from "@/core/cnae-keywords";
 import { resumirObjeto } from "@/core/objeto";
 import { SISTEMA_QUE_NAO_E_TI, recomendar } from "@/core/recomendacao";
+import type { PerfilEmpresa } from "@/core/perfil";
 import type { Faixa, OportunidadeComScore } from "@/core/types";
 import type { Preferencias } from "@/core/types-equipe";
 import { sql } from "@/db/client";
+import { lerEmpresa, listarIdsEmpresasAtivas } from "@/db/empresas";
 import { lerPreferencias } from "@/db/preferencias";
 import { listarPropostas } from "@/db/propostas";
 import { listarUsuariosAtivos } from "@/db/usuarios";
@@ -67,6 +69,8 @@ export interface EntradaResumo {
   propostas: ReadonlyArray<PropostaEspera>;
   /** Ids do envio anterior; null quando nunca houve envio (ninguém é marcado como nova) */
   idsAnteriores: ReadonlySet<string> | null;
+  /** Perfil da empresa que recebe o resumo; sem ele, vale o perfil de origem (testes) */
+  perfil?: PerfilEmpresa;
 }
 
 /* ---------- seleção (funções puras) ---------- */
@@ -184,8 +188,8 @@ export function montarResumoDeDados(entrada: EntradaResumo): Resumo {
   const idsSoftware = new Set(softwareLista.map((o) => o.id));
 
   const sugeridas = [
-    ...recomendar(entrada.servicos, "servicos", agora, 12, preferencias),
-    ...recomendar(entrada.produtos, "produtos", agora, 12, preferencias),
+    ...recomendar(entrada.servicos, "servicos", agora, 12, preferencias, entrada.perfil),
+    ...recomendar(entrada.produtos, "produtos", agora, 12, preferencias, entrada.perfil),
   ]
     .filter((r) => !idsSoftware.has(r.item.id))
     .sort((a, b) => b.prioridade - a.prioridade || encerraEm(a.item) - encerraEm(b.item));
@@ -230,10 +234,10 @@ export function montarResumoDeDados(entrada: EntradaResumo): Resumo {
 
 /* ---------- leitura e gravação ---------- */
 
-async function lerIdsAnteriores(): Promise<Set<string> | null> {
+async function lerIdsAnteriores(empresaId: string): Promise<Set<string> | null> {
   try {
     const linhas = await sql<{ ids: string[] }[]>`
-      select ids from resumo_envios where ok order by enviado_em desc limit 1`;
+      select ids from resumo_envios where empresa_id = ${empresaId} and ok order by enviado_em desc limit 1`;
     const linha = linhas[0];
     return linha ? new Set(linha.ids) : null;
   } catch {
@@ -241,9 +245,9 @@ async function lerIdsAnteriores(): Promise<Set<string> | null> {
   }
 }
 
-async function lerPropostasEmEspera(): Promise<PropostaEspera[]> {
+async function lerPropostasEmEspera(empresaId: string): Promise<PropostaEspera[]> {
   try {
-    const todas = await listarPropostas();
+    const todas = await listarPropostas(empresaId);
     const espera: PropostaEspera[] = [];
     for (const p of todas) {
       if (p.status === "em_revisao" || p.status === "devolvida") espera.push({ titulo: p.titulo, status: p.status });
@@ -254,14 +258,16 @@ async function lerPropostasEmEspera(): Promise<PropostaEspera[]> {
   }
 }
 
-/** Lê o Radar das duas frentes, as preferências, as propostas em espera e o último envio. Pode lançar se o Radar falhar. */
-export async function montarResumo(agora: Date = new Date()): Promise<Resumo> {
+/** Lê o Radar das duas frentes, as preferências, as propostas em espera e o último envio da empresa. Pode lançar se o Radar falhar. */
+export async function montarResumo(empresaId: string, agora: Date = new Date()): Promise<Resumo> {
+  const perfil = await lerEmpresa(empresaId);
+  if (!perfil) throw new Error("Empresa não encontrada.");
   const [servicos, produtos, preferencias, propostas, idsAnteriores] = await Promise.all([
-    obterRadar("servicos"),
-    obterRadar("produtos"),
-    lerPreferencias(),
-    lerPropostasEmEspera(),
-    lerIdsAnteriores(),
+    obterRadar("servicos", undefined, perfil),
+    obterRadar("produtos", undefined, perfil),
+    lerPreferencias(empresaId),
+    lerPropostasEmEspera(empresaId),
+    lerIdsAnteriores(empresaId),
   ]);
   return montarResumoDeDados({
     agora,
@@ -270,6 +276,7 @@ export async function montarResumo(agora: Date = new Date()): Promise<Resumo> {
     preferencias,
     propostas,
     idsAnteriores,
+    perfil,
   });
 }
 
@@ -429,40 +436,40 @@ export interface ResultadoResumo {
   fecham: number;
 }
 
-async function gravarEnvio(para: string[], resumo: Resumo, resultado: ResultadoEmail): Promise<void> {
+async function gravarEnvio(empresaId: string, para: string[], resumo: Resumo, resultado: ResultadoEmail): Promise<void> {
   try {
     await sql`
-      insert into resumo_envios (para, itens, ids, ok, erro)
-      values (${para}::text[], ${resumo.ids.length}, ${resumo.ids}::text[], ${resultado.ok}, ${resultado.erro ?? null})`;
+      insert into resumo_envios (empresa_id, para, itens, ids, ok, erro)
+      values (${empresaId}, ${para}::text[], ${resumo.ids.length}, ${resumo.ids}::text[], ${resultado.ok}, ${resultado.erro ?? null})`;
   } catch {
     // O histórico é auxiliar: falhar ao gravar não pode derrubar a coleta.
   }
 }
 
-async function destinatarios(preferencias: Preferencias): Promise<string[]> {
+async function destinatarios(empresaId: string, preferencias: Preferencias): Promise<string[]> {
   if (preferencias.emailsResumo.length > 0) return preferencias.emailsResumo;
-  const usuarios = await listarUsuariosAtivos();
+  const usuarios = await listarUsuariosAtivos(empresaId);
   return [...new Set(usuarios.map((u) => u.email))];
 }
 
-/** Monta e envia o resumo. Respeita "resumo ativo" e os e-mails das preferências. Nunca lança. */
-export async function enviarResumoDiario(agora: Date = new Date()): Promise<ResultadoResumo> {
+/** Monta e envia o resumo de uma empresa. Respeita "resumo ativo" e os e-mails das preferências dela. Nunca lança. */
+export async function enviarResumoDiario(empresaId: string, agora: Date = new Date()): Promise<ResultadoResumo> {
   const vazio: ResultadoResumo = { enviado: false, para: [], itens: 0, software: 0, fecham: 0 };
   try {
-    const preferencias = await lerPreferencias();
+    const preferencias = await lerPreferencias(empresaId);
     if (!preferencias.resumoAtivo) return { ...vazio, motivo: "resumo desativado nas preferências" };
 
-    const para = await destinatarios(preferencias);
+    const para = await destinatarios(empresaId, preferencias);
     if (para.length === 0) return { ...vazio, motivo: "sem destinatário" };
 
-    const resumo = await montarResumo(agora);
+    const resumo = await montarResumo(empresaId, agora);
     const resultado = await enviarEmail({
       para,
       assunto: resumo.assunto,
       html: renderizarResumoHtml(resumo),
       texto: renderizarResumoTexto(resumo),
     });
-    await gravarEnvio(para, resumo, resultado);
+    await gravarEnvio(empresaId, para, resumo, resultado);
     return {
       enviado: resultado.ok,
       ...(resultado.ok ? {} : { motivo: resultado.erro ?? "falha ao enviar" }),
@@ -475,4 +482,12 @@ export async function enviarResumoDiario(agora: Date = new Date()): Promise<Resu
   } catch (e) {
     return { ...vazio, motivo: e instanceof Error ? e.message : "falha ao montar o resumo" };
   }
+}
+
+/** Resumo diário de cada empresa ativa, uma por vez (a falha de uma não impede as outras). */
+export async function enviarResumosDiarios(agora: Date = new Date()): Promise<Array<{ empresaId: string } & ResultadoResumo>> {
+  const ids = await listarIdsEmpresasAtivas().catch((): string[] => []);
+  const resultados: Array<{ empresaId: string } & ResultadoResumo> = [];
+  for (const empresaId of ids) resultados.push({ empresaId, ...(await enviarResumoDiario(empresaId, agora)) });
+  return resultados;
 }

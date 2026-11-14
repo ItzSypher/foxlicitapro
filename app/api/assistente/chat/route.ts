@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   try {
     const jar = await cookies();
     const frente = lerFrente(jar.get(COOKIE_FRENTE)?.value);
-    const sistema = await montarSistemaDoChat(interpretarRota(lido.data.rota), frente, new Date());
+    const sistema = await montarSistemaDoChat(interpretarRota(lido.data.rota), frente, new Date(), sessao.empresaId);
     const resposta = await gerarTexto({ sistema, historico: lido.data.mensagens, maxTokens: 4096 });
     return NextResponse.json({ resposta });
   } catch (e) {

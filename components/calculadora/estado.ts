@@ -1,5 +1,6 @@
-import { CNAES_POR_FRENTE, frenteDoCnae } from "@/core/empresa";
 import type { CodigoCnae } from "@/core/empresa";
+import { PERFIL_ORIGEM } from "@/core/empresa";
+import { cnaesDaFrente as cnaesDoPerfil, ehMei, frenteDoCnae, type CnaePerfil, type PerfilEmpresa } from "@/core/perfil";
 import { MARGENS_POR_CNAE } from "@/core/margens";
 import { resumirObjeto } from "@/core/objeto";
 import type { MargemSugerida } from "@/core/margens";
@@ -66,8 +67,8 @@ export type EstadoCalculo =
   | { tipo: "erro"; erros: Partial<Record<CampoNumerico, string>> }
   | { tipo: "ok"; calculo: CalculoPrecificacao; entrada: EntradaPrecificacao };
 
-export function cnaesDaFrente(frente: Frente): readonly { codigo: string; descricao: string }[] {
-  return CNAES_POR_FRENTE[frente];
+export function cnaesDaFrente(cnaes: readonly CnaePerfil[], frente: Frente): readonly { codigo: string; descricao: string }[] {
+  return cnaesDoPerfil({ cnaes: [...cnaes] }, frente);
 }
 
 export function margemDoCnae(codigo: string): MargemSugerida | null {
@@ -91,7 +92,7 @@ export interface ItemInicial {
   cnae: string | null;
 }
 
-export function formularioInicial(frentePadrao: Frente, item: ItemInicial | null): Formulario {
+export function formularioInicial(frentePadrao: Frente, item: ItemInicial | null, perfil: PerfilEmpresa = PERFIL_ORIGEM): Formulario {
   const base: Formulario = {
     descricao: "",
     frente: frentePadrao,
@@ -102,13 +103,13 @@ export function formularioInicial(frentePadrao: Frente, item: ItemInicial | null
     teto: "",
     margemMinima: "",
     margemAlvo: "",
-    regime: "mei",
+    regime: ehMei(perfil) ? "mei" : "simples",
     vendas: String(VENDAS_PREVISTAS_PADRAO),
   };
   if (!item) return base;
 
-  const frente = item.frente ?? (item.cnae ? frenteDoCnae(item.cnae) : undefined) ?? frentePadrao;
-  const cnae = item.cnae !== null && frenteDoCnae(item.cnae) === frente ? item.cnae : "";
+  const frente = item.frente ?? (item.cnae ? frenteDoCnae(perfil, item.cnae) : undefined) ?? frentePadrao;
+  const cnae = item.cnae !== null && frenteDoCnae(perfil, item.cnae) === frente ? item.cnae : "";
   return {
     ...base,
     descricao: resumirObjeto(item.objeto).slice(0, 120),

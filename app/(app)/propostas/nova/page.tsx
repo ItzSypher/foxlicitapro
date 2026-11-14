@@ -34,8 +34,7 @@ export default async function NovaPropostaPage({ searchParams }: Props) {
 
   let falhou = false;
   if (ehModeloId(modeloPedido)) {
-    const sessao = await lerSessao();
-    const criado = await criarRascunho(modeloPedido, compraValida === "" ? null : compraValida, sessao?.usuarioId ?? null);
+    const criado = await criarRascunho(permitida.empresaId, modeloPedido, compraValida === "" ? null : compraValida, permitida.usuarioId);
     if (criado) redirect(criado.semItens ? `/propostas/${criado.id}?aviso=itens` : `/propostas/${criado.id}`);
     falhou = true;
   }

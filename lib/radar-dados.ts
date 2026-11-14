@@ -4,6 +4,7 @@ import { buscarContratacoes, MODALIDADES } from "@/core/pncp/client";
 import { normalizarLista } from "@/core/pncp/normalize";
 import type { LimitesCaixa } from "@/core/caixa";
 import { buscarRadar, pontuarEOrdenar } from "@/core/radar";
+import type { PerfilEmpresa } from "@/core/perfil";
 import type { Frente, ModalidadeId, Oportunidade, RespostaRadar } from "@/core/types";
 import { montarPaginaRadar, type ConsultaRadar, type PaginaRadar } from "@/lib/radar-pagina";
 import { gravarModalidade, lerCacheRadar, marcarFalha, pegarTrava, soltarTrava, type LinhaCache } from "@/db/radar-cache";
@@ -55,12 +56,13 @@ export async function atualizarRadar(): Promise<ResumoColeta> {
   }
 }
 
-function montarResposta(cache: LinhaCache[], frente: Frente, agora: Date, limites?: LimitesCaixa): RespostaRadar {
+function montarResposta(cache: LinhaCache[], frente: Frente, agora: Date, limites: LimitesCaixa | undefined, perfil: PerfilEmpresa): RespostaRadar {
   const oportunidades = pontuarEOrdenar(
     cache.flatMap((c) => c.oportunidades),
     frente,
     agora,
     limites,
+    perfil,
   );
   const falhas = MODALIDADES.filter((m) => {
     const linha = cache.find((c) => c.modalidadeId === m);
@@ -74,19 +76,19 @@ function montarResposta(cache: LinhaCache[], frente: Frente, agora: Date, limite
  * Radar do painel: lê o cache do banco na hora e, se estiver velho, coleta de novo depois da resposta.
  * Sem cache nenhum (primeiro uso), coleta antes de responder. Sem banco, cai para a consulta ao vivo.
  */
-export async function obterRadar(frente: Frente, limites?: LimitesCaixa): Promise<RespostaRadar> {
+export async function obterRadar(frente: Frente, limites: LimitesCaixa | undefined, perfil: PerfilEmpresa): Promise<RespostaRadar> {
   const agora = new Date();
   let cache: LinhaCache[];
   try {
     cache = await lerCacheRadar();
   } catch {
-    return buscarRadar(frente, limites);
+    return buscarRadar(frente, limites, perfil);
   }
 
   if (cache.length === 0) {
     await atualizarRadar();
     cache = await lerCacheRadar();
-    if (cache.length === 0) return buscarRadar(frente, limites);
+    if (cache.length === 0) return buscarRadar(frente, limites, perfil);
   } else {
     const velho =
       cache.length < MODALIDADES.length ||
@@ -94,7 +96,7 @@ export async function obterRadar(frente: Frente, limites?: LimitesCaixa): Promis
     if (velho) after(() => atualizarRadar().then(() => undefined));
   }
 
-  return montarResposta(cache, frente, agora, limites);
+  return montarResposta(cache, frente, agora, limites, perfil);
 }
 
 /** Radar já filtrado, ordenado e paginado no servidor: só a página atual vai ao navegador. */

@@ -1,4 +1,6 @@
-import { CNAES_POR_FRENTE, type CodigoCnae } from "./empresa";
+import type { CodigoCnae } from "./empresa";
+import { PERFIL_ORIGEM } from "./empresa";
+import { cnaesDaFrente, type PerfilEmpresa } from "./perfil";
 import type { Frente } from "./types";
 
 /**
@@ -759,11 +761,11 @@ function casarUm(texto: string, codigo: string): CasamentoCnae | null {
 }
 
 /** Casamentos por frente, com a força de cada um: quantos termos e se há termo forte. */
-export function casarCnaesComForca(objeto: string): CasamentosPorFrente {
+export function casarCnaesComForca(objeto: string, perfil: Pick<PerfilEmpresa, "cnaes"> = PERFIL_ORIGEM): CasamentosPorFrente {
   const texto = removerSetorDeSistemas(normalizarTexto(objeto));
   const resultado: CasamentosPorFrente = { servicos: [], produtos: [] };
   for (const frente of ["servicos", "produtos"] as const) {
-    for (const cnae of CNAES_POR_FRENTE[frente]) {
+    for (const cnae of cnaesDaFrente(perfil, frente)) {
       const casamento = casarUm(texto, cnae.codigo);
       if (casamento) resultado[frente].push(casamento);
     }
@@ -774,8 +776,8 @@ export function casarCnaesComForca(objeto: string): CasamentosPorFrente {
 export type CnaesCasados = Record<Frente, string[]>;
 
 /** Devolve os códigos CNAE cujos termos aparecem no objeto, separados por frente. */
-export function casarCnaes(objeto: string): CnaesCasados {
-  const detalhado = casarCnaesComForca(objeto);
+export function casarCnaes(objeto: string, perfil: Pick<PerfilEmpresa, "cnaes"> = PERFIL_ORIGEM): CnaesCasados {
+  const detalhado = casarCnaesComForca(objeto, perfil);
   return {
     servicos: detalhado.servicos.map((c) => c.codigo),
     produtos: detalhado.produtos.map((c) => c.codigo),

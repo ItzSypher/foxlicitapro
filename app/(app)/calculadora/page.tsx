@@ -5,6 +5,8 @@ import { formularioInicial } from "@/components/calculadora/estado";
 import { listarCotacoes, lerItemParaCotacao } from "@/db/cotacoes";
 import type { CotacaoSalva, ItemParaCotacao } from "@/db/cotacoes";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
+import { perfilAtual } from "@/lib/empresa-atual";
+import { exigirSessao } from "@/lib/sessao";
 
 export const metadata = { title: "Calculadora · FoxLicita Pro" };
 
@@ -14,6 +16,8 @@ interface Props {
 
 export default async function CalculadoraPage({ searchParams }: Props) {
   await connection();
+  const sessao = await exigirSessao();
+  const perfil = await perfilAtual();
   const { item } = await searchParams;
   const itemId = (Array.isArray(item) ? item[0] : item)?.trim() || null;
   const jar = await cookies();
@@ -22,7 +26,7 @@ export default async function CalculadoraPage({ searchParams }: Props) {
   let oportunidade: ItemParaCotacao | null = null;
   if (itemId !== null) {
     try {
-      oportunidade = await lerItemParaCotacao(itemId);
+      oportunidade = await lerItemParaCotacao(sessao.empresaId, itemId);
     } catch {
       oportunidade = null;
     }
@@ -30,7 +34,7 @@ export default async function CalculadoraPage({ searchParams }: Props) {
 
   let cotacoes: CotacaoSalva[] = [];
   try {
-    cotacoes = await listarCotacoes(oportunidade?.id ?? null, 10);
+    cotacoes = await listarCotacoes(sessao.empresaId, oportunidade?.id ?? null, 10);
   } catch {
     cotacoes = [];
   }
@@ -45,8 +49,9 @@ export default async function CalculadoraPage({ searchParams }: Props) {
         key={oportunidade?.id ?? "livre"}
         itemId={oportunidade?.id ?? null}
         objeto={oportunidade?.objeto ?? null}
-        inicial={formularioInicial(frentePadrao, oportunidade)}
+        inicial={formularioInicial(frentePadrao, oportunidade, perfil)}
         cotacoes={cotacoes}
+        cnaes={perfil.cnaes}
       />
     </div>
   );

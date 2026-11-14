@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { EMITENTE, enderecoCompleto } from "@/core/proposta-emitente";
+import { enderecoCompleto, type Emitente } from "@/core/proposta-emitente";
 import { obterModelo, type ModeloId } from "@/core/proposta-modelos";
 import { dataPorExtenso, totalItemCentavos, totalProposta, valorPorExtenso } from "@/core/proposta";
 import type { DadosProposta } from "@/core/types-detalhe";
@@ -25,7 +25,7 @@ function Condicao({ rotulo, valor }: { rotulo: string; valor: string }) {
  * Documento da proposta: A4, margens de 20 mm, preto no branco em qualquer tema.
  * Usado na prévia, na impressão e na página pública. Largura fixa de 210 mm.
  */
-export function DocumentoProposta({ dados, modeloId }: { dados: DadosProposta; modeloId: ModeloId }) {
+export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosProposta; modeloId: ModeloId; emitente: Emitente }) {
   const modelo = obterModelo(modeloId);
   const totalCentavos = totalProposta(dados);
   const total = totalCentavos / 100;
@@ -43,12 +43,12 @@ export function DocumentoProposta({ dados, modeloId }: { dados: DadosProposta; m
       <div className="flex items-center gap-4 border-b border-black pb-3">
         <Image src="/raposa.svg" alt="" width={249} height={254} unoptimized className="h-[14mm] w-auto shrink-0" />
         <div className="min-w-0 text-[9pt] leading-snug">
-          <p className="text-[11pt] font-bold">{EMITENTE.razaoSocial}</p>
-          <p>CNPJ {EMITENTE.cnpj}</p>
-          <p>{enderecoCompleto()}</p>
-          <p>
-            {EMITENTE.telefone} · {EMITENTE.email}
-          </p>
+          <p className="text-[11pt] font-bold">{emitente.razaoSocial}</p>
+          <p>CNPJ {emitente.cnpj}</p>
+          <p>{enderecoCompleto(emitente)}</p>
+          {(emitente.telefone !== "" || emitente.email !== "") && (
+            <p>{[emitente.telefone, emitente.email].filter((p) => p !== "").join(" · ")}</p>
+          )}
         </div>
       </div>
 
@@ -143,12 +143,12 @@ export function DocumentoProposta({ dados, modeloId }: { dados: DadosProposta; m
 
       <div className="mt-6 break-inside-avoid">
         <p>
-          {EMITENTE.cidade}, {dataPorExtenso(dados.data)}.
+          {emitente.cidade}, {dataPorExtenso(dados.data)}.
         </p>
         <div className="mt-14 w-[90mm] border-t border-black pt-1 text-[9.5pt] leading-snug">
-          <p className="font-bold">{EMITENTE.responsavel}</p>
-          <p>{EMITENTE.razaoSocial}</p>
-          <p>CNPJ {EMITENTE.cnpj}</p>
+          {emitente.responsavel !== "" && <p className="font-bold">{emitente.responsavel}</p>}
+          <p>{emitente.razaoSocial}</p>
+          <p>CNPJ {emitente.cnpj}</p>
         </div>
       </div>
     </article>

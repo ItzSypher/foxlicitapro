@@ -22,11 +22,12 @@ export function paraMarca(linha: unknown): (MarcaJuridica & { itemId: string }) 
 }
 
 /** Marcas de todos os itens, agrupadas por item. */
-export async function listarMarcasPorItem(): Promise<Map<string, MarcaJuridica[]>> {
+export async function listarMarcasPorItem(empresaId: string): Promise<Map<string, MarcaJuridica[]>> {
   const linhas = await sql`
     select p.item_id, p.passo, p.marcado_por, u.nome as marcado_por_nome, p.marcado_em
     from revisao_juridica_passos p
     left join usuarios u on u.id = p.marcado_por
+    where p.empresa_id = ${empresaId}
     order by p.marcado_em asc
   `;
   const mapa = new Map<string, MarcaJuridica[]>();
@@ -42,12 +43,12 @@ export async function listarMarcasPorItem(): Promise<Map<string, MarcaJuridica[]
 }
 
 /** Marcas de um item. */
-export async function listarMarcas(itemId: string): Promise<MarcaJuridica[]> {
+export async function listarMarcas(empresaId: string, itemId: string): Promise<MarcaJuridica[]> {
   const linhas = await sql`
     select p.item_id, p.passo, p.marcado_por, u.nome as marcado_por_nome, p.marcado_em
     from revisao_juridica_passos p
     left join usuarios u on u.id = p.marcado_por
-    where p.item_id = ${itemId}
+    where p.empresa_id = ${empresaId} and p.item_id = ${itemId}
     order by p.marcado_em asc
   `;
   const marcas: MarcaJuridica[] = [];
@@ -64,21 +65,22 @@ export async function listarMarcas(itemId: string): Promise<MarcaJuridica[]> {
  * Devolve false quando o item não existe ou está em outra etapa.
  */
 export async function definirPasso(
+  empresaId: string,
   itemId: string,
   passo: PassoJuridicoId,
   marcado: boolean,
   usuarioId: string,
 ): Promise<boolean> {
-  const alvo = await sql`select 1 from pipeline_itens where id = ${itemId} and etapa = ${ETAPA_REVISAO}`;
+  const alvo = await sql`select 1 from pipeline_itens where empresa_id = ${empresaId} and id = ${itemId} and etapa = ${ETAPA_REVISAO}`;
   if (alvo.length === 0) return false;
   if (marcado) {
     await sql`
-      insert into revisao_juridica_passos (item_id, passo, marcado_por, marcado_em)
-      values (${itemId}, ${passo}, ${usuarioId}, now())
-      on conflict (item_id, passo) do nothing
+      insert into revisao_juridica_passos (empresa_id, item_id, passo, marcado_por, marcado_em)
+      values (${empresaId}, ${itemId}, ${passo}, ${usuarioId}, now())
+      on conflict (empresa_id, item_id, passo) do nothing
     `;
   } else {
-    await sql`delete from revisao_juridica_passos where item_id = ${itemId} and passo = ${passo}`;
+    await sql`delete from revisao_juridica_passos where empresa_id = ${empresaId} and item_id = ${itemId} and passo = ${passo}`;
   }
   return true;
 }

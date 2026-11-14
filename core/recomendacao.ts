@@ -1,5 +1,6 @@
 import { normalizarTexto, regexDoTermo, removerSetorDeSistemas } from "./cnae-keywords";
-import { TODOS_CNAES, frenteDoCnae } from "./empresa";
+import { PERFIL_ORIGEM } from "./empresa";
+import { atendeRegiao, cnaePrincipal, ehMei, frenteDoCnae, type PerfilEmpresa } from "./perfil";
 import { MS_POUCO_TEMPO, TETO_MEI_ANO_CHEIO, VALOR_MINIMO, limiteMeiAnual } from "./score";
 import type { Frente, OportunidadeComScore } from "./types";
 import type { Preferencias } from "./types-equipe";
@@ -17,8 +18,6 @@ export interface Recomendacao {
 const MS_DIA = 24 * 3_600_000;
 const MAX_MOTIVOS = 3;
 const MAX_POR_ORGAO = 3;
-
-const CNAE_PRINCIPAL = TODOS_CNAES.find((c) => c.principal)?.codigo;
 
 /** Bônus de quem casa com um termo que o dono quer priorizar. */
 const BONUS_FOCO = 10;
@@ -84,27 +83,28 @@ function pistas(
   textoFoco: string,
   prioritarios: ReadonlyArray<TermoCompilado>,
   comPreferencias: boolean,
+  perfil: PerfilEmpresa,
 ): Pista[] {
   const lista: Pista[] = [];
   const foco = prioritarios.find((t) => t.regex.test(textoFoco));
   if (foco) lista.push({ bonus: BONUS_FOCO, motivo: motivoDoFoco(foco.termo) });
-  else if (comPreferencias && item.score.cnaesCasados.some((c) => CNAES_DE_TI.includes(c) && frenteDoCnae(c) === frente)) {
+  else if (comPreferencias && item.score.cnaesCasados.some((c) => CNAES_DE_TI.includes(c) && frenteDoCnae(perfil, c) === frente)) {
     lista.push({ bonus: BONUS_AREA_TI, motivo: "Tecnologia da informação: seu foco" });
   }
 
-  if (item.regiao === "nova-iguacu") lista.push({ bonus: 8, motivo: "Na sua cidade" });
-  else if (item.regiao === "baixada") lista.push({ bonus: 5, motivo: "Na Baixada, perto de casa" });
+  if (item.regiao === "nova-iguacu" && atendeRegiao(perfil, item.regiao)) lista.push({ bonus: 8, motivo: "Na sua cidade" });
+  else if (item.regiao === "baixada" && atendeRegiao(perfil, item.regiao)) lista.push({ bonus: 5, motivo: "Na Baixada, perto de casa" });
 
-  const principal = CNAE_PRINCIPAL;
-  if (principal && frente === frenteDoCnae(principal) && item.score.cnaesCasados.includes(principal)) {
+  const principal = cnaePrincipal(perfil)?.codigo;
+  if (principal && frente === frenteDoCnae(perfil, principal) && item.score.cnaesCasados.includes(principal)) {
     lista.push({ bonus: 4, motivo: "É a sua atividade principal" });
   }
 
   if (item.modalidadeId === 8) lista.push({ bonus: 4, motivo: "Dispensa: disputa simples" });
 
-  if (item.valorEstimado !== null && item.valorEstimado >= VALOR_MINIMO) {
+  if (ehMei(perfil) && item.valorEstimado !== null && item.valorEstimado >= VALOR_MINIMO) {
     const ano = anoDoEncerramento(item.dataEncerramento);
-    if (item.valorEstimado <= limiteMeiAnual(ano)) {
+    if (item.valorEstimado <= limiteMeiAnual(ano, perfil)) {
       lista.push({ bonus: 3, motivo: `Cabe no limite do MEI de ${ano}` });
     }
   }
@@ -118,7 +118,7 @@ function pistas(
 /**
  * Escolhe as oportunidades que mais combinam com o perfil da empresa na frente ativa.
  * Só entram faixa go ou atenção com CNAE casado na frente ativa, ainda abertas há 6 h ou mais
- * e dentro do teto anual do MEI. Serviço fora do estado do Rio não entra (é presencial).
+ * e (para MEI) dentro do teto anual. Serviço fora das regiões de interesse do perfil não entra (é presencial).
  * Com preferências: objeto que contém um termo bloqueado fica de fora (continua em "Todas")
  * e objeto que contém um termo prioritário ganha 10 pontos de prioridade.
  * Função pura.
@@ -129,6 +129,7 @@ export function recomendar(
   agora: Date,
   limite = 12,
   preferencias?: PreferenciasDeRecomendacao,
+  perfil: PerfilEmpresa = PERFIL_ORIGEM,
 ): Recomendacao[] {
   const bloqueados = compilar(preferencias?.termosBloqueadosParaVoce ?? []);
   const prioritarios = compilar(preferencias?.termosPrioritarios ?? []);
@@ -136,8 +137,8 @@ export function recomendar(
   for (const item of lista) {
     if (item.score.faixa === "nogo") continue;
     if (item.score.frenteCasada !== frente) continue;
-    if (item.valorEstimado !== null && item.valorEstimado > TETO_MEI_ANO_CHEIO) continue;
-    if (frente === "servicos" && item.regiao === "fora-rj") continue;
+    if (ehMei(perfil) && item.valorEstimado !== null && item.valorEstimado > TETO_MEI_ANO_CHEIO) continue;
+    if (frente === "servicos" && !atendeRegiao(perfil, item.regiao)) continue;
 
     const restante = Date.parse(item.dataEncerramento) - agora.getTime();
     if (Number.isNaN(restante) || restante < MS_POUCO_TEMPO) continue;
@@ -145,7 +146,7 @@ export function recomendar(
     const texto = normalizarTexto(item.objeto);
     if (bloqueados.some((t) => t.regex.test(texto))) continue;
 
-    const achadas = pistas(item, frente, restante, removerSetorDeSistemas(texto).replace(SISTEMA_QUE_NAO_E_TI, " "), prioritarios, preferencias !== undefined);
+    const achadas = pistas(item, frente, restante, removerSetorDeSistemas(texto).replace(SISTEMA_QUE_NAO_E_TI, " "), prioritarios, preferencias !== undefined, perfil);
     const prioridade = item.score.total + achadas.reduce((soma, p) => soma + p.bonus, 0);
     const motivos = [...achadas]
       .sort((a, b) => b.bonus - a.bonus)

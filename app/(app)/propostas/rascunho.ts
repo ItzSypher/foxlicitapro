@@ -17,6 +17,7 @@ import { criarProposta } from "@/db/propostas";
  * Devolve null quando o banco falha.
  */
 export async function criarRascunho(
+  empresaId: string,
   modelo: ModeloId,
   compra: string | null,
   criadoPor: string | null = null,
@@ -34,7 +35,7 @@ export async function criarRascunho(
   const dados: DadosProposta = detalhe ? montarDadosIniciais(detalhe, modelo, hoje) : dadosEmBranco(modelo, hoje);
   const compraId = detalhe?.numeroControle ?? (chave ? numeroControleDe(chave) : null);
   try {
-    const id = await criarProposta({
+    const id = await criarProposta(empresaId, {
       compraId,
       modelo,
       titulo: detalhe ? tituloPadrao(dados) : `Nova proposta · ${obterModelo(modelo).nome}`,

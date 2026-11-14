@@ -16,6 +16,6 @@ export async function restantesHoje(
   if (!usuario) return { ilimitada: false, limite: 0, usadas: 0, restantes: 0 };
   if (usuario.papel === "dono") return calcularCota({ ehDono: true, limite: 0, usadas: 0 });
   const { inicio, fim } = intervaloDoDia(agora, fuso);
-  const usadas = await contarPropostasDoAssistente(usuarioId, inicio, fim);
+  const usadas = await contarPropostasDoAssistente(usuario.empresaId, usuarioId, inicio, fim);
   return calcularCota({ ehDono: false, limite: usuario.limitePropostasAssistenteDia, usadas });
 }

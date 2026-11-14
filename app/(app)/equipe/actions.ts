@@ -5,7 +5,7 @@ import { z } from "zod";
 import { gerarSenhaInicial, hashSenha, verificarSenha } from "@/lib/auth";
 import { exigirDono, lerSessao } from "@/lib/sessao";
 import { PAPEIS, normalizarPermissoes, ehPermissao } from "@/core/permissoes";
-import type { Papel } from "@/core/types-equipe";
+import type { Papel, Sessao } from "@/core/types-equipe";
 import {
   EmailJaCadastrado,
   atualizarAcessos,
@@ -13,7 +13,7 @@ import {
   definirAtivo,
   definirSenhaUsuario,
   lerSenhaHash,
-  lerUsuario,
+  lerUsuarioDaEmpresa,
 } from "@/db/usuarios";
 
 export interface EstadoAdicionar {
@@ -59,18 +59,18 @@ function textoDe(valor: FormDataEntryValue | null): string {
   return typeof valor === "string" ? valor : "";
 }
 
-async function comoDono(): Promise<boolean> {
+async function comoDono(): Promise<Sessao | null> {
   try {
-    await exigirDono();
-    return true;
+    return await exigirDono();
   } catch {
-    return false;
+    return null;
   }
 }
 
 export async function adicionarPessoaAction(_anterior: EstadoAdicionar, dados: FormData): Promise<EstadoAdicionar> {
   const vazio: EstadoAdicionar = { erro: null, senha: null, nome: null, email: null, criada: false };
-  if (!(await comoDono())) return { ...vazio, erro: SEM_PERMISSAO };
+  const dono = await comoDono();
+  if (!dono) return { ...vazio, erro: SEM_PERMISSAO };
   const lido = NovaPessoaSchema.safeParse({
     nome: dados.get("nome"),
     email: dados.get("email"),
@@ -91,6 +91,7 @@ export async function adicionarPessoaAction(_anterior: EstadoAdicionar, dados: F
   }
   try {
     const usuario = await criarUsuario({
+      empresaId: dono.empresaId,
       nome: lido.data.nome,
       email: lido.data.email,
       papel: lido.data.papel as Papel,
@@ -108,11 +109,12 @@ export async function adicionarPessoaAction(_anterior: EstadoAdicionar, dados: F
 }
 
 export async function redefinirSenhaAction(id: string): Promise<RespostaSenha> {
-  if (!(await comoDono())) return { ok: false, erro: SEM_PERMISSAO };
+  const dono = await comoDono();
+  if (!dono) return { ok: false, erro: SEM_PERMISSAO };
   if (!z.uuid().safeParse(id).success) return { ok: false, erro: "Pessoa não encontrada." };
   try {
     const senha = gerarSenhaInicial();
-    const gravou = await definirSenhaUsuario(id, await hashSenha(senha));
+    const gravou = await definirSenhaUsuario(dono.empresaId, id, await hashSenha(senha));
     if (!gravou) return { ok: false, erro: "Pessoa não encontrada." };
     return { ok: true, senha };
   } catch (e) {
@@ -131,9 +133,9 @@ export async function alternarAtivoAction(id: string, ativo: boolean): Promise<R
   if (!z.uuid().safeParse(id).success) return { ok: false, erro: "Pessoa não encontrada." };
   if (!ativo && id === dono.usuarioId) return { ok: false, erro: "Você não pode desativar a própria conta." };
   try {
-    const alvo = await lerUsuario(id);
+    const alvo = await lerUsuarioDaEmpresa(dono.empresaId, id);
     if (!alvo) return { ok: false, erro: "Pessoa não encontrada." };
-    const mudou = await definirAtivo(id, ativo);
+    const mudou = await definirAtivo(dono.empresaId, id, ativo);
     if (!mudou) return { ok: false, erro: "É preciso manter pelo menos um dono ativo." };
     revalidatePath("/equipe");
     return { ok: true };
@@ -165,7 +167,7 @@ export async function trocarMinhaSenhaAction(_anterior: EstadoSenha, dados: Form
     if (!hashAtual || !(await verificarSenha(lido.data.atual, hashAtual))) {
       return { ok: false, erro: "A senha atual não confere." };
     }
-    await definirSenhaUsuario(sessao.usuarioId, await hashSenha(lido.data.nova));
+    await definirSenhaUsuario(sessao.empresaId, sessao.usuarioId, await hashSenha(lido.data.nova));
     return { ok: true, erro: null };
   } catch (e) {
     console.error("[equipe]", e instanceof Error ? e.message : e);
@@ -197,9 +199,9 @@ export async function atualizarAcessosAction(
     return { ok: false, erro: "Você não pode tirar o próprio papel de dono." };
   }
   try {
-    const alvo = await lerUsuario(id);
+    const alvo = await lerUsuarioDaEmpresa(dono.empresaId, id);
     if (!alvo) return { ok: false, erro: "Pessoa não encontrada." };
-    const gravou = await atualizarAcessos(id, {
+    const gravou = await atualizarAcessos(dono.empresaId, id, {
       papel: lido.data.papel as Papel,
       permissoes: normalizarPermissoes(lido.data.permissoes),
       limitePropostasAssistenteDia: lido.data.limite,

@@ -1,3 +1,5 @@
+import { PERFIL_ORIGEM } from "@/core/empresa";
+import { atendeRegiao, ehMei, type PerfilEmpresa } from "@/core/perfil";
 import { limiteMeiAnual, TETO_MEI_ANO_CHEIO } from "@/core/score";
 import { regiaoDe } from "@/core/regioes";
 import type { Frente, ModalidadeId, Oportunidade } from "@/core/types";
@@ -133,13 +135,14 @@ function sinalItens(d: DetalheCompra): Sinal | null {
   };
 }
 
-function sinalValor(d: DetalheCompra): Sinal {
+function sinalValor(d: DetalheCompra, perfil: PerfilEmpresa): Sinal {
   if (d.valorEstimado === null) {
     return { id: "valor", tom: "warning", texto: "Valor sigiloso ou não informado: confirme no edital." };
   }
   const ano = anoDe(d.dataEncerramento, d.chave.ano);
-  const limite = limiteMeiAnual(ano);
   const valor = formatarMoeda(d.valorEstimado);
+  if (!ehMei(perfil)) return { id: "valor", tom: "positive", texto: `Valor estimado de ${valor}.` };
+  const limite = limiteMeiAnual(ano, perfil);
   if (d.valorEstimado <= limite) {
     return { id: "valor", tom: "positive", texto: `${valor} cabe no limite MEI de ${ano} (${formatarMoeda(limite)}).` };
   }
@@ -156,9 +159,17 @@ function sinalValor(d: DetalheCompra): Sinal {
   return { id: "valor", tom: "negative", texto: `${valor} passa de 2 vezes o limite MEI de ${ano} (${formatarMoeda(limite)}).` };
 }
 
-function sinalLocal(d: DetalheCompra, frente: Frente): Sinal {
+function sinalLocal(d: DetalheCompra, frente: Frente, perfil: PerfilEmpresa): Sinal {
   const regiao = regiaoDe(d.codigoIbge, d.uf);
   const onde = `${d.municipio}${d.uf ? `/${d.uf}` : ""}`;
+  const atende = atendeRegiao(perfil, regiao);
+  if (!atende && regiao !== "fora-rj") {
+    return {
+      id: "local",
+      tom: frente === "servicos" ? "negative" : "warning",
+      texto: `${onde}, fora das suas regiões de interesse.`,
+    };
+  }
   if (regiao === "nova-iguacu") return { id: "local", tom: "positive", texto: `Em ${onde}: sem deslocamento.` };
   if (regiao === "baixada") return { id: "local", tom: "positive", texto: `${onde}, na Baixada Fluminense: deslocamento curto.` };
   if (regiao === "capital") return { id: "local", tom: "warning", texto: `${onde}, na capital: deslocamento médio.` };
@@ -195,11 +206,11 @@ function sinalArquivos(d: DetalheCompra): Sinal | null {
 }
 
 /** Frases curtas, geradas por regra, sobre o que importa para o perfil do MEI. */
-export function gerarSinais(d: DetalheCompra, frente: Frente, agora: number): Sinal[] {
+export function gerarSinais(d: DetalheCompra, frente: Frente, agora: number, perfil: PerfilEmpresa = PERFIL_ORIGEM): Sinal[] {
   const sinais: Array<Sinal | null> = [
     sinalItens(d),
-    sinalValor(d),
-    sinalLocal(d, frente),
+    sinalValor(d, perfil),
+    sinalLocal(d, frente, perfil),
     sinalPrazo(d, agora),
     d.srp
       ? { id: "srp", tom: "warning", texto: "Registro de preços: a compra sai por demanda, sem volume garantido." }

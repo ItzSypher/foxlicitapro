@@ -5,17 +5,21 @@ import { NavInferior, NavLateral, type DadosNav } from "@/components/navegacao";
 import { TemaToggle } from "@/components/tema-toggle";
 import { contarPropostasParaMim } from "@/db/propostas";
 import { rotuloPapel } from "@/lib/papel";
+import { perfilDaEmpresa } from "@/lib/empresa-atual";
 import { lerSessao } from "@/lib/sessao";
+import { formatarCnpj } from "@/core/brasilapi";
+import { nomeExibicao } from "@/core/perfil";
+import { ROTULO_PORTE } from "@/core/perfil";
 
 /** Barra lateral, cabeçalho do celular e barra inferior. Sem dados, mostra a casca sem usuário. */
-export function Casca({ dados }: { dados: DadosNav }) {
+export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string }) {
   const { usuario } = dados;
   return (
     <>
       <aside className="sticky top-0 hidden h-dvh w-[220px] shrink-0 flex-col border-r border-border px-3 py-5 lg:flex">
         <div className="flex flex-col gap-1.5 px-3">
           <Marca className="size-8" />
-          <p className="text-xs text-muted-foreground">70.048.886 Arthur Silva Moura · MEI</p>
+          {empresa ? <p className="text-xs text-muted-foreground">{empresa}</p> : null}
         </div>
 
         <div className="mt-6">
@@ -51,14 +55,24 @@ export function Casca({ dados }: { dados: DadosNav }) {
 export async function CascaComDados() {
   const sessao = await lerSessao();
   let pendentes = 0;
+  let empresa: string | undefined;
   if (sessao) {
     try {
-      pendentes = await contarPropostasParaMim(sessao.usuarioId);
+      const perfil = await perfilDaEmpresa(sessao.empresaId);
+      empresa = `${formatarCnpj(perfil.cnpj).slice(0, 10)} ${nomeExibicao(perfil)} · ${ROTULO_PORTE[perfil.porte]}`;
+    } catch (e) {
+      console.error("[casca] perfil da empresa falhou:", e instanceof Error ? e.message : e);
+    }
+    try {
+      pendentes = await contarPropostasParaMim(sessao.empresaId, sessao.usuarioId);
     } catch (e) {
       console.error("[casca] contagem de propostas falhou:", e instanceof Error ? e.message : e);
     }
   }
   return (
-    <Casca dados={{ usuario: sessao ? { nome: sessao.nome, papel: sessao.papel } : null, pendentes }} />
+    <Casca
+      dados={{ usuario: sessao ? { nome: sessao.nome, papel: sessao.papel, superadmin: sessao.superadmin } : null, pendentes }}
+      empresa={empresa}
+    />
   );
 }

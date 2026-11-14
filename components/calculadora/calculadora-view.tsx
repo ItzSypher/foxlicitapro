@@ -5,6 +5,7 @@ import { salvarCotacaoAction } from "@/app/(app)/calculadora/actions";
 import { resumirObjeto } from "@/core/objeto";
 import type { Regime } from "@/core/precificacao";
 import type { Frente } from "@/core/types";
+import type { CnaePerfil } from "@/core/perfil";
 import type { CotacaoSalva } from "@/db/cotacoes";
 import { formatarMoeda } from "@/lib/formato";
 import { CampoNumero, CampoSelect, CampoTexto, Segmentado } from "./campos";
@@ -26,6 +27,8 @@ interface Props {
   objeto: string | null;
   inicial: Formulario;
   cotacoes: CotacaoSalva[];
+  /** CNAEs da empresa, por frente */
+  cnaes: CnaePerfil[];
 }
 
 const OPCOES_FRENTE: readonly { valor: Frente; rotulo: string }[] = [
@@ -40,7 +43,7 @@ const OPCOES_REGIME: readonly { valor: Regime; rotulo: string }[] = [
 
 type Aviso = { tom: "ok" | "erro"; texto: string } | null;
 
-export function CalculadoraView({ itemId, objeto, inicial, cotacoes }: Props) {
+export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Props) {
   const [f, setF] = useState<Formulario>(inicial);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [aviso, setAviso] = useState<Aviso>(null);
@@ -50,7 +53,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes }: Props) {
   const estado = useMemo(() => calcularFormulario(f), [f]);
   const erros: Partial<Record<CampoNumerico, string>> = estado.tipo === "erro" ? estado.erros : {};
   const margem = margemDoCnae(f.cnae);
-  const opcoesCnae = cnaesDaFrente(f.frente).map((c) => ({ valor: c.codigo, rotulo: `${c.codigo} · ${c.descricao}` }));
+  const opcoesCnae = cnaesDaFrente(cnaes, f.frente).map((c) => ({ valor: c.codigo, rotulo: `${c.codigo} · ${c.descricao}` }));
 
   function mudar<K extends keyof Formulario>(campo: K, valor: Formulario[K]): void {
     setF((atual) => ({ ...atual, [campo]: valor }));
@@ -59,7 +62,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes }: Props) {
 
   function mudarFrente(frente: Frente): void {
     setF((atual) => {
-      const cnaeContinua = cnaesDaFrente(frente).some((c) => c.codigo === atual.cnae);
+      const cnaeContinua = cnaesDaFrente(cnaes, frente).some((c) => c.codigo === atual.cnae);
       return { ...atual, frente, cnae: cnaeContinua ? atual.cnae : "" };
     });
     setAviso(null);

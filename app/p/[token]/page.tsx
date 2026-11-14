@@ -3,6 +3,8 @@ import { connection } from "next/server";
 import { BotaoBaixar } from "@/components/propostas/botao-baixar";
 import { DocumentoProposta } from "@/components/propostas/documento";
 import { PreviaEscalada } from "@/components/propostas/previa-escalada";
+import { emitenteDoPerfil, type Emitente } from "@/core/proposta-emitente";
+import { lerEmpresa } from "@/db/empresas";
 import { lerPorToken, type PropostaPublica } from "@/db/propostas";
 
 export const metadata: Metadata = {
@@ -15,13 +17,17 @@ export default async function PropostaPublicaPage({ params }: { params: Promise<
   await connection();
   const { token } = await params;
   let proposta: PropostaPublica | null;
+  let emitente: Emitente | null = null;
   try {
     proposta = await lerPorToken(token);
+    // O cabeçalho vem da empresa dona da proposta, não de quem abre o link.
+    const empresa = proposta ? await lerEmpresa(proposta.empresaId) : null;
+    emitente = empresa ? emitenteDoPerfil(empresa) : null;
   } catch {
     proposta = null;
   }
 
-  if (!proposta) {
+  if (!proposta || !emitente) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-[#e5e5e5] px-6 text-center">
         <p className="text-base text-[#111]">Este link não está mais disponível.</p>
@@ -36,7 +42,7 @@ export default async function PropostaPublicaPage({ params }: { params: Promise<
           <BotaoBaixar />
         </div>
         <PreviaEscalada>
-          <DocumentoProposta dados={proposta.dados} modeloId={proposta.modelo} />
+          <DocumentoProposta dados={proposta.dados} modeloId={proposta.modelo} emitente={emitente} />
         </PreviaEscalada>
       </div>
     </main>

@@ -10,6 +10,10 @@ export interface Usuario {
   email: string;
   papel: Papel;
   ativo: boolean;
+  /** Empresa a que a pessoa pertence */
+  empresaId: string;
+  /** Administra todas as empresas (tela /admin/empresas) */
+  superadmin: boolean;
   permissoes: Permissao[];
   /** Propostas por dia que a pessoa pode montar com o assistente (o dono não tem limite) */
   limitePropostasAssistenteDia: number;
@@ -24,6 +28,9 @@ export interface SessaoToken {
 
 /** Quem está logado. */
 export interface Sessao extends SessaoToken {
+  /** Empresa da pessoa, lida do banco a cada pedido: todo dado da empresa se filtra por ela */
+  empresaId: string;
+  superadmin: boolean;
   permissoes: Permissao[];
 }
 

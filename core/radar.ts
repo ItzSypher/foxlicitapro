@@ -1,6 +1,8 @@
 import { buscarContratacoes } from "./pncp/client";
 import { normalizarLista } from "./pncp/normalize";
 import type { LimitesCaixa } from "./caixa";
+import { PERFIL_ORIGEM } from "./empresa";
+import type { PerfilEmpresa } from "./perfil";
 import { calcularScore } from "./score";
 import type { Frente, ModalidadeId, Oportunidade, OportunidadeComScore, RespostaRadar } from "./types";
 
@@ -13,11 +15,12 @@ export function pontuarEOrdenar(
   frente: Frente,
   agora: Date,
   limites?: LimitesCaixa,
+  perfil: PerfilEmpresa = PERFIL_ORIGEM,
 ): OportunidadeComScore[] {
   const agoraMs = agora.getTime();
   return lista
     .filter((o) => new Date(o.dataEncerramento).getTime() > agoraMs)
-    .map((o) => ({ ...o, score: calcularScore(o, frente, agora, limites ? { limites } : undefined) }))
+    .map((o) => ({ ...o, score: calcularScore(o, frente, agora, limites ? { limites } : undefined, perfil) }))
     .sort(
       (a, b) =>
         b.score.total - a.score.total ||
@@ -30,7 +33,7 @@ export function pontuarEOrdenar(
  * Lança erro apenas quando as duas modalidades falham sem trazer nenhum item.
  * O painel usa o cache do banco (lib/radar-dados.ts); esta função fica para a API e para a coleta.
  */
-export async function buscarRadar(frente: Frente, limites?: LimitesCaixa): Promise<RespostaRadar> {
+export async function buscarRadar(frente: Frente, limites?: LimitesCaixa, perfil: PerfilEmpresa = PERFIL_ORIGEM): Promise<RespostaRadar> {
   const agora = new Date();
   const resultados = await buscarContratacoes({ agora });
 
@@ -42,7 +45,7 @@ export async function buscarRadar(frente: Frente, limites?: LimitesCaixa): Promi
   }
 
   return {
-    oportunidades: pontuarEOrdenar(normalizarLista(brutas, agora), frente, agora, limites),
+    oportunidades: pontuarEOrdenar(normalizarLista(brutas, agora), frente, agora, limites, perfil),
     atualizadoEm: agora.toISOString(),
     falhas,
   };

@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const contar = vi.fn<(usuarioId: string, de: Date, ate: Date) => Promise<number>>();
+const contar = vi.fn<(empresaId: string, usuarioId: string, de: Date, ate: Date) => Promise<number>>();
 const ler = vi.fn<(id: string) => Promise<unknown>>();
 vi.mock("@/db/propostas", () => ({
-  contarPropostasDoAssistente: (usuarioId: string, de: Date, ate: Date) => contar(usuarioId, de, ate),
+  contarPropostasDoAssistente: (empresaId: string, usuarioId: string, de: Date, ate: Date) => contar(empresaId, usuarioId, de, ate),
 }));
 vi.mock("@/db/usuarios", () => ({ lerUsuario: (id: string) => ler(id) }));
 
@@ -15,6 +15,8 @@ const usuario = (papel: string, limite: number) => ({
   email: "t@t.invalid",
   papel,
   ativo: true,
+  empresaId: "e1",
+  superadmin: false,
   permissoes: [],
   limitePropostasAssistenteDia: limite,
 });
@@ -31,7 +33,7 @@ describe("restantesHoje", () => {
     contar.mockResolvedValue(2);
     const cota = await restantesHoje("u1", new Date("2026-11-13T02:30:00Z"));
     expect(cota).toEqual({ ilimitada: false, limite: 3, usadas: 2, restantes: 1 });
-    const [id, de, ate] = contar.mock.calls[0];
+    const [, id, de, ate] = contar.mock.calls[0];
     expect(id).toBe("u1");
     expect(de.toISOString()).toBe("2026-11-12T03:00:00.000Z");
     expect(ate.toISOString()).toBe("2026-11-13T03:00:00.000Z");

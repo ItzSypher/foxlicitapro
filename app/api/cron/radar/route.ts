@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { atualizarRadar } from "@/lib/radar-dados";
-import { enviarResumoDiario } from "@/lib/resumo-diario";
+import { enviarResumosDiarios } from "@/lib/resumo-diario";
 
 /** Coleta diária do PNCP e resumo por e-mail (Vercel Cron). Só roda com `Authorization: Bearer <CRON_SECRET>`. */
 export const maxDuration = 300;
@@ -12,6 +12,6 @@ export async function GET(request: Request) {
   }
   const soResumo = new URL(request.url).searchParams.get("so") === "resumo";
   const coleta = soResumo ? null : await atualizarRadar();
-  const resumo = await enviarResumoDiario();
+  const resumo = await enviarResumosDiarios();
   return NextResponse.json({ coleta, resumo });
 }

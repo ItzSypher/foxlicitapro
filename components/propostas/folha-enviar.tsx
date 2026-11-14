@@ -5,7 +5,7 @@ import { Check, Copy, Mail, MessageCircle, Share2 } from "lucide-react";
 import { gerarLinkAction, revogarLinkAction } from "@/app/(app)/propostas/actions";
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CONTROLE } from "@/components/propostas/campos";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { EMITENTE } from "@/core/proposta-emitente";
+import type { Emitente } from "@/core/proposta-emitente";
 import { podeGerarLink } from "@/core/revisao";
 import type { StatusPropostaEquipe } from "@/core/types-equipe";
 
@@ -27,6 +27,7 @@ interface Props {
   aoMudarLink: (link: LinkPublico | null, status?: StatusPropostaEquipe) => void;
   /** Grava as edições pendentes antes de gerar o link */
   aoSalvar: () => Promise<boolean>;
+  emitente: Emitente;
 }
 
 const dataFmt = new Intl.DateTimeFormat("pt-BR", {
@@ -41,7 +42,7 @@ function dia(iso: string): string {
   return Number.isNaN(d.getTime()) ? "—" : dataFmt.format(d);
 }
 
-export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto, status, link, aoMudarLink, aoSalvar }: Props) {
+export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto, status, link, aoMudarLink, aoSalvar, emitente }: Props) {
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
@@ -49,10 +50,10 @@ export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto
   const origem = typeof window === "undefined" ? "" : window.location.origin;
   const url = link ? `${origem}/p/${link.token}` : "";
   const podeCompartilhar = typeof navigator !== "undefined" && typeof navigator.share === "function";
-  const assunto = `Proposta comercial - ${EMITENTE.razaoSocial}`;
+  const assunto = `Proposta comercial - ${emitente.razaoSocial}`;
   const referencia = objeto.trim() !== "" ? objeto.trim() : orgao.trim();
   const validade = link ? dia(link.expira) : "";
-  const mensagemZap = `Olá! Segue a proposta comercial da ${EMITENTE.razaoSocial}${orgao.trim() !== "" ? ` para ${orgao.trim()}` : ""}: ${url}`;
+  const mensagemZap = `Olá! Segue a proposta comercial da ${emitente.razaoSocial}${orgao.trim() !== "" ? ` para ${orgao.trim()}` : ""}: ${url}`;
   const corpoEmail = [
     "Prezados,",
     "",
@@ -62,11 +63,13 @@ export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto
     `O link fica disponível até ${validade}.`,
     "",
     "Atenciosamente,",
-    EMITENTE.responsavel,
-    EMITENTE.razaoSocial,
-    `CNPJ ${EMITENTE.cnpj}`,
-    EMITENTE.telefone,
-  ].join("\n");
+    emitente.responsavel,
+    emitente.razaoSocial,
+    `CNPJ ${emitente.cnpj}`,
+    emitente.telefone,
+  ]
+    .filter((linha) => linha !== "")
+    .join("\n");
 
   function gerar() {
     setErro(null);

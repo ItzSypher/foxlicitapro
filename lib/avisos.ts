@@ -18,8 +18,8 @@ async function disparar(para: string[], assunto: string, modelo: Parameters<type
   }
 }
 
-export async function avisarPropostaEmRevisao(p: { id: string; titulo: string; autorId: string; autorNome: string }): Promise<void> {
-  const para = await emailsDosOutros(p.autorId).catch(() => []);
+export async function avisarPropostaEmRevisao(p: { empresaId: string; id: string; titulo: string; autorId: string; autorNome: string }): Promise<void> {
+  const para = await emailsDosOutros(p.empresaId, p.autorId).catch(() => []);
   await disparar(para, `Proposta para revisar: ${p.titulo}`, {
     titulo: "Proposta para revisar",
     paragrafos: [`${p.autorNome} enviou a proposta "${p.titulo}" para revisão.`],
@@ -28,6 +28,7 @@ export async function avisarPropostaEmRevisao(p: { id: string; titulo: string; a
 }
 
 export async function avisarPropostaRevisada(p: {
+  empresaId: string;
   id: string;
   titulo: string;
   autorId: string | null;
@@ -37,7 +38,7 @@ export async function avisarPropostaRevisada(p: {
   nota: string | null;
 }): Promise<void> {
   if (p.autorId === null || p.autorId === p.revisorId) return;
-  const para = await emailsDosUsuarios([p.autorId]).catch(() => []);
+  const para = await emailsDosUsuarios(p.empresaId, [p.autorId]).catch(() => []);
   await disparar(para, `${p.aprovada ? "Proposta aprovada" : "Proposta devolvida"}: ${p.titulo}`, {
     titulo: p.aprovada ? "Proposta aprovada" : "Proposta devolvida",
     paragrafos: [
@@ -50,8 +51,8 @@ export async function avisarPropostaRevisada(p: {
   });
 }
 
-export async function avisarResponsavel(p: { itemId: string; objeto: string; responsavelId: string; porNome: string }): Promise<void> {
-  const para = await emailsDosUsuarios([p.responsavelId]).catch(() => []);
+export async function avisarResponsavel(p: { empresaId: string; itemId: string; objeto: string; responsavelId: string; porNome: string }): Promise<void> {
+  const para = await emailsDosUsuarios(p.empresaId, [p.responsavelId]).catch(() => []);
   const objeto = p.objeto.length > 140 ? `${p.objeto.slice(0, 139)}…` : p.objeto;
   await disparar(para, "Você é o responsável por uma oportunidade", {
     titulo: "Você é o responsável por uma oportunidade",

@@ -1,6 +1,7 @@
 import { avaliarLimites, capitalNecessario, type LimitesCaixa } from "./caixa";
 import { casarCnaesComForca, type CasamentoCnae } from "./cnae-keywords";
-import { EMPRESA } from "./empresa";
+import { PERFIL_ORIGEM } from "./empresa";
+import { atendeRegiao, ehMei, type PerfilEmpresa } from "./perfil";
 import type { Criterio, Faixa, Frente, Oportunidade, Regiao, Score } from "./types";
 
 const FATURAMENTO_MEI_MENSAL = 6750;
@@ -29,9 +30,11 @@ const PONTOS_LOCAL_SERVICOS: Record<Regiao, number> = {
  * Limite de faturamento MEI para o ano informado.
  * No ano de abertura vale R$ 6.750 por mês, contando o mês da abertura;
  * nos anos seguintes, R$ 81.000. Antes da abertura não há limite (0).
+ * Sem data de abertura no perfil, vale o ano cheio. Só faz sentido para porte MEI (confira com ehMei).
  */
-export function limiteMeiAnual(ano: number): number {
-  const [anoAbertura, mesAbertura] = EMPRESA.dataAbertura.split("-").map(Number);
+export function limiteMeiAnual(ano: number, perfil: Pick<PerfilEmpresa, "dataAbertura"> = PERFIL_ORIGEM): number {
+  if (!perfil.dataAbertura) return FATURAMENTO_MEI_ANUAL;
+  const [anoAbertura, mesAbertura] = perfil.dataAbertura.split("-").map(Number);
   if (ano < anoAbertura) return 0;
   if (ano === anoAbertura) return FATURAMENTO_MEI_MENSAL * (12 - mesAbertura + 1);
   return FATURAMENTO_MEI_ANUAL;
@@ -84,16 +87,21 @@ function criterioModalidade(o: Oportunidade): Criterio {
   return { ...base, pontos: 10, motivo: "Pregão eletrônico: disputa por lances, mais concorrida" };
 }
 
-function criterioLocal(o: Oportunidade, frente: Frente): Criterio {
+function criterioLocal(o: Oportunidade, frente: Frente, perfil: PerfilEmpresa): Criterio {
   const base = { id: "local" as const, rotulo: "Local da entrega", maximo: 20, aConfirmar: false };
   const regiao = NOMES_REGIAO[o.regiao];
+  const atende = atendeRegiao(perfil, o.regiao);
   if (frente === "produtos") {
-    if (o.regiao === "fora-rj") {
-      return { ...base, pontos: 8, motivo: "Produto entregue fora do estado do Rio: frete mais pesado" };
+    if (!atende) {
+      const onde = o.regiao === "fora-rj" ? "fora do estado do Rio" : "fora das suas regiões de interesse";
+      return { ...base, pontos: 8, motivo: `Produto entregue ${onde}: frete mais pesado` };
     }
     return { ...base, pontos: 20, motivo: `Produto entregue em ${regiao}: frete viável` };
   }
-  const pontos = PONTOS_LOCAL_SERVICOS[o.regiao];
+  if (!atende && o.regiao !== "fora-rj") {
+    return { ...base, pontos: 0, motivo: "Serviço fora das suas regiões de interesse: inviável presencialmente" };
+  }
+  const pontos = atende ? PONTOS_LOCAL_SERVICOS[o.regiao] : 0;
   const motivos: Record<Regiao, string> = {
     "nova-iguacu": "Serviço em Nova Iguaçu: sem deslocamento",
     baixada: "Serviço na Baixada Fluminense: deslocamento curto",
@@ -115,12 +123,19 @@ function criterioDocumentacao(o: Oportunidade): Criterio {
 /** Abaixo deste valor o retorno não compensa o esforço de montar a proposta. */
 export const VALOR_MINIMO = 1500;
 
-function criterioValor(o: Oportunidade): Criterio {
-  const base = { id: "valor" as const, rotulo: "Valor x limite MEI", maximo: 10 };
+function criterioValor(o: Oportunidade, perfil: PerfilEmpresa): Criterio {
+  const mei = ehMei(perfil);
+  const base = { id: "valor" as const, rotulo: mei ? "Valor x limite MEI" : "Valor da contratação", maximo: 10 };
   if (o.valorEstimado === null) {
     return { ...base, pontos: 5, aConfirmar: true, motivo: "Valor sigiloso ou não informado: confirme no edital" };
   }
   const valor = o.valorEstimado;
+  if (!mei) {
+    if (valor < VALOR_MINIMO) {
+      return { ...base, pontos: 6, aConfirmar: false, motivo: `Valor de ${formatarReais(valor)}: o retorno é baixo para o esforço` };
+    }
+    return { ...base, pontos: 10, aConfirmar: false, motivo: `Valor de ${formatarReais(valor)}: sem teto de faturamento MEI` };
+  }
   if (valor > TETO_MEI_ANO_CHEIO) {
     return {
       ...base,
@@ -130,7 +145,7 @@ function criterioValor(o: Oportunidade): Criterio {
     };
   }
   const ano = anoDoEncerramento(o.dataEncerramento);
-  const limite = limiteMeiAnual(ano);
+  const limite = limiteMeiAnual(ano, perfil);
   const textoLimite = `limite MEI de ${ano} (${formatarReais(limite)})`;
   if (valor <= limite) {
     if (valor < VALOR_MINIMO) {
@@ -152,8 +167,8 @@ function criterioValor(o: Oportunidade): Criterio {
 /** Faturamento máximo do MEI em um ano cheio. Acima disso o sinal nunca fica verde. */
 export const TETO_MEI_ANO_CHEIO = 81_000;
 
-function limitarPeloTeto(faixa: Faixa, valor: number | null): Faixa {
-  return faixa === "go" && valor !== null && valor > TETO_MEI_ANO_CHEIO ? "atencao" : faixa;
+function limitarPeloTeto(faixa: Faixa, valor: number | null, perfil: PerfilEmpresa): Faixa {
+  return ehMei(perfil) && faixa === "go" && valor !== null && valor > TETO_MEI_ANO_CHEIO ? "atencao" : faixa;
 }
 
 function faixaDoTotal(total: number): Faixa {
@@ -214,8 +229,14 @@ function criterioCaixa(o: Oportunidade, ctx: ContextoCaixa | undefined): { crite
 }
 
 /** Pontua uma oportunidade de 0 a 100 para a frente ativa. Função pura. */
-export function calcularScore(o: Oportunidade, frente: Frente, agora: Date = new Date(), caixa?: ContextoCaixa): Score {
-  const casados = casarCnaesComForca(o.objeto);
+export function calcularScore(
+  o: Oportunidade,
+  frente: Frente,
+  agora: Date = new Date(),
+  caixa?: ContextoCaixa,
+  perfil: PerfilEmpresa = PERFIL_ORIGEM,
+): Score {
+  const casados = casarCnaesComForca(o.objeto, perfil);
   const outraFrente: Frente = frente === "servicos" ? "produtos" : "servicos";
   const ativos = melhorPrimeiro(casados[frente]);
   const outros = melhorPrimeiro(casados[outraFrente]);
@@ -223,9 +244,9 @@ export function calcularScore(o: Oportunidade, frente: Frente, agora: Date = new
   const criterios: Criterio[] = [
     criterioCnae(frente, ativos, outros),
     criterioModalidade(o),
-    criterioLocal(o, frente),
+    criterioLocal(o, frente, perfil),
     criterioDocumentacao(o),
-    criterioValor(o),
+    criterioValor(o, perfil),
   ];
 
   const cx = criterioCaixa(o, caixa);
@@ -243,13 +264,13 @@ export function calcularScore(o: Oportunidade, frente: Frente, agora: Date = new
 
   const alertas: string[] = [];
   if (poucoTempo) alertas.push("Fecha em menos de 6 h: pouco tempo para montar proposta");
-  if (o.valorEstimado !== null && o.valorEstimado > TETO_MEI_ANO_CHEIO) alertas.push("Valor acima do teto anual do MEI");
+  if (ehMei(perfil) && o.valorEstimado !== null && o.valorEstimado > TETO_MEI_ANO_CHEIO) alertas.push("Valor acima do teto anual do MEI");
   if (cx?.alerta) alertas.push(cx.alerta);
   if (frenteCasada === outraFrente) {
     alertas.push(`Casou só com a outra frente (${outraFrente === "produtos" ? "produtos" : "serviços"})`);
   }
 
-  let faixa: Faixa = semMatch ? "nogo" : limitarPeloTeto(faixaDoTotal(total), o.valorEstimado);
+  let faixa: Faixa = semMatch ? "nogo" : limitarPeloTeto(faixaDoTotal(total), o.valorEstimado, perfil);
   if (poucoTempo && faixa === "go") faixa = "atencao";
 
   return {

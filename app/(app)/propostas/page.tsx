@@ -11,7 +11,7 @@ export default async function PropostasPage() {
   const sessao = await exigirSessao();
   let propostas: ResumoProposta[] | null;
   try {
-    propostas = await listarPropostas();
+    propostas = await listarPropostas(sessao.empresaId);
   } catch (e) {
     console.error("[propostas] leitura falhou:", e instanceof Error ? e.message : e);
     propostas = null;

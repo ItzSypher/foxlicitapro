@@ -64,6 +64,7 @@ export interface NovaProposta {
 }
 
 export interface PropostaPublica {
+  empresaId: string;
   titulo: string;
   modelo: ModeloId;
   dados: DadosProposta;
@@ -147,16 +148,17 @@ function converter(l: LinhaProposta): Proposta | null {
   };
 }
 
-export async function criarProposta(nova: NovaProposta): Promise<string> {
+export async function criarProposta(empresaId: string, nova: NovaProposta): Promise<string> {
   const dados = DadosPropostaSchema.parse(nova.dados);
   const analise = nova.analise
     ? sql.json(JSON.parse(JSON.stringify(nova.analise)) as postgres.JSONValue)
     : null;
   const linhas = await sql<{ id: string }[]>`
-    insert into propostas (compra_id, pipeline_id, modelo, titulo, dados, total, criado_por, autor, analise, status)
+    insert into propostas (empresa_id, compra_id, pipeline_id, modelo, titulo, dados, total, criado_por, autor, analise, status)
     values (
+      ${empresaId},
       ${nova.compraId},
-      (select id from pipeline_itens where id = ${nova.compraId}),
+      (select id from pipeline_itens where empresa_id = ${empresaId} and id = ${nova.compraId}),
       ${nova.modelo},
       ${nova.titulo},
       ${sql.json(dados)},
@@ -174,11 +176,11 @@ export async function criarProposta(nova: NovaProposta): Promise<string> {
 }
 
 /** Id da proposta mais recente que o assistente criou para a compra nos últimos `minutos`; null se não houver. */
-export async function propostaRecenteDoAssistente(compraId: string, minutos: number): Promise<string | null> {
+export async function propostaRecenteDoAssistente(empresaId: string, compraId: string, minutos: number): Promise<string | null> {
   const minutosSeguros = Math.max(1, Math.min(1440, Math.trunc(minutos)));
   const linhas = await sql<{ id: string }[]>`
     select id from propostas
-    where compra_id = ${compraId}
+    where empresa_id = ${empresaId} and compra_id = ${compraId}
       and autor = 'assistente'
       and criado_em > now() - make_interval(mins => ${minutosSeguros}::int)
     order by criado_em desc
@@ -188,16 +190,17 @@ export async function propostaRecenteDoAssistente(compraId: string, minutos: num
 }
 
 /** Propostas que o assistente criou para a pessoa no intervalo [de, ate). */
-export async function contarPropostasDoAssistente(usuarioId: string, de: Date, ate: Date): Promise<number> {
+export async function contarPropostasDoAssistente(empresaId: string, usuarioId: string, de: Date, ate: Date): Promise<number> {
   const [linha] = await sql<{ total: number }[]>`
     select count(*)::int as total from propostas
-    where autor = 'assistente' and criado_por = ${usuarioId}
+    where empresa_id = ${empresaId} and autor = 'assistente' and criado_por = ${usuarioId}
       and criado_em >= ${de} and criado_em < ${ate}
   `;
   return linha?.total ?? 0;
 }
 
 export async function atualizarProposta(
+  empresaId: string,
   id: string,
   mudanca: { titulo: string; modelo: ModeloId; dados: DadosProposta; totalCentavos: number },
 ): Promise<Date | null> {
@@ -210,7 +213,7 @@ export async function atualizarProposta(
         dados = ${sql.json(dados)},
         total = ${paraReais(mudanca.totalCentavos)},
         atualizado_em = now()
-    where id = ${id}
+    where empresa_id = ${empresaId} and id = ${id}
     returning atualizado_em
   `;
   return linhas[0]?.atualizado_em ?? null;
@@ -227,6 +230,7 @@ export interface RevisaoGravada {
  * (evita duas pessoas decidirem a mesma proposta ao mesmo tempo).
  */
 export async function definirStatus(
+  empresaId: string,
   id: string,
   status: StatusPropostaEquipe,
   revisao?: RevisaoGravada | null,
@@ -242,14 +246,14 @@ export async function definirStatus(
         : sql`, revisado_por = ${revisao.revisadoPor}, revisao_nota = ${revisao.nota}, revisado_em = now()`;
   const linhas = await sql<{ id: string }[]>`
     update propostas set status = ${status}, atualizado_em = now() ${campos}
-    where id = ${id} ${condicao}
+    where empresa_id = ${empresaId} and id = ${id} ${condicao}
     returning id
   `;
   return linhas.length > 0;
 }
 
 /** Null quando não existe ou quando o jsonb está inválido. */
-export async function lerProposta(id: string): Promise<Proposta | null> {
+export async function lerProposta(empresaId: string, id: string): Promise<Proposta | null> {
   if (!FORMATO_ID.test(id)) return null;
   const linhas = await sql<LinhaProposta[]>`
     select p.id, p.compra_id, p.modelo, p.titulo, p.dados, p.total, p.status, p.token_publico, p.token_expira,
@@ -258,7 +262,7 @@ export async function lerProposta(id: string): Promise<Proposta | null> {
     from propostas p
     left join usuarios c on c.id = p.criado_por
     left join usuarios r on r.id = p.revisado_por
-    where p.id = ${id} limit 1
+    where p.empresa_id = ${empresaId} and p.id = ${id} limit 1
   `;
   const linha = linhas[0];
   return linha ? converter(linha) : null;
@@ -279,13 +283,13 @@ interface LinhaResumo {
 }
 
 /** Mais recentes primeiro; com compraId, só as daquela compra. */
-export async function listarPropostas(filtro?: { compraId?: string }): Promise<ResumoProposta[]> {
+export async function listarPropostas(empresaId: string, filtro?: { compraId?: string }): Promise<ResumoProposta[]> {
   const linhas = await sql<LinhaResumo[]>`
     select p.id, p.compra_id, p.titulo, p.dados->>'orgao' as orgao, p.total, p.status, p.atualizado_em,
            p.autor, p.criado_por, c.nome as criado_por_nome, p.revisado_por
     from propostas p
     left join usuarios c on c.id = p.criado_por
-    where ${filtro?.compraId ? sql`p.compra_id = ${filtro.compraId}` : sql`true`}
+    where p.empresa_id = ${empresaId} and ${filtro?.compraId ? sql`p.compra_id = ${filtro.compraId}` : sql`true`}
     order by p.atualizado_em desc
     limit 500
   `;
@@ -313,24 +317,25 @@ export async function listarPropostas(filtro?: { compraId?: string }): Promise<R
  * Quantas propostas esperam por esta pessoa: em revisão que ela pode revisar
  * (não é a autora) e devolvidas que ela criou.
  */
-export async function contarPropostasParaMim(usuarioId: string): Promise<number> {
+export async function contarPropostasParaMim(empresaId: string, usuarioId: string): Promise<number> {
   if (!FORMATO_ID.test(usuarioId)) return 0;
   const [linha] = await sql<{ total: number }[]>`
     select count(*)::int as total from propostas
-    where (status = 'em_revisao' and (autor = 'assistente' or criado_por is null or criado_por <> ${usuarioId}))
-       or (status = 'devolvida' and criado_por = ${usuarioId})
+    where empresa_id = ${empresaId} and ((status = 'em_revisao' and (autor = 'assistente' or criado_por is null or criado_por <> ${usuarioId}))
+       or (status = 'devolvida' and criado_por = ${usuarioId}))
   `;
   return linha?.total ?? 0;
 }
 
-export async function excluirProposta(id: string): Promise<boolean> {
+export async function excluirProposta(empresaId: string, id: string): Promise<boolean> {
   if (!FORMATO_ID.test(id)) return false;
-  const linhas = await sql<{ id: string }[]>`delete from propostas where id = ${id} returning id`;
+  const linhas = await sql<{ id: string }[]>`delete from propostas where empresa_id = ${empresaId} and id = ${id} returning id`;
   return linhas.length > 0;
 }
 
 /** Gera (ou troca) o link público. Token de 32 bytes aleatórios em base64url. */
 export async function gerarTokenPublico(
+  empresaId: string,
   id: string,
   dias = 15,
 ): Promise<{ token: string; expira: string } | null> {
@@ -341,17 +346,17 @@ export async function gerarTokenPublico(
     update propostas
     set token_publico = ${token},
         token_expira = now() + make_interval(days => ${diasSeguros}::int)
-    where id = ${id}
+    where empresa_id = ${empresaId} and id = ${id}
     returning token_expira
   `;
   const expira = linhas[0]?.token_expira;
   return expira ? { token, expira: expira.toISOString() } : null;
 }
 
-export async function revogarToken(id: string): Promise<boolean> {
+export async function revogarToken(empresaId: string, id: string): Promise<boolean> {
   if (!FORMATO_ID.test(id)) return false;
   const linhas = await sql<{ id: string }[]>`
-    update propostas set token_publico = null, token_expira = null where id = ${id} returning id
+    update propostas set token_publico = null, token_expira = null where empresa_id = ${empresaId} and id = ${id} returning id
   `;
   return linhas.length > 0;
 }
@@ -359,8 +364,8 @@ export async function revogarToken(id: string): Promise<boolean> {
 /** Só o que o documento precisa, e só com token existente e não expirado. */
 export async function lerPorToken(token: string): Promise<PropostaPublica | null> {
   if (!FORMATO_TOKEN.test(token)) return null;
-  const linhas = await sql<Pick<LinhaProposta, "titulo" | "modelo" | "dados">[]>`
-    select titulo, modelo, dados from propostas
+  const linhas = await sql<Array<Pick<LinhaProposta, "titulo" | "modelo" | "dados"> & { empresa_id: string }>>`
+    select empresa_id, titulo, modelo, dados from propostas
     where token_publico = ${token} and token_expira > now()
     limit 1
   `;
@@ -369,6 +374,7 @@ export async function lerPorToken(token: string): Promise<PropostaPublica | null
   const dados = DadosPropostaSchema.safeParse(linha.dados);
   if (!dados.success) return null;
   return {
+    empresaId: linha.empresa_id,
     titulo: linha.titulo,
     modelo: ehModeloId(linha.modelo) ? linha.modelo : "cotacao-simples",
     dados: dados.data,
