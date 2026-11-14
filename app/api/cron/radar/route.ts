@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { atualizarRadar } from "@/lib/radar-dados";
+import { gerarAvisosDiarios } from "@/lib/avisos-diarios";
 import { enviarResumosDiarios } from "@/lib/resumo-diario";
 
-/** Coleta diária do PNCP e resumo por e-mail (Vercel Cron). Só roda com `Authorization: Bearer <CRON_SECRET>`. */
+/** Coleta diária do PNCP, resumo por e-mail e avisos da central (painel, e-mail e WhatsApp) (Vercel Cron). Só roda com `Authorization: Bearer <CRON_SECRET>`. */
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
@@ -13,5 +14,9 @@ export async function GET(request: Request) {
   const soResumo = new URL(request.url).searchParams.get("so") === "resumo";
   const coleta = soResumo ? null : await atualizarRadar();
   const resumo = await enviarResumosDiarios();
-  return NextResponse.json({ coleta, resumo });
+  const avisos = await gerarAvisosDiarios().catch((e: unknown) => {
+    console.error("[cron] avisos:", e instanceof Error ? e.message : e);
+    return [];
+  });
+  return NextResponse.json({ coleta, resumo, avisos });
 }

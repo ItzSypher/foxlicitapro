@@ -1,30 +1,30 @@
 import "server-only";
-import { emailsDosOutros, emailsDosUsuarios } from "@/db/usuarios";
-import { enviarEmail, montarEmail } from "@/lib/email";
+import {
+  avisoItemAtribuido,
+  avisoJuridicoPendente,
+  avisoPropostaEmRevisao,
+  avisoPropostaRevisada,
+  type AvisoNovo,
+} from "@/core/avisos";
+import { entregarAvisos } from "@/lib/central-avisos";
 
 /**
- * Avisos por e-mail do fluxo de equipe. Chamados dentro de `after()`: nunca lançam erro,
- * só registram no log quando o envio falha (e-mail não configurado não é falha).
+ * Avisos dos eventos da equipe (proposta para revisão, aprovada ou devolvida, item atribuído, ok jurídico pendente).
+ * Chamados dentro de `after()`: nunca lançam erro. Cada aviso vai para o painel e, conforme a escolha de cada pessoa,
+ * por e-mail e WhatsApp (e-mail não configurado não é falha).
  */
 
-async function disparar(para: string[], assunto: string, modelo: Parameters<typeof montarEmail>[0]): Promise<void> {
-  if (para.length === 0) return;
+async function publicar(empresaId: string, aviso: AvisoNovo | null): Promise<void> {
+  if (aviso === null) return;
   try {
-    const { html, texto } = montarEmail(modelo);
-    const r = await enviarEmail({ para, assunto, html, texto });
-    if (!r.ok && r.erro !== "e-mail não configurado") console.error("[email]", r.erro);
+    await entregarAvisos(empresaId, [aviso]);
   } catch (e) {
-    console.error("[email]", e instanceof Error ? e.message : e);
+    console.error("[aviso]", e instanceof Error ? e.message : e);
   }
 }
 
 export async function avisarPropostaEmRevisao(p: { empresaId: string; id: string; titulo: string; autorId: string; autorNome: string }): Promise<void> {
-  const para = await emailsDosOutros(p.empresaId, p.autorId).catch(() => []);
-  await disparar(para, `Proposta para revisar: ${p.titulo}`, {
-    titulo: "Proposta para revisar",
-    paragrafos: [`${p.autorNome} enviou a proposta "${p.titulo}" para revisão.`],
-    botao: { rotulo: "Abrir proposta", caminho: `/propostas/${p.id}` },
-  });
+  await publicar(p.empresaId, avisoPropostaEmRevisao({ id: p.id, titulo: p.titulo, autorId: p.autorId, autorNome: p.autorNome, em: new Date() }));
 }
 
 export async function avisarPropostaRevisada(p: {
@@ -37,26 +37,36 @@ export async function avisarPropostaRevisada(p: {
   aprovada: boolean;
   nota: string | null;
 }): Promise<void> {
-  if (p.autorId === null || p.autorId === p.revisorId) return;
-  const para = await emailsDosUsuarios(p.empresaId, [p.autorId]).catch(() => []);
-  await disparar(para, `${p.aprovada ? "Proposta aprovada" : "Proposta devolvida"}: ${p.titulo}`, {
-    titulo: p.aprovada ? "Proposta aprovada" : "Proposta devolvida",
-    paragrafos: [
-      p.aprovada
-        ? `${p.revisorNome} aprovou a proposta "${p.titulo}".`
-        : `${p.revisorNome} devolveu a proposta "${p.titulo}" com ajustes.`,
-    ],
-    destaque: !p.aprovada && p.nota ? p.nota : undefined,
-    botao: { rotulo: "Abrir proposta", caminho: `/propostas/${p.id}` },
-  });
+  await publicar(
+    p.empresaId,
+    avisoPropostaRevisada({
+      id: p.id,
+      titulo: p.titulo,
+      autorId: p.autorId,
+      revisorId: p.revisorId,
+      revisorNome: p.revisorNome,
+      aprovada: p.aprovada,
+      nota: p.nota,
+      em: new Date(),
+    }),
+  );
 }
 
-export async function avisarResponsavel(p: { empresaId: string; itemId: string; objeto: string; responsavelId: string; porNome: string }): Promise<void> {
-  const para = await emailsDosUsuarios(p.empresaId, [p.responsavelId]).catch(() => []);
-  const objeto = p.objeto.length > 140 ? `${p.objeto.slice(0, 139)}…` : p.objeto;
-  await disparar(para, "Você é o responsável por uma oportunidade", {
-    titulo: "Você é o responsável por uma oportunidade",
-    paragrafos: [`${p.porNome} passou para você a oportunidade "${objeto}".`],
-    botao: { rotulo: "Abrir pipeline", caminho: "/pipeline" },
-  });
+export async function avisarResponsavel(p: {
+  empresaId: string;
+  itemId: string;
+  objeto: string;
+  responsavelId: string;
+  porId: string;
+  porNome: string;
+}): Promise<void> {
+  await publicar(
+    p.empresaId,
+    avisoItemAtribuido({ itemId: p.itemId, objeto: p.objeto, responsavelId: p.responsavelId, porId: p.porId, porNome: p.porNome, em: new Date() }),
+  );
+}
+
+/** Item entrou na revisão jurídica: quem tem a permissão de revisão jurídica (e o dono) fica sabendo. */
+export async function avisarJuridicoPendente(p: { empresaId: string; itemId: string; objeto: string; porId: string }): Promise<void> {
+  await publicar(p.empresaId, avisoJuridicoPendente({ itemId: p.itemId, objeto: p.objeto, porId: p.porId, em: new Date() }));
 }

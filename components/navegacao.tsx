@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   Calculator,
+  ChartColumn,
   Columns3,
   ChevronDown,
   Ellipsis,
@@ -37,6 +38,8 @@ interface Destino {
   somentePara?: Papel;
   /** Só aparece para quem administra todas as empresas */
   somenteSuperadmin?: boolean;
+  /** Só aparece para o dono e quem aprova propostas */
+  somenteResultados?: boolean;
 }
 
 const PRINCIPAIS: ReadonlyArray<Destino> = [
@@ -47,6 +50,14 @@ const PRINCIPAIS: ReadonlyArray<Destino> = [
 ];
 
 const FORNECEDORES: Destino = { href: "/fornecedores", rotulo: "Fornecedores", rotuloCurto: "Fornecedores", icone: Truck };
+
+const RESULTADOS: Destino = {
+  href: "/resultados",
+  rotulo: "Resultados",
+  rotuloCurto: "Resultados",
+  icone: ChartColumn,
+  somenteResultados: true,
+};
 
 const SECUNDARIOS: ReadonlyArray<Destino> = [
   { href: "/preferencias", rotulo: "Preferências", rotuloCurto: "Preferências", icone: SlidersHorizontal },
@@ -66,18 +77,20 @@ const [PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
 
 /** Grupos da barra lateral, na ordem em que aparecem. */
 const GRUPOS: ReadonlyArray<Grupo> = [
-  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, PROPOSTAS, CALCULADORA, FORNECEDORES] },
+  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, PROPOSTAS, CALCULADORA, FORNECEDORES, RESULTADOS] },
   { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, PREFERENCIAS] },
   { id: "admin", rotulo: "Admin", destinos: [EMPRESAS] },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/fornecedores", "/preferencias", "/equipe", "/empresa", "/admin"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/fornecedores", "/resultados", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   nome: string;
   papel: Papel;
   superadmin?: boolean;
+  /** Dono ou quem tem a permissão de aprovar propostas: vê o painel de resultados */
+  resultados?: boolean;
 }
 
 
@@ -86,6 +99,8 @@ export interface DadosNav {
   usuario: UsuarioNav | null;
   /** Propostas esperando por esta pessoa */
   pendentes: number;
+  /** Avisos não lidos desta pessoa */
+  avisos: number;
 }
 
 function estaAtivo(destino: Destino, caminho: string): boolean {
@@ -98,7 +113,8 @@ function visiveis(lista: ReadonlyArray<Destino>, usuario: UsuarioNav | null): De
   return lista.filter(
     (d) =>
       (d.somentePara === undefined || d.somentePara === usuario?.papel) &&
-      (!d.somenteSuperadmin || usuario?.superadmin === true),
+      (!d.somenteSuperadmin || usuario?.superadmin === true) &&
+      (!d.somenteResultados || usuario?.resultados === true),
   );
 }
 
@@ -269,6 +285,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
   const { usuario } = dados;
   const itens: Destino[] = [
     FORNECEDORES,
+    ...visiveis([RESULTADOS], usuario),
     ...visiveis(SECUNDARIOS, usuario),
     { href: "/equipe/conta", rotulo: "Minha conta", rotuloCurto: "Conta", icone: UserRound },
   ];

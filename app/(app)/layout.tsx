@@ -5,7 +5,7 @@ import { Casca, CascaComDados } from "@/components/casca";
 export default function CascaLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-ground lg:flex">
-      <Suspense fallback={<Casca dados={{ usuario: null, pendentes: 0 }} />}>
+      <Suspense fallback={<Casca dados={{ usuario: null, pendentes: 0, avisos: 0 }} />}>
         <CascaComDados />
       </Suspense>
 

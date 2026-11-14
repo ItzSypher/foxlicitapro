@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { SinoAvisos } from "@/components/avisos/sino-avisos";
 import { BotaoSair } from "@/components/botao-sair";
 import { Marca } from "@/components/marca";
 import { NavInferior, NavLateral, type DadosNav } from "@/components/navegacao";
 import { TemaToggle } from "@/components/tema-toggle";
+import { contarNaoLidos } from "@/db/avisos";
 import { contarPropostasParaMim } from "@/db/propostas";
 import { rotuloPapel } from "@/lib/papel";
 import { perfilDaEmpresa } from "@/lib/empresa-atual";
 import { lerSessao } from "@/lib/sessao";
+import { temPermissao } from "@/core/permissoes";
 import { formatarCnpj } from "@/core/brasilapi";
 import { nomeExibicao } from "@/core/perfil";
 import { ROTULO_PORTE } from "@/core/perfil";
@@ -18,7 +21,10 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
     <>
       <aside className="sticky top-0 hidden h-dvh w-[220px] shrink-0 flex-col border-r border-border px-3 py-5 lg:flex">
         <div className="flex flex-col gap-1.5 px-3">
-          <Marca className="size-8" />
+          <div className="flex items-center justify-between">
+            <Marca className="size-8" />
+            {usuario ? <SinoAvisos inicial={dados.avisos} folha="lado" className="-mr-2" /> : null}
+          </div>
           {empresa ? <p className="text-xs leading-snug text-muted-foreground">{empresa}</p> : null}
         </div>
 
@@ -59,6 +65,7 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
             {empresa ? <p className="truncate text-[13px] leading-tight font-medium text-ink">{empresa}</p> : null}
           </div>
         )}
+        {usuario ? <SinoAvisos inicial={dados.avisos} folha="baixo" /> : null}
         <TemaToggle modo="icone" />
       </header>
 
@@ -71,6 +78,7 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
 export async function CascaComDados() {
   const sessao = await lerSessao();
   let pendentes = 0;
+  let avisos = 0;
   let empresa: string | undefined;
   if (sessao) {
     try {
@@ -85,9 +93,22 @@ export async function CascaComDados() {
       console.error("[casca] contagem de propostas falhou:", e instanceof Error ? e.message : e);
     }
   }
+  if (sessao) {
+    try {
+      avisos = await contarNaoLidos(sessao.empresaId, sessao.usuarioId);
+    } catch (e) {
+      console.error("[casca] contagem de avisos falhou:", e instanceof Error ? e.message : e);
+    }
+  }
   return (
     <Casca
-      dados={{ usuario: sessao ? { nome: sessao.nome, papel: sessao.papel, superadmin: sessao.superadmin } : null, pendentes }}
+      dados={{
+        usuario: sessao
+          ? { nome: sessao.nome, papel: sessao.papel, superadmin: sessao.superadmin, resultados: temPermissao(sessao, "aprovar_propostas") }
+          : null,
+        pendentes,
+        avisos,
+      }}
       empresa={empresa}
     />
   );

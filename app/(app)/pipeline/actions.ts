@@ -18,7 +18,7 @@ import {
 import { definirPasso, listarMarcas } from "@/db/revisao-juridica";
 import { lerUsuarioDaEmpresa } from "@/db/usuarios";
 import { ehPassoJuridico, type MarcaJuridica } from "@/core/revisao-juridica";
-import { avisarResponsavel } from "@/lib/avisos";
+import { avisarJuridicoPendente, avisarResponsavel } from "@/lib/avisos";
 import { lerSessao, verificarPermissao } from "@/lib/sessao";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ComentarioPipeline, Sessao } from "@/core/types-equipe";
@@ -79,6 +79,12 @@ export async function moverEtapa(id: string, etapa: EtapaId): Promise<ResultadoA
   try {
     const achou = await moverItem(sessao.empresaId, i.data, e.data, undefined, sessao.usuarioId);
     if (!achou) return { ok: false, erro: "Esse item não está mais no pipeline." };
+    if (e.data === "revisao_juridica") {
+      after(async () => {
+        const objeto = (await lerObjetoItem(sessao.empresaId, i.data)) ?? "uma oportunidade";
+        await avisarJuridicoPendente({ empresaId: sessao.empresaId, itemId: i.data, objeto, porId: sessao.usuarioId });
+      });
+    }
     atualizarTelas();
     return { ok: true };
   } catch (erro) {
@@ -159,6 +165,7 @@ export async function definirResponsavelAction(id: string, responsavelId: string
           itemId: i.data,
           objeto,
           responsavelId: novoResponsavel,
+          porId: sessao.usuarioId,
           porNome: sessao.nome,
         });
       });

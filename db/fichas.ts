@@ -60,3 +60,16 @@ export async function confirmarFicha(idPncp: string, usuarioId: string): Promise
     returning id_pncp`;
   return linhas.length > 0;
 }
+
+/** Fichas já conferidas por alguém, entre os ids dados (para os avisos e o painel de resultados). */
+export async function listarFichasConferidas(ids: ReadonlyArray<string>): Promise<Map<string, FichaEdital>> {
+  const mapa = new Map<string, FichaEdital>();
+  if (ids.length === 0) return mapa;
+  const linhas = await sql<Array<{ id_pncp: string; ficha: unknown }>>`
+    select id_pncp, ficha from fichas_edital where confirmada_em is not null and id_pncp in ${sql([...ids])}`;
+  for (const l of linhas) {
+    const ficha = lerFichaSalva(l.ficha);
+    if (ficha !== null) mapa.set(l.id_pncp, ficha);
+  }
+  return mapa;
+}
