@@ -116,7 +116,7 @@ export function BuscaPalavras({
             className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border border-control bg-transparent px-3 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 lg:h-9"
           >
             <Plus aria-hidden="true" className="size-4" />
-            <span className="hidden sm:inline">Salvar palavra</span>
+            <span className="hidden sm:inline">{pendente ? "Salvando…" : "Salvar palavra"}</span>
           </button>
         ) : null}
       </form>

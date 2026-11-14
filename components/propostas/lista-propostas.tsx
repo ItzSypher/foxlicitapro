@@ -64,7 +64,7 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Filtro de propostas" className="flex gap-1 rounded-control border border-control bg-raised p-0.5">
+      <div role="tablist" aria-label="Filtro de propostas" className="flex border-b border-border">
         {ORDEM_ABAS.map((id) => (
           <button
             key={id}
@@ -73,12 +73,12 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
             aria-selected={aba === id}
             onClick={() => setAba(id)}
             className={cn(
-              "inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[5px] px-2 text-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand",
-              "aria-selected:bg-brand-fill aria-selected:font-medium aria-selected:text-black",
+              "-mb-px inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 border-b-2 border-transparent px-2 text-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+              "aria-selected:border-brand aria-selected:font-semibold aria-selected:text-ink",
             )}
           >
             <span className="truncate">{ROTULO_ABA[id]}</span>
-            <span className="font-mono text-xs tabular-nums">{porAba[id].length}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">{porAba[id].length}</span>
           </button>
         ))}
       </div>
@@ -100,7 +100,11 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
           {busca.trim() === "" ? VAZIO_ABA[aba] : "Nada encontrado para essa busca."}
         </p>
       ) : (
-        <div className="overflow-hidden rounded-card border border-border">
+        <div className="flex flex-col gap-2">
+          <p className="text-[13px] tabular-nums text-muted-foreground" aria-live="polite">
+            {filtradas.length === 1 ? "1 proposta" : `${filtradas.length} propostas`}
+          </p>
+          <div className="overflow-hidden rounded-card border border-border">
           <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_128px_104px_104px] gap-x-4 border-b border-border px-4 py-2 text-xs text-muted-foreground md:grid">
             <span>Proposta</span>
             <span>Órgão</span>
@@ -116,7 +120,7 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
                   prefetch={false}
                   className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_128px_104px_104px] md:gap-x-4"
                 >
-                  <span className="truncate text-sm font-medium text-ink md:col-start-1">{p.titulo}</span>
+                  <span className="min-w-0 truncate text-sm font-medium text-ink md:col-start-1">{p.titulo}</span>
                   <span className="justify-self-end md:order-4 md:col-start-4 md:justify-self-start">
                     <PilulaStatus status={p.status} />
                   </span>
@@ -125,10 +129,10 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
                       {p.orgao || "Sem órgão"}
                       {p.autor === "assistente" ? " · assistente" : p.criadoPorNome ? ` · ${p.criadoPorNome}` : ""}
                     </span>
-                    <span className="font-mono tabular-nums text-ink md:order-3 md:col-start-3 md:text-right">
+                    <span className="tabular-nums text-ink md:order-3 md:col-start-3 md:text-right">
                       {formatarMoeda(p.total)}
                     </span>
-                    <span className="font-mono text-xs tabular-nums text-faint md:order-5 md:col-start-5 md:text-right">
+                    <span className="text-xs tabular-nums text-faint md:order-5 md:col-start-5 md:text-right">
                       {dataHoraCurta(p.atualizadoEm)}
                     </span>
                   </span>
@@ -136,6 +140,7 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
               </li>
             ))}
           </ul>
+          </div>
         </div>
       )}
     </div>

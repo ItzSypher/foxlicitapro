@@ -164,7 +164,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Pr
               erro={erros.custo}
               placeholder="0,00"
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
               <CampoNumero
                 id="cal-frete"
                 rotulo="Frete ou deslocamento"
@@ -235,7 +235,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Pr
                 disabled={salvando}
                 className="h-11 w-full rounded-control bg-brand text-base font-semibold text-black outline-none hover:bg-brand/90 focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-60"
               >
-                {salvando ? "Salvando..." : "Salvar cotação"}
+                {salvando ? "Salvando…" : "Salvar cotação"}
               </button>
               <p
                 role={aviso?.tom === "erro" ? "alert" : "status"}
@@ -271,7 +271,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Pr
         type="button"
         onClick={irParaResultados}
         aria-label={`${resumoBarra}. Ver resultados`}
-        className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 flex h-14 items-center justify-center border-t border-border bg-raised px-4 font-mono text-sm font-medium tabular-nums text-ink outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand lg:hidden"
+        className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 flex h-14 items-center justify-center border-t border-border bg-raised px-4 text-sm font-medium tabular-nums text-ink outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand lg:hidden"
       >
         {resumoBarra}
       </button>

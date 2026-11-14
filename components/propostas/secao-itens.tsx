@@ -73,10 +73,10 @@ export function SecaoItens({ itens, aoMudar }: Props) {
                 aria-controls={`${idBase}-corpo`}
                 className="flex min-h-14 w-full items-center gap-3 rounded-card px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
-                <span className="font-mono text-sm tabular-nums text-muted-foreground">{indice + 1}</span>
+                <span className="text-sm tabular-nums text-muted-foreground">{indice + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-ink">{resumo(item)}</span>
-                  <span className="block font-mono text-xs tabular-nums text-muted-foreground">
+                  <span className="block text-xs tabular-nums text-muted-foreground">
                     {formatarMoeda(totalLinha)}
                   </span>
                 </span>
@@ -121,13 +121,13 @@ export function SecaoItens({ itens, aoMudar }: Props) {
                         Valor unitário
                       </label>
                       {item.referencia !== null && (
-                        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                        <span className="text-xs tabular-nums text-muted-foreground">
                           ref. {formatarMoeda(item.referencia)}
                         </span>
                       )}
                     </div>
                     <div className="relative">
-                      <span aria-hidden className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-mono text-sm text-faint">
+                      <span aria-hidden className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-faint">
                         R$
                       </span>
                       <input
@@ -139,12 +139,12 @@ export function SecaoItens({ itens, aoMudar }: Props) {
                         value={item.valorUnitario}
                         placeholder="0,00"
                         onChange={(e) => mudar(item.chave, { valorUnitario: e.target.value })}
-                        className={cn(CONTROLE, "pl-10 font-mono tabular-nums")}
+                        className={cn(CONTROLE, "pl-10 tabular-nums")}
                       />
                     </div>
                     <p className="flex justify-between text-[13px] text-muted-foreground">
                       <span>Total do item</span>
-                      <span className="font-mono tabular-nums text-ink">{formatarMoeda(totalLinha)}</span>
+                      <span className="tabular-nums text-ink">{formatarMoeda(totalLinha)}</span>
                     </p>
                   </div>
 

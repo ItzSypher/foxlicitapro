@@ -28,7 +28,7 @@ export function FormularioEmpresa(inicial: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <section className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
         <label htmlFor="nome-fantasia" className="text-base font-semibold text-ink">
           Nome fantasia
@@ -47,19 +47,21 @@ export function FormularioEmpresa(inicial: Props) {
         <SeletorRegioes regioes={regioes} onChange={setRegioes} />
       </section>
 
-      {aviso ? (
-        <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-brand" : "text-sm text-ink"}>
-          {aviso.texto}
-        </p>
-      ) : null}
-      <button
-        type="button"
-        onClick={salvar}
-        disabled={salvando}
-        className="h-11 w-full cursor-pointer rounded-control bg-brand-fill px-4 text-base font-medium text-black outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60 sm:w-fit"
-      >
-        {salvando ? "Salvando..." : "Salvar"}
-      </button>
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex flex-col gap-2 border-t border-border bg-ground px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
+        {aviso ? (
+          <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-positive" : "text-sm text-negative"}>
+            {aviso.texto}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={salvar}
+          disabled={salvando}
+          className="h-11 w-full cursor-pointer rounded-control bg-brand-fill px-4 text-base font-medium text-black outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-wait disabled:opacity-60 sm:w-fit"
+        >
+          {salvando ? "Salvando…" : "Salvar"}
+        </button>
+      </div>
     </div>
   );
 }

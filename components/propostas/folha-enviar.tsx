@@ -122,7 +122,7 @@ export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto
           <SheetDescription>O destinatário abre o link e baixa o PDF. Não precisa de senha.</SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-6">
+        <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {bloqueada && !link && (
             <p className="rounded-card border border-border bg-raised px-3 py-2.5 text-[13px] text-muted-foreground">
               A proposta precisa ser aprovada na revisão para gerar o link.
@@ -144,7 +144,7 @@ export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto
                   readOnly
                   value={url}
                   onFocus={(e) => e.currentTarget.select()}
-                  className={`${CONTROLE} font-mono text-sm`}
+                  className={`${CONTROLE} text-sm`}
                 />
                 <p className="text-[13px] text-muted-foreground">Válido por 15 dias, até {validade}.</p>
               </div>

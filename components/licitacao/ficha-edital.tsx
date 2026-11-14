@@ -253,6 +253,12 @@ export function FichaEditalSecao({ compra, inicial, assistenteAtivo, podeLer, po
     setOcupado(null);
   }
 
+  const mensagemErro = erro ? (
+    <p role="alert" className="text-sm text-negative">
+      {erro}
+    </p>
+  ) : null;
+
   return (
     <Secao id="ficha" titulo="Ficha do edital" detalhe={salva ? <SeloConferencia salva={salva} /> : null}>
       {ocupado === "lendo" ? (
@@ -269,11 +275,12 @@ export function FichaEditalSecao({ compra, inicial, assistenteAtivo, podeLer, po
               <p className="text-sm leading-snug text-muted-foreground">
                 O assistente lê o PDF do edital e monta a ficha: pagamento, prazos, exigências e dicas para a disputa.
               </p>
-              <div>
-                <button type="button" onClick={() => ler(false)} className={PRIMARIO}>
+              <div className="flex flex-col gap-2">
+                <button type="button" onClick={() => ler(false)} className={`${PRIMARIO} w-full sm:w-fit`}>
                   <FileSearch aria-hidden="true" className="size-4" />
                   Ler edital
                 </button>
+                {mensagemErro}
               </div>
             </>
           ) : assistenteAtivo ? (
@@ -290,29 +297,25 @@ export function FichaEditalSecao({ compra, inicial, assistenteAtivo, podeLer, po
 
       {salva !== null ? (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             {salva.confirmadaEm === null && podeConfirmar ? (
               <button type="button" onClick={confirmar} disabled={ocupado !== null} className={PRIMARIO}>
                 {ocupado === "confirmando" ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <CheckCheck aria-hidden="true" className="size-4" />}
-                Confirmar ficha
+                {ocupado === "confirmando" ? "Confirmando…" : "Confirmar ficha"}
               </button>
             ) : null}
             {assistenteAtivo && podeLer ? (
               <button type="button" onClick={() => ler(true)} disabled={ocupado !== null} className={SECUNDARIO}>
                 <FileSearch aria-hidden="true" className="size-4" />
-                Ler de novo
+                {ocupado === "lendo" ? "Lendo…" : "Ler de novo"}
               </button>
             ) : null}
           </div>
+          {mensagemErro}
           <GruposDaFicha ficha={salva.ficha} />
         </>
       ) : null}
 
-      {erro ? (
-        <p role="alert" className="text-sm text-negative">
-          {erro}
-        </p>
-      ) : null}
     </Secao>
   );
 }

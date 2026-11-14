@@ -10,12 +10,13 @@ interface Props {
   rotulo: string;
   itens: ItemPipeline[];
   resumo: ResumoEtapa;
-  /** No telefone só a coluna da aba ativa aparece; no desktop todas. */
+  /** No celular a coluna da aba ativa fica inteira; as outras ficam fora da vista (deslizar troca de etapa). */
   ativaNoTelefone: boolean;
+  /** Colunas lado a lado (md e acima) */
+  colunas: boolean;
   agoraInicial: number;
   pessoas: PessoaPipeline[];
   aoResponsavel: (id: string, responsavelId: string | null) => void;
-  desktop: boolean;
   podeEditar: boolean;
   podeRevisar: boolean;
   arrastandoId: string | null;
@@ -35,10 +36,10 @@ export function Coluna({
   itens,
   resumo,
   ativaNoTelefone,
+  colunas,
   agoraInicial,
   pessoas,
   aoResponsavel,
-  desktop,
   podeEditar,
   podeRevisar,
   arrastandoId,
@@ -70,25 +71,24 @@ export function Coluna({
         e.preventDefault();
         aoSoltar(e.dataTransfer.getData("text/plain") || arrastandoId, etapa);
       }}
+      inert={!colunas && !ativaNoTelefone}
       className={cn(
-        "min-w-0 flex-col rounded-card border bg-ground lg:flex lg:h-full lg:w-[280px] lg:shrink-0",
-        ativaNoTelefone ? "flex" : "hidden",
-        alvo ? "border-brand" : "border-border",
+        "flex w-full shrink-0 snap-center snap-always flex-col md:h-full md:w-[288px] md:snap-align-none md:rounded-card md:border md:bg-ground",
+        !colunas && !ativaNoTelefone ? "max-h-[60dvh] overflow-hidden" : "",
+        alvo ? "md:border-brand" : "md:border-border",
       )}
     >
-      <header className="flex items-baseline justify-between gap-2 px-3 pt-3 pb-1">
-        <h2 className="flex items-baseline gap-2 text-sm font-medium text-ink">
+      <header className="flex items-baseline justify-between gap-2 px-1 pt-1 pb-2 md:px-3 md:pt-3 md:pb-1">
+        <h2 className="flex items-baseline gap-2 text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">
           {rotulo}
-          <span className="font-mono text-xs font-normal tabular-nums text-muted-foreground">
-            {resumo.quantidade}
-          </span>
+          <span className="font-mono tracking-normal tabular-nums text-faint">{resumo.quantidade}</span>
         </h2>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {resumo.valor > 0 ? formatarReais(resumo.valor) : "—"}
         </span>
       </header>
 
-      <ul className="flex flex-col gap-2 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      <ul className="flex flex-col gap-2 md:min-h-0 md:flex-1 md:overflow-y-auto md:p-2">
         {itens.length === 0 ? (
           <li className="rounded-card border border-dashed border-control px-3 py-8 text-center text-[13px] text-muted-foreground">
             Nada aqui ainda.
@@ -103,7 +103,7 @@ export function Coluna({
               aoResponsavel={aoResponsavel}
               podeEditar={podeEditar}
               podeRevisar={podeRevisar}
-              arrastavel={desktop && podeEditar}
+              arrastavel={colunas && podeEditar}
               arrastando={arrastandoId === dado.id}
               aoIniciarArraste={aoIniciarArraste}
               aoTerminarArraste={aoTerminarArraste}

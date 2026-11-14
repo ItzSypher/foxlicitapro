@@ -22,19 +22,23 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
   const [capital, setCapital] = useState(inicial.capitalMaximo === null ? "" : formatarNumeroBR(inicial.capitalMaximo));
   const [dias, setDias] = useState(inicial.diasMaximosParado === null ? "" : String(inicial.diasMaximosParado));
   const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [erroCapital, setErroCapital] = useState<string | null>(null);
+  const [erroDias, setErroDias] = useState<string | null>(null);
   const [salvando, iniciar] = useTransition();
   const somenteLeitura = !podeEditar;
 
   function salvar() {
     setAviso(null);
+    setErroCapital(null);
+    setErroDias(null);
     const capitalMaximo = parseNumeroBR(capital);
     const diasMaximosParado = parseNumeroBR(dias);
     if (Number.isNaN(capitalMaximo) || (capitalMaximo !== null && capitalMaximo < 0)) {
-      setAviso({ tom: "erro", texto: "Capital máximo: digite um valor em reais, como 5000." });
+      setErroCapital("Digite um valor em reais, como 5000.");
       return;
     }
     if (Number.isNaN(diasMaximosParado) || (diasMaximosParado !== null && (diasMaximosParado < 0 || !Number.isInteger(diasMaximosParado)))) {
-      setAviso({ tom: "erro", texto: "Dias máximos parado: digite um número inteiro de dias, como 45." });
+      setErroDias("Digite um número inteiro de dias, como 45.");
       return;
     }
     iniciar(async () => {
@@ -151,11 +155,21 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
               type="text"
               inputMode="decimal"
               value={capital}
-              onChange={(e) => setCapital(e.target.value)}
+              onChange={(e) => {
+                setCapital(e.target.value);
+                setErroCapital(null);
+              }}
+              aria-invalid={erroCapital !== null}
+              aria-describedby={erroCapital ? "erro-capital" : undefined}
               disabled={somenteLeitura}
               placeholder="Ex.: 5000"
-              className="h-11 w-full rounded-control border border-control bg-raised px-3 text-base text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60"
+              className="h-11 w-full min-w-0 rounded-control border border-control bg-raised px-3 text-base tabular-nums text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 aria-invalid:border-negative disabled:opacity-60"
             />
+            {erroCapital ? (
+              <span id="erro-capital" role="alert" className="text-[13px] font-normal text-negative">
+                {erroCapital}
+              </span>
+            ) : null}
           </label>
           <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink">
             Dias máximos com dinheiro parado
@@ -163,25 +177,27 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
               type="text"
               inputMode="numeric"
               value={dias}
-              onChange={(e) => setDias(e.target.value)}
+              onChange={(e) => {
+                setDias(e.target.value);
+                setErroDias(null);
+              }}
+              aria-invalid={erroDias !== null}
+              aria-describedby={erroDias ? "erro-dias" : undefined}
               disabled={somenteLeitura}
               placeholder="Ex.: 45"
-              className="h-11 w-full rounded-control border border-control bg-raised px-3 text-base text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60"
+              className="h-11 w-full min-w-0 rounded-control border border-control bg-raised px-3 text-base tabular-nums text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 aria-invalid:border-negative disabled:opacity-60"
             />
+            {erroDias ? (
+              <span id="erro-dias" role="alert" className="text-[13px] font-normal text-negative">
+                {erroDias}
+              </span>
+            ) : null}
           </label>
         </div>
       </section>
 
       {somenteLeitura ? null : (
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={salvar}
-            disabled={salvando}
-            className="inline-flex h-11 cursor-pointer items-center justify-center rounded-control bg-brand-fill px-5 text-sm font-semibold text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-wait disabled:opacity-60 md:self-start"
-          >
-            {salvando ? "Salvando..." : "Salvar preferências"}
-          </button>
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex flex-col gap-2 border-t border-border bg-ground px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
           {aviso ? (
             <p
               role={aviso.tom === "erro" ? "alert" : "status"}
@@ -190,6 +206,14 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
               {aviso.texto}
             </p>
           ) : null}
+          <button
+            type="button"
+            onClick={salvar}
+            disabled={salvando}
+            className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-control bg-brand-fill px-5 text-sm font-semibold text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-wait disabled:opacity-60 md:w-auto md:self-start"
+          >
+            {salvando ? "Salvando…" : "Salvar preferências"}
+          </button>
         </div>
       )}
     </div>

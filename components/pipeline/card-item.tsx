@@ -2,18 +2,20 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { comentarAction, lerComentariosAction, salvarNotas } from "@/app/(app)/pipeline/actions";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ComentarioPipeline } from "@/core/types-equipe";
 import { resumirObjeto } from "@/core/objeto";
+import { PASSOS_JURIDICOS, checklistCompleto } from "@/core/revisao-juridica";
 import type { Faixa } from "@/core/types";
 import { restanteMs } from "@/lib/formato";
 import { useAgora } from "@/lib/relogio";
 import { cn } from "@/lib/utils";
 import { formatarReais, textoFecha } from "./formato";
 import { MenuAcoes } from "./menu-acoes";
+import { CLASSE_FOLHA, useColunas } from "./midia";
 import { RevisaoJuridica } from "./revisao-juridica";
-import { SeletorEtapa } from "./seletor-etapa";
 import type { EtapaId, ItemPipeline, PessoaPipeline } from "./tipos";
 
 const COR_FAIXA: Record<Faixa, string> = {
@@ -22,8 +24,77 @@ const COR_FAIXA: Record<Faixa, string> = {
   nogo: "text-negative",
 };
 
-const BOTAO_SECUNDARIO =
-  "inline-flex h-11 items-center justify-center gap-1.5 rounded-control border border-control px-3 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand";
+const LINHA_FOLHA =
+  "flex h-11 w-full items-center justify-between gap-2 rounded-control bg-raised px-3 text-left text-[13px] text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand";
+
+/** Folha com o conteúdo de um card: sobe de baixo no celular e abre à direita nas colunas. */
+function Folha({
+  aberto,
+  aoMudar,
+  titulo,
+  descricao,
+  children,
+}: {
+  aberto: boolean;
+  aoMudar: (aberto: boolean) => void;
+  titulo: string;
+  descricao: string;
+  children: React.ReactNode;
+}) {
+  const colunas = useColunas();
+  return (
+    <Sheet open={aberto} onOpenChange={aoMudar}>
+      <SheetContent side={colunas ? "right" : "bottom"} className={colunas ? "gap-0 overflow-y-auto" : CLASSE_FOLHA}>
+        <SheetHeader className="pr-14">
+          <SheetTitle>{titulo}</SheetTitle>
+          <SheetDescription className="line-clamp-2">{descricao}</SheetDescription>
+        </SheetHeader>
+        <div className="flex min-w-0 flex-col gap-3 px-4 pb-4">{children}</div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/** Linha do card que mostra o andamento da revisão jurídica e abre o checklist numa folha. */
+function LinhaRevisao({
+  dado,
+  titulo,
+  podeRevisar,
+  aoAbrir,
+}: {
+  dado: ItemPipeline;
+  titulo: string;
+  podeRevisar: boolean;
+  aoAbrir: (aberto: boolean) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const completo = checklistCompleto(dado.revisao);
+  function mudar(valor: boolean) {
+    setAberto(valor);
+    aoAbrir(valor);
+  }
+  return (
+    <>
+      <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
+        <span>Revisão jurídica</span>
+        <span className="flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground">
+          <span className={completo ? "text-positive" : ""}>
+            {completo ? "Ok" : `${dado.revisao.length}/${PASSOS_JURIDICOS.length}`}
+          </span>
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </span>
+      </button>
+      <Folha aberto={aberto} aoMudar={mudar} titulo="Revisão jurídica" descricao={titulo}>
+        <RevisaoJuridica
+          key={dado.revisao.map((m) => `${m.passo}:${m.em}`).join("|")}
+          itemId={dado.id}
+          inicial={dado.revisao}
+          podeMarcar={podeRevisar}
+        />
+      </Folha>
+    </>
+  );
+}
 
 function Prazo({ encerramentoIso, agoraInicial }: { encerramentoIso: string; agoraInicial: number }) {
   const fim = Date.parse(encerramentoIso);
@@ -116,7 +187,7 @@ function Notas({
             rows={4}
             maxLength={5000}
             aria-label="Notas do item"
-            className="w-full resize-y rounded-control border border-control bg-ground p-2 font-mono text-[13px] leading-snug text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="w-full resize-y rounded-control border border-control bg-ground p-2 font-mono text-base leading-snug text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
           />
           {erro ? (
             <p role="alert" className="text-xs text-negative">
@@ -153,7 +224,17 @@ function horaRelativa(iso: string, agora: number): string {
   return horaFmt.format(new Date(t)).replace(" ", ", ");
 }
 
-function Comentarios({ id, total, aoAbrir }: { id: string; total: number; aoAbrir: (aberto: boolean) => void }) {
+function Comentarios({
+  id,
+  total,
+  titulo,
+  aoAbrir,
+}: {
+  id: string;
+  total: number;
+  titulo: string;
+  aoAbrir: (aberto: boolean) => void;
+}) {
   const [aberto, setAberto] = useState(false);
   const [lista, setLista] = useState<ComentarioPipeline[] | null>(null);
   const [quantidade, setQuantidade] = useState(total);
@@ -162,8 +243,7 @@ function Comentarios({ id, total, aoAbrir }: { id: string; total: number; aoAbri
   const [pendente, iniciar] = useTransition();
   const [agora, setAgora] = useState<number | null>(null);
 
-  function alternar() {
-    const novo = !aberto;
+  function mudar(novo: boolean) {
     setAberto(novo);
     aoAbrir(novo);
     if (novo && lista === null) {
@@ -198,60 +278,56 @@ function Comentarios({ id, total, aoAbrir }: { id: string; total: number; aoAbri
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={alternar}
-        aria-expanded={aberto}
-        className="inline-flex h-11 w-fit items-center gap-1 rounded-control text-[13px] text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
-      >
-        <ChevronDown aria-hidden="true" className={cn("size-4 transition-transform", aberto ? "rotate-180" : "")} />
-        {quantidade === 0 ? "Comentários" : `Comentários (${quantidade})`}
+    <>
+      <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
+        <span>Comentários</span>
+        <span className="flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground">
+          {quantidade}
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </span>
       </button>
-      {aberto ? (
-        <div className="flex flex-col gap-2">
-          {lista === null && !erro ? <p className="text-xs text-muted-foreground">Carregando…</p> : null}
-          {lista !== null && lista.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhum comentário ainda.</p>
-          ) : null}
-          {lista !== null && lista.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {lista.map((c) => (
-                <li key={c.id} className="flex flex-col gap-0.5 rounded-control bg-raised px-2.5 py-2">
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium text-ink">{c.autor ?? "Pessoa removida"}</span>
-                    {agora === null ? "" : ` · ${horaRelativa(c.em, agora)}`}
-                  </p>
-                  <p className="text-[13px] leading-snug whitespace-pre-line text-ink">{c.texto}</p>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            rows={2}
-            maxLength={2000}
-            aria-label="Escrever comentário"
-            placeholder="Escreva um comentário"
-            className="w-full resize-y rounded-control border border-control bg-ground p-2 text-base leading-snug text-ink outline-none placeholder:text-faint focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
-          />
-          <button
-            type="button"
-            onClick={enviar}
-            disabled={pendente || texto.trim() === ""}
-            className="inline-flex h-11 items-center justify-center rounded-control bg-brand-fill px-4 text-sm font-medium text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 lg:h-9"
-          >
-            Comentar
-          </button>
-          {erro ? (
-            <p role="alert" className="text-xs text-negative">
-              {erro}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+      <Folha aberto={aberto} aoMudar={mudar} titulo="Comentários" descricao={titulo}>
+        {lista === null && !erro ? <p className="text-xs text-muted-foreground">Carregando…</p> : null}
+        {lista !== null && lista.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Nenhum comentário ainda.</p>
+        ) : null}
+        {lista !== null && lista.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {lista.map((c) => (
+              <li key={c.id} className="flex flex-col gap-0.5 rounded-control bg-raised px-2.5 py-2">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-ink">{c.autor ?? "Pessoa removida"}</span>
+                  {agora === null ? "" : ` · ${horaRelativa(c.em, agora)}`}
+                </p>
+                <p className="text-[13px] leading-snug whitespace-pre-line text-ink">{c.texto}</p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          rows={2}
+          maxLength={2000}
+          aria-label="Escrever comentário"
+          placeholder="Escreva um comentário"
+          className="w-full resize-y rounded-control border border-control bg-ground p-2 text-base leading-snug text-ink outline-none placeholder:text-faint focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
+        />
+        <button
+          type="button"
+          onClick={enviar}
+          disabled={pendente || texto.trim() === ""}
+          className="inline-flex h-11 items-center justify-center rounded-control bg-brand-fill px-4 text-sm font-medium text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 lg:h-9"
+        >
+          Comentar
+        </button>
+        {erro ? (
+          <p role="alert" className="text-xs text-negative">
+            {erro}
+          </p>
+        ) : null}
+      </Folha>
+    </>
   );
 }
 
@@ -342,13 +418,15 @@ export function CardItem({
   const [confirmando, setConfirmando] = useState(false);
   const [notasAbertas, setNotasAbertas] = useState(false);
   const [comentariosAbertos, setComentariosAbertos] = useState(false);
+  const [revisaoAberta, setRevisaoAberta] = useState(false);
   const titulo = useMemo(() => resumirObjeto(item.objeto), [item.objeto]);
   const tituloCurto = titulo.length > 90 ? `${titulo.slice(0, 89)}…` : titulo;
   const pncp = item.linkPncp;
+  const podeArrastar = arrastavel && !notasAbertas && !comentariosAbertos && !revisaoAberta && !confirmando;
 
   return (
     <li
-      draggable={arrastavel && !notasAbertas && !comentariosAbertos && !confirmando}
+      draggable={podeArrastar}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", dado.id);
         e.dataTransfer.effectAllowed = "move";
@@ -356,13 +434,13 @@ export function CardItem({
       }}
       onDragEnd={aoTerminarArraste}
       className={cn(
-        "flex flex-col gap-2 rounded-card border border-border bg-surface p-3",
-        arrastavel && !notasAbertas && !comentariosAbertos && !confirmando ? "cursor-grab active:cursor-grabbing" : "",
+        "flex min-w-0 flex-col gap-2.5 rounded-card border border-border bg-surface p-3",
+        podeArrastar ? "cursor-grab active:cursor-grabbing" : "",
         arrastando ? "opacity-40" : "",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-baseline gap-2">
+      <div className="-mt-1 -mr-2 flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-baseline gap-2">
           <span
             className={cn(
               "font-mono text-base font-medium tabular-nums",
@@ -373,22 +451,22 @@ export function CardItem({
           </span>
           <Prazo encerramentoIso={item.dataEncerramento} agoraInicial={agoraInicial} />
         </span>
-        <span className="flex items-center gap-1">
+        <span className="flex shrink-0 items-center">
           <Link
             href={`/licitacao/${item.orgaoCnpj}/${item.anoCompra}/${item.sequencialCompra}`}
             className="inline-flex h-11 items-center rounded-control px-2 text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
           >
             Abrir
           </Link>
-          {podeEditar ? (
-            <MenuAcoes
-              etapa={dado.etapa}
-              itemId={dado.id}
-              linkPncp={pncp}
-              aoMover={(etapa) => aoMover(dado.id, etapa)}
-              aoPedirRemocao={() => setConfirmando(true)}
-            />
-          ) : null}
+          <MenuAcoes
+            etapa={dado.etapa}
+            itemId={dado.id}
+            linkPncp={pncp}
+            titulo={tituloCurto}
+            podeEditar={podeEditar}
+            aoMover={(etapa) => aoMover(dado.id, etapa)}
+            aoPedirRemocao={() => setConfirmando(true)}
+          />
         </span>
       </div>
 
@@ -409,17 +487,12 @@ export function CardItem({
       />
 
       {dado.etapa === "revisao_juridica" ? (
-        <RevisaoJuridica
-          key={dado.revisao.map((m) => `${m.passo}:${m.em}`).join("|")}
-          itemId={dado.id}
-          inicial={dado.revisao}
-          podeMarcar={podeRevisar}
-        />
+        <LinhaRevisao dado={dado} titulo={tituloCurto} podeRevisar={podeRevisar} aoAbrir={setRevisaoAberta} />
       ) : null}
 
       <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} somenteLeitura={!podeEditar} />
 
-      <Comentarios id={dado.id} total={dado.comentarios} aoAbrir={setComentariosAbertos} />
+      <Comentarios id={dado.id} total={dado.comentarios} titulo={tituloCurto} aoAbrir={setComentariosAbertos} />
 
       {confirmando && podeEditar ? (
         <div role="group" aria-label="Confirmar remoção" className="flex flex-col gap-2 border-t border-border pt-3">
@@ -443,29 +516,7 @@ export function CardItem({
             </button>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-col gap-2 lg:hidden">
-          {podeEditar ? <SeletorEtapa valor={dado.etapa} aoMudar={(etapa) => aoMover(dado.id, etapa)} /> : null}
-          <div className={cn("grid gap-2", podeEditar ? "grid-cols-3" : "grid-cols-2")}>
-            <Link href={`/calculadora?item=${encodeURIComponent(dado.id)}`} className={BOTAO_SECUNDARIO}>
-              Cotar
-            </Link>
-            <a href={pncp} target="_blank" rel="noopener noreferrer" className={BOTAO_SECUNDARIO}>
-              PNCP
-              <ExternalLink aria-hidden="true" className="size-3.5" />
-            </a>
-            {podeEditar ? (
-              <button
-                type="button"
-                onClick={() => setConfirmando(true)}
-                className={cn(BOTAO_SECUNDARIO, "text-negative")}
-              >
-                Remover
-              </button>
-            ) : null}
-          </div>
-        </div>
-      )}
+      ) : null}
     </li>
   );
 }

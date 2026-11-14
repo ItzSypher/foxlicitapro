@@ -188,7 +188,7 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
   }
 
   return (
-    <li className="flex flex-col gap-3 px-4 py-3">
+    <li className="flex min-w-0 flex-col gap-3 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex min-w-0 flex-col">
           <p className="truncate text-sm font-medium text-ink">
@@ -197,7 +197,7 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
           </p>
           <p className="truncate text-[13px] text-muted-foreground">{usuario.email}</p>
         </div>
-        <span className="flex items-center gap-2">
+        <span className="flex shrink-0 items-center gap-2">
           <Pilula tom="neutro">{ROTULO_PAPEL[usuario.papel]}</Pilula>
           <Pilula tom={usuario.ativo ? "positivo" : "negativo"}>{usuario.ativo ? "Ativo" : "Desativado"}</Pilula>
         </span>
@@ -210,9 +210,14 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
       {editando ? (
         <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-3">
           <CamposAcesso prefixo={`acesso-${usuario.id}`} valor={acesso} aoMudar={setAcesso} nomeados={false} />
+          {erro ? (
+            <p role="alert" className="text-[13px] text-negative">
+              {erro}
+            </p>
+          ) : null}
           <div className="flex flex-col gap-2 sm:flex-row">
             <button type="button" onClick={salvarAcessos} disabled={pendente || Number.isNaN(acesso.limite)} className={BOTAO}>
-              Salvar acessos
+              {pendente ? "Salvando…" : "Salvar acessos"}
             </button>
             <button type="button" onClick={() => setEditando(false)} disabled={pendente} className={BOTAO}>
               Cancelar
@@ -225,7 +230,7 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
           Editar acessos
         </button>
         <button type="button" onClick={redefinir} disabled={pendente} className={BOTAO}>
-          Redefinir senha
+          {pendente && !editando ? "Aguarde…" : "Redefinir senha"}
         </button>
         {!ehVoce ? (
           <button type="button" onClick={alternar} disabled={pendente} className={BOTAO}>
@@ -234,7 +239,7 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
         ) : null}
       </div>
       {senha ? <SenhaUnica titulo={`Nova senha de ${usuario.nome}`} senha={senha} aoFechar={() => setSenha(null)} /> : null}
-      {erro ? (
+      {erro && !editando ? (
         <p role="alert" className="text-[13px] text-negative">
           {erro}
         </p>
@@ -245,7 +250,10 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
 
 export function ListaEquipe({ usuarios, usuarioId }: { usuarios: Usuario[]; usuarioId: string }) {
   return (
-    <div className="flex max-w-2xl flex-col gap-4">
+    <div className="flex max-w-2xl min-w-0 flex-col gap-4">
+      <p className="text-[13px] tabular-nums text-muted-foreground">
+        {usuarios.length === 1 ? "1 pessoa" : `${usuarios.length} pessoas`}
+      </p>
       <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
         {usuarios.map((u) => (
           <LinhaPessoa key={u.id} usuario={u} ehVoce={u.id === usuarioId} />

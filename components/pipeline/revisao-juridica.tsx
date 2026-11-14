@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, ShieldCheck } from "lucide-react";
+import { Check } from "lucide-react";
 import { marcarPassoJuridicoAction } from "@/app/(app)/pipeline/actions";
 import { PASSOS_JURIDICOS, checklistCompleto, okJuridico, type MarcaJuridica, type PassoJuridicoId } from "@/core/revisao-juridica";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ function quando(iso: string): string {
 }
 
 /**
- * Checklist jurídico do card na etapa "Revisão jurídica". Só quem tem a permissão marca;
+ * Checklist jurídico do card (aberto numa folha) na etapa "Revisão jurídica". Só quem tem a permissão marca;
  * os demais veem. Sair da etapa para frente exige tudo marcado (o servidor confere).
  */
 export function RevisaoJuridica({ itemId, inicial, podeMarcar }: { itemId: string; inicial: MarcaJuridica[]; podeMarcar: boolean }) {
@@ -40,11 +40,8 @@ export function RevisaoJuridica({ itemId, inicial, podeMarcar }: { itemId: strin
   }
 
   return (
-    <fieldset className="flex flex-col gap-1 rounded-control border border-border bg-ground p-2" disabled={ocupado}>
-      <legend className="flex items-center gap-1.5 px-1 text-[13px] font-medium text-ink">
-        <ShieldCheck aria-hidden="true" className="size-4 text-muted-foreground" />
-        Revisão jurídica
-      </legend>
+    <fieldset className="flex min-w-0 flex-col gap-1" disabled={ocupado}>
+      <legend className="sr-only">Revisão jurídica</legend>
       {PASSOS_JURIDICOS.map((p) => {
         const marca = marcas.find((m) => m.passo === p.id);
         const feito = marca !== undefined;
@@ -56,7 +53,7 @@ export function RevisaoJuridica({ itemId, inicial, podeMarcar }: { itemId: strin
             aria-checked={feito}
             disabled={!podeMarcar}
             onClick={() => alternar(p.id, !feito)}
-            className="flex min-h-11 items-center gap-3 rounded-control px-2 text-left text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default disabled:hover:bg-transparent"
+            className="flex min-h-12 items-center gap-3 rounded-control px-2 text-left text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default disabled:hover:bg-transparent"
           >
             <span
               aria-hidden="true"

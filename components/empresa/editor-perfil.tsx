@@ -24,13 +24,13 @@ export function EditorCnaes({ cnaes, onChange, desabilitado = false }: PropsCnae
       {cnaes.map((c, i) => (
         <li key={c.codigo} className="flex flex-col gap-2 rounded-control border border-border bg-surface p-3 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[13px] text-ink">
+            <p className="text-[13px] tabular-nums text-ink">
               {c.codigo}
               {c.principal ? <span className="ml-2 text-xs text-brand">principal</span> : null}
             </p>
-            <p className="text-[13px] text-muted-foreground">{c.descricao}</p>
+            <p className="text-[13px] break-words text-muted-foreground">{c.descricao}</p>
           </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+          <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground max-sm:w-full">
             <span>Frente</span>
             <select
               value={c.frente}
@@ -39,7 +39,7 @@ export function EditorCnaes({ cnaes, onChange, desabilitado = false }: PropsCnae
                 const frente: Frente = e.target.value === "produtos" ? "produtos" : "servicos";
                 onChange(cnaes.map((x, j) => (j === i ? { ...x, frente } : x)));
               }}
-              className="h-11 rounded-control border border-control bg-raised px-2 text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
+              className="h-11 min-w-0 flex-1 rounded-control border border-control bg-raised px-2 text-base sm:flex-none text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
             >
               {(Object.keys(ROTULO_FRENTE) as Frente[]).map((f) => (
                 <option key={f} value={f}>

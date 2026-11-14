@@ -2,29 +2,45 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { EllipsisVertical } from "lucide-react";
+import { Check, EllipsisVertical } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import { CLASSE_FOLHA, useColunas } from "./midia";
 import { SeletorEtapa } from "./seletor-etapa";
-import type { EtapaId } from "./tipos";
+import { ETAPAS, type EtapaId } from "./tipos";
 
 const LARGURA_MENU = 224;
 
 const ITEM =
   "flex h-9 w-full items-center rounded-control px-3 text-left text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand";
 
-/** Menu de três pontos (desktop). Posição fixa para não ser cortado pela rolagem da coluna. */
+const ITEM_FOLHA =
+  "flex h-12 w-full items-center gap-3 rounded-control px-3 text-left text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default disabled:text-muted-foreground disabled:hover:bg-transparent";
+
+const ROTULO_SECAO = "px-3 pt-2 pb-1 text-xs font-medium tracking-[0.08em] text-faint uppercase";
+
+/**
+ * Menu de ações do card. No celular abre uma folha embaixo com as etapas e os atalhos (nada depende de
+ * arrastar); a partir de md, um menu de três pontos com posição fixa para não ser cortado pela rolagem da coluna.
+ */
 export function MenuAcoes({
   etapa,
   itemId,
   linkPncp,
+  titulo,
+  podeEditar,
   aoMover,
   aoPedirRemocao,
 }: {
   etapa: EtapaId;
   itemId: string;
   linkPncp: string;
+  titulo: string;
+  podeEditar: boolean;
   aoMover: (etapa: EtapaId) => void;
   aoPedirRemocao: () => void;
 }) {
+  const colunas = useColunas();
   const [aberto, setAberto] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const botao = useRef<HTMLButtonElement>(null);
@@ -42,7 +58,7 @@ export function MenuAcoes({
   }
 
   useEffect(() => {
-    if (!aberto) return;
+    if (!aberto || !colunas) return;
     const fechar = () => setAberto(false);
     const fora = (e: PointerEvent) => {
       const alvo = e.target;
@@ -65,21 +81,98 @@ export function MenuAcoes({
       window.removeEventListener("resize", fechar);
       document.removeEventListener("scroll", fechar, true);
     };
-  }, [aberto]);
+  }, [aberto, colunas]);
+
+  const botaoGatilho = (
+    <button
+      ref={botao}
+      type="button"
+      onClick={alternar}
+      aria-haspopup={colunas ? "menu" : "dialog"}
+      aria-expanded={aberto}
+      aria-label="Ações do item"
+      className="inline-flex size-11 items-center justify-center rounded-control text-muted-foreground outline-none hover:bg-active hover:text-ink focus-visible:ring-2 focus-visible:ring-brand md:size-8"
+    >
+      <EllipsisVertical aria-hidden="true" className="size-5 md:size-4" />
+    </button>
+  );
+
+  if (!colunas) {
+    const cotar = `/calculadora?item=${encodeURIComponent(itemId)}`;
+    return (
+      <>
+        {botaoGatilho}
+        <Sheet open={aberto} onOpenChange={setAberto}>
+          <SheetContent side="bottom" className={CLASSE_FOLHA}>
+            <SheetHeader className="pr-14">
+              <SheetTitle>Ações do item</SheetTitle>
+              <SheetDescription className="line-clamp-2">{titulo}</SheetDescription>
+            </SheetHeader>
+            <div className="flex flex-col gap-0.5 px-2 pb-3">
+              {podeEditar ? (
+                <>
+                  <p className={ROTULO_SECAO}>Mover para</p>
+                  {ETAPAS.map((e) => {
+                    const atual = e.id === etapa;
+                    return (
+                      <button
+                        key={e.id}
+                        type="button"
+                        disabled={atual}
+                        aria-current={atual ? "true" : undefined}
+                        onClick={() => {
+                          setAberto(false);
+                          aoMover(e.id);
+                        }}
+                        className={cn(ITEM_FOLHA, atual ? "bg-active" : "")}
+                      >
+                        <span className="flex-1">{e.rotulo}</span>
+                        {atual ? (
+                          <>
+                            <Check aria-hidden="true" className="size-4 text-ink" />
+                            <span className="sr-only">Etapa atual</span>
+                          </>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </>
+              ) : null}
+              <p className={ROTULO_SECAO}>Atalhos</p>
+              <Link href={cotar} onClick={() => setAberto(false)} className={ITEM_FOLHA}>
+                Cotar
+              </Link>
+              <a
+                href={linkPncp}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setAberto(false)}
+                className={ITEM_FOLHA}
+              >
+                PNCP
+              </a>
+              {podeEditar ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAberto(false);
+                    aoPedirRemocao();
+                  }}
+                  className={cn(ITEM_FOLHA, "text-negative")}
+                >
+                  Remover
+                </button>
+              ) : null}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
 
   return (
-    <div className="hidden lg:block">
-      <button
-        ref={botao}
-        type="button"
-        onClick={alternar}
-        aria-haspopup="menu"
-        aria-expanded={aberto}
-        aria-label="Ações do item"
-        className="inline-flex size-8 items-center justify-center rounded-control text-muted-foreground outline-none hover:bg-active hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
-      >
-        <EllipsisVertical aria-hidden="true" className="size-4" />
-      </button>
+    <div>
+      {botaoGatilho}
       {aberto ? (
         <div
           ref={menu}
@@ -87,13 +180,15 @@ export function MenuAcoes({
           style={{ position: "fixed", top: pos.top, left: pos.left, width: LARGURA_MENU }}
           className="z-50 flex flex-col gap-1 rounded-card border border-control bg-raised p-1"
         >
-          <SeletorEtapa
-            valor={etapa}
-            aoMudar={(nova) => {
-              setAberto(false);
-              aoMover(nova);
-            }}
-          />
+          {podeEditar ? (
+            <SeletorEtapa
+              valor={etapa}
+              aoMudar={(nova) => {
+                setAberto(false);
+                aoMover(nova);
+              }}
+            />
+          ) : null}
           <Link role="menuitem" href={`/calculadora?item=${encodeURIComponent(itemId)}`} className={ITEM}>
             Cotar
           </Link>
@@ -106,17 +201,19 @@ export function MenuAcoes({
           >
             PNCP
           </a>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setAberto(false);
-              aoPedirRemocao();
-            }}
-            className={`${ITEM} text-negative`}
-          >
-            Remover
-          </button>
+          {podeEditar ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAberto(false);
+                aoPedirRemocao();
+              }}
+              className={`${ITEM} text-negative`}
+            >
+              Remover
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

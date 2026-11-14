@@ -19,10 +19,10 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
       <aside className="sticky top-0 hidden h-dvh w-[220px] shrink-0 flex-col border-r border-border px-3 py-5 lg:flex">
         <div className="flex flex-col gap-1.5 px-3">
           <Marca className="size-8" />
-          {empresa ? <p className="text-xs text-muted-foreground">{empresa}</p> : null}
+          {empresa ? <p className="text-xs leading-snug text-muted-foreground">{empresa}</p> : null}
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 overflow-y-auto">
           <NavLateral dados={dados} />
         </div>
 
@@ -41,8 +41,24 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
         </div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 flex h-[52px] items-center justify-between border-b border-border bg-ground pr-1 pl-4 lg:hidden">
-        <Marca className="size-8" />
+      <header className="fixed inset-x-0 top-0 z-30 flex h-[52px] items-center gap-2 border-b border-border bg-ground pr-1 pl-4 lg:hidden">
+        <Marca className="size-8 shrink-0" />
+        {usuario ? (
+          <Link
+            href="/equipe/conta"
+            aria-label={`Minha conta: ${usuario.nome}`}
+            className="flex h-full min-w-0 flex-1 flex-col justify-center rounded-control outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            {empresa ? <span className="truncate text-[13px] leading-tight font-medium text-ink">{empresa}</span> : null}
+            <span className="truncate text-xs leading-tight text-muted-foreground">
+              {usuario.nome} · {rotuloPapel(usuario.papel)}
+            </span>
+          </Link>
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-col justify-center">
+            {empresa ? <p className="truncate text-[13px] leading-tight font-medium text-ink">{empresa}</p> : null}
+          </div>
+        )}
         <TemaToggle modo="icone" />
       </header>
 

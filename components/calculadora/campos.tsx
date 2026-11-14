@@ -82,7 +82,7 @@ export function CampoNumero({ id, rotulo, erro, dica, valor, onMudar, prefixo, s
       </label>
       <div className="relative">
         {prefixo && (
-          <span aria-hidden className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-mono text-sm text-faint">
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-faint">
             {prefixo}
           </span>
         )}
@@ -97,10 +97,10 @@ export function CampoNumero({ id, rotulo, erro, dica, valor, onMudar, prefixo, s
           aria-invalid={erro ? true : undefined}
           aria-describedby={descricaoDe({ id, erro, dica })}
           onChange={(e) => onMudar(e.target.value)}
-          className={cn(CONTROLE, "font-mono tabular-nums", prefixo && "pl-10", sufixo && "pr-9")}
+          className={cn(CONTROLE, "tabular-nums", prefixo && "pl-10", sufixo && "pr-9")}
         />
         {sufixo && (
-          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center font-mono text-sm text-faint">
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-faint">
             {sufixo}
           </span>
         )}

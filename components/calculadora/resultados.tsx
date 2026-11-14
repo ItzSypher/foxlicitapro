@@ -12,10 +12,10 @@ function Linha({ detalhe }: { detalhe: DetalhePreco | null }) {
   return (
     <p className="text-[13px] text-muted-foreground">
       Lucro líquido{" "}
-      <span className="font-mono tabular-nums text-ink">{detalhe ? formatarMoeda(detalhe.lucroLiquido) : TRACO}</span>
+      <span className="tabular-nums text-ink">{detalhe ? formatarMoeda(detalhe.lucroLiquido) : TRACO}</span>
       {" · "}
       Margem{" "}
-      <span className="font-mono tabular-nums text-ink">{detalhe ? formatarPercentual(detalhe.margemEfetiva) : TRACO}</span>
+      <span className="tabular-nums text-ink">{detalhe ? formatarPercentual(detalhe.margemEfetiva) : TRACO}</span>
     </p>
   );
 }
@@ -36,7 +36,7 @@ function Bloco({
       <h2 className="text-[13px] font-medium text-muted-foreground">{titulo}</h2>
       <p
         className={cn(
-          "font-mono font-semibold tabular-nums leading-none",
+          "font-semibold tabular-nums leading-none",
           tamanho === "grande" ? "text-[32px]" : "text-[22px]",
           detalhe ? "text-ink" : "text-faint",
         )}
@@ -65,8 +65,8 @@ function Selo({ estado }: { estado: EstadoCalculo }) {
       <p className={cn(base, "bg-pill-pos-bg text-pill-pos-fg")}>
         <Check className="size-4 shrink-0" aria-hidden />
         <span>
-          Cabe no teto · folga <span className="font-mono tabular-nums">{formatarMoeda(folga)}</span> (
-          <span className="font-mono tabular-nums">{formatarPercentual(folgaPercentual)}</span>)
+          Cabe no teto · folga <span className="tabular-nums">{formatarMoeda(folga)}</span> (
+          <span className="tabular-nums">{formatarPercentual(folgaPercentual)}</span>)
         </span>
       </p>
     );
@@ -75,7 +75,7 @@ function Selo({ estado }: { estado: EstadoCalculo }) {
     <p className={cn(base, "bg-pill-neg-bg text-pill-neg-fg")}>
       <X className="size-4 shrink-0" aria-hidden />
       <span>
-        Não cabe: mínimo passa do teto em <span className="font-mono tabular-nums">{formatarMoeda(-folga)}</span>
+        Não cabe: mínimo passa do teto em <span className="tabular-nums">{formatarMoeda(-folga)}</span>
       </span>
     </p>
   );

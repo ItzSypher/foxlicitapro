@@ -56,17 +56,17 @@ export function CotacoesSalvas({ cotacoes, ativa, deOportunidade, onEscolher }: 
                     ativa === c.id && "bg-active",
                   )}
                 >
-                  <span className="col-start-3 row-start-1 text-right font-mono text-xs tabular-nums text-faint sm:col-start-1 sm:text-left">
+                  <span className="col-start-3 row-start-1 text-right text-xs tabular-nums text-faint sm:col-start-1 sm:text-left">
                     {dia(c.criadoEm)}
                   </span>
                   <span className="col-span-2 col-start-1 row-start-1 truncate text-sm text-ink sm:col-span-1 sm:col-start-2">
                     {c.descricao}
                   </span>
                   <span className="col-start-1 row-start-2 text-xs text-faint sm:hidden">Mínimo · Alvo</span>
-                  <span className="col-start-2 row-start-2 text-right font-mono text-[13px] tabular-nums text-ink sm:col-start-3 sm:row-start-1">
+                  <span className="col-start-2 row-start-2 text-right text-[13px] tabular-nums text-ink sm:col-start-3 sm:row-start-1">
                     {formatarMoeda(c.precoMinimo)}
                   </span>
-                  <span className="col-start-3 row-start-2 text-right font-mono text-[13px] tabular-nums text-ink sm:col-start-4 sm:row-start-1">
+                  <span className="col-start-3 row-start-2 text-right text-[13px] tabular-nums text-ink sm:col-start-4 sm:row-start-1">
                     {formatarMoeda(c.precoAlvo)}
                   </span>
                 </button>

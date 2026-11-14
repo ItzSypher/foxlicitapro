@@ -35,7 +35,7 @@ export function PainelRevisao({ status, autor, criadoPor, usuarioId, acessos, pe
           disabled={pendencias > 0 || pendente}
           className={cn(BOTAO_PRIMARIO, largo)}
         >
-          {status === "devolvida" ? "Reenviar para revisão" : "Enviar para revisão"}
+          {pendente ? "Enviando…" : status === "devolvida" ? "Reenviar para revisão" : "Enviar para revisão"}
         </button>
         {pendencias > 0 ? (
           <p className="text-[13px] text-muted-foreground">Resolva as pendências para enviar.</p>
@@ -82,7 +82,7 @@ export function PainelRevisao({ status, autor, criadoPor, usuarioId, acessos, pe
                 disabled={nota.trim() === "" || pendente}
                 className={cn(BOTAO_PRIMARIO, "w-full sm:w-auto")}
               >
-                Devolver proposta
+                {pendente ? "Devolvendo…" : "Devolver proposta"}
               </button>
               <button type="button" onClick={() => setDevolvendo(false)} className={cn(BOTAO_SECUNDARIO, "w-full sm:w-auto")}>
                 Cancelar
@@ -93,7 +93,7 @@ export function PainelRevisao({ status, autor, criadoPor, usuarioId, acessos, pe
           <div className="flex flex-col gap-2 sm:flex-row">
             {acessos.aprovar ? (
               <button type="button" onClick={() => aoAgir("aprovar")} disabled={pendente} className={cn(BOTAO_PRIMARIO, "w-full sm:w-auto")}>
-                Aprovar
+                {pendente ? "Aprovando…" : "Aprovar"}
               </button>
             ) : null}
             {acessos.devolver ? (

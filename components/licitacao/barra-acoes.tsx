@@ -5,6 +5,7 @@ import { BotaoSalvarPipeline } from "@/components/pipeline/botao-salvar";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ChaveCompra } from "@/core/types-detalhe";
 import { assistenteDisponivel } from "@/lib/gemini";
+import { cn } from "@/lib/utils";
 
 const SECUNDARIO =
   "inline-flex h-11 items-center justify-center gap-2 rounded-control border border-control bg-transparent px-4 text-sm font-medium whitespace-nowrap text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand md:h-9";
@@ -57,9 +58,10 @@ export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportu
   const compra = `${chave.cnpj}-${chave.ano}-${chave.sequencial}`;
   // Sem chave configurada, ou sem permissão, o botão não existe e a barra fica como sempre foi.
   const assistente = assistenteDisponivel() && podeUsarAssistente;
+  const temFixas = podeCriarProposta || oportunidade !== null;
   return (
     <>
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex items-start gap-2 border-t border-border bg-ground px-4 py-2 lg:static lg:z-auto lg:flex-wrap lg:items-center lg:border-t-0 lg:p-0">
+      <div className={cn("fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex items-start gap-2 border-t border-border bg-ground px-4 py-2 lg:static lg:z-auto lg:flex-wrap lg:items-center lg:border-t-0 lg:p-0", !temFixas && "max-lg:hidden")}>
         {podeCriarProposta ? (
           <Link href={`/propostas/nova?compra=${compra}`} className={PRIMARIO}>
             <FilePlus2 aria-hidden="true" className="size-4" />
@@ -76,6 +78,8 @@ export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportu
           <Secundarias numeroControle={numeroControle} linkPncp={linkPncp} linkOrigem={linkOrigem} salvo={salvo} />
         </div>
       </div>
+      {/* Reserva o espaço da barra fixa para o último conteúdo não ficar escondido. */}
+      {temFixas ? <div aria-hidden="true" className="h-16 lg:hidden" /> : null}
       <div className="flex flex-wrap gap-2 lg:hidden">
         {assistente ? <BotaoAssistente compra={compra} /> : null}
         <Secundarias numeroControle={numeroControle} linkPncp={linkPncp} linkOrigem={linkOrigem} salvo={salvo} />

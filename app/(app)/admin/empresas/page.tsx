@@ -13,7 +13,7 @@ export default async function AdminEmpresasPage() {
   const empresas = await listarEmpresas();
 
   return (
-    <div className="flex max-w-[860px] flex-col gap-5">
+    <div className="flex max-w-[860px] min-w-0 flex-col gap-5">
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] leading-tight font-semibold text-ink">Empresas</h1>
         <p className="text-sm text-muted-foreground">

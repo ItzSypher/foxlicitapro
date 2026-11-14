@@ -82,7 +82,7 @@ export function BarraLances({ minimo, alvo, teto }: Props) {
         {marcas.map((m) => (
           <li key={m.id} className="flex items-baseline justify-between gap-3 text-[13px]">
             <span className="text-muted-foreground">{m.rotulo}</span>
-            <span className="font-mono tabular-nums text-ink">{formatarMoeda(m.valor)}</span>
+            <span className="tabular-nums text-ink">{formatarMoeda(m.valor)}</span>
           </li>
         ))}
       </ul>
@@ -99,7 +99,7 @@ export function BarraLances({ minimo, alvo, teto }: Props) {
               style={{ left: a.esquerda, transform: a.transform, textAlign: a.textAlign, paddingTop: faixa * ALTURA_FAIXA }}
             >
               <span className="text-muted-foreground">{m.rotulo}</span>
-              <span className="font-mono tabular-nums text-ink">{formatarMoeda(m.valor)}</span>
+              <span className="tabular-nums text-ink">{formatarMoeda(m.valor)}</span>
             </div>
           );
         })}

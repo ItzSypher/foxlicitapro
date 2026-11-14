@@ -146,7 +146,7 @@ export function BarraFiltros({
         {REGIOES.map((regiao) => (
           <Chip key={regiao.id} ativo={filtros.regiao === regiao.id} onClick={() => onRegiao(regiao.id)}>
             {regiao.rotulo}
-            <span className="font-mono text-xs tabular-nums">{contagens[regiao.id]}</span>
+            <span className="text-xs tabular-nums">{contagens[regiao.id]}</span>
           </Chip>
         ))}
         <span aria-hidden="true" className="w-2 shrink-0 lg:hidden" />
@@ -163,7 +163,7 @@ export function BarraFiltros({
         {ativos > 0 ? (
           <span
             aria-label={`${ativos} ${ativos === 1 ? "filtro ativo" : "filtros ativos"}`}
-            className="inline-flex size-5 items-center justify-center rounded-full bg-brand font-mono text-xs font-medium text-black"
+            className="inline-flex size-5 items-center justify-center rounded-full bg-brand text-xs font-medium text-black"
           >
             {ativos}
           </span>

@@ -95,7 +95,7 @@ export function Memoria({ calculo, frente, vendas }: Props) {
                 <td className="col-span-2 row-start-2 text-muted-foreground sm:table-cell sm:py-2 sm:pr-3 sm:align-top">
                   {linha.formula}
                 </td>
-                <td className="col-start-2 row-start-1 text-right font-mono tabular-nums text-ink sm:table-cell sm:py-2 sm:align-top">
+                <td className="col-start-2 row-start-1 text-right tabular-nums text-ink sm:table-cell sm:py-2 sm:align-top">
                   {formatarValorMemoria(linha.rotulo, linha.valor)}
                 </td>
               </tr>

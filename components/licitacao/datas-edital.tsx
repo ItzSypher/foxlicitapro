@@ -40,7 +40,7 @@ export function DatasEdital({ datas, agoraInicial }: { datas: DatasDoDetalhe; ag
                 />
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <p className="text-xs text-muted-foreground">{e.rotulo}</p>
-                  <p className="font-mono text-sm tabular-nums text-ink">{e.texto}</p>
+                  <p className="text-sm tabular-nums text-ink">{e.texto}</p>
                   {e.disputa && faltam !== null ? (
                     <p className={cn("text-[13px]", urgente ? "font-medium text-negative" : e.passou ? "text-muted-foreground" : "text-brand")}>
                       {faltam === "encerrado" ? "Recebimento encerrado" : faltam.charAt(0).toUpperCase() + faltam.slice(1)}

@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
   Calculator,
   Columns3,
+  ChevronDown,
   Ellipsis,
   FileText,
   Radar,
@@ -49,6 +50,22 @@ const SECUNDARIOS: ReadonlyArray<Destino> = [
   { href: "/equipe", rotulo: "Equipe", rotuloCurto: "Equipe", icone: Users, somentePara: "dono" },
   { href: "/empresa", rotulo: "Empresa", rotuloCurto: "Empresa", icone: Building2, somentePara: "dono" },
   { href: "/admin/empresas", rotulo: "Empresas", rotuloCurto: "Empresas", icone: ShieldCheck, somenteSuperadmin: true },
+];
+
+interface Grupo {
+  id: string;
+  rotulo: string;
+  destinos: ReadonlyArray<Destino>;
+}
+
+const [RADAR, PIPELINE, PROPOSTAS, CALCULADORA] = PRINCIPAIS;
+const [PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
+
+/** Grupos da barra lateral, na ordem em que aparecem. */
+const GRUPOS: ReadonlyArray<Grupo> = [
+  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, PROPOSTAS, CALCULADORA] },
+  { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, PREFERENCIAS] },
+  { id: "admin", rotulo: "Admin", destinos: [EMPRESAS] },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
@@ -110,10 +127,10 @@ function ItemLateral({ destino, caminho, selo }: { destino: Destino; caminho: st
       aria-current={ativo ? "page" : undefined}
       className={cn(
         "flex h-10 items-center gap-3 rounded-control px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
-        ativo ? "bg-active font-medium text-brand" : "text-muted-foreground hover:bg-raised hover:text-ink",
+        ativo ? "bg-active font-medium text-ink" : "text-muted-foreground hover:bg-raised hover:text-ink",
       )}
     >
-      <Icone className="size-[18px]" aria-hidden="true" />
+      <Icone className={cn("size-[18px]", ativo ? "text-ink" : "")} aria-hidden="true" />
       <span className="flex-1">{destino.rotulo}</span>
       <Selo quantidade={selo} />
     </Link>
@@ -130,7 +147,7 @@ function ItemInferior({ destino, caminho, selo }: { destino: Destino; caminho: s
     <Link
       href={destino.href}
       aria-current={ativo ? "page" : undefined}
-      className={cn(ITEM_INFERIOR, ativo ? "font-medium text-brand" : "text-muted-foreground")}
+      className={cn(ITEM_INFERIOR, ativo ? "bg-active font-medium text-ink" : "text-muted-foreground")}
     >
       <span className="relative">
         <Icone className="size-5" aria-hidden="true" />
@@ -141,16 +158,104 @@ function ItemInferior({ destino, caminho, selo }: { destino: Destino; caminho: s
   );
 }
 
-function ListaLateral({ caminho, dados }: { caminho: string; dados: DadosNav }) {
+const CHAVE_GRUPOS = "foxlicita:nav-grupos-fechados";
+const EVENTO_GRUPOS = "foxlicita:nav-grupos";
+
+function lerGruposBruto(): string {
+  try {
+    return window.localStorage.getItem(CHAVE_GRUPOS) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function assinarGrupos(aviso: () => void): () => void {
+  window.addEventListener("storage", aviso);
+  window.addEventListener(EVENTO_GRUPOS, aviso);
+  return () => {
+    window.removeEventListener("storage", aviso);
+    window.removeEventListener(EVENTO_GRUPOS, aviso);
+  };
+}
+
+/** Ids dos grupos fechados, lembrados no aparelho. Sem armazenamento, tudo fica aberto. */
+function useGruposFechados(): { fechados: ReadonlySet<string>; alternar: (id: string) => void } {
+  const bruto = useSyncExternalStore(assinarGrupos, lerGruposBruto, () => "");
+  const fechados = new Set(bruto === "" ? [] : bruto.split(","));
+  function alternar(id: string) {
+    const proximo = new Set(fechados);
+    if (proximo.has(id)) proximo.delete(id);
+    else proximo.add(id);
+    try {
+      window.localStorage.setItem(CHAVE_GRUPOS, [...proximo].join(","));
+    } catch {
+      // Armazenamento bloqueado: o grupo só não fica lembrado.
+    }
+    window.dispatchEvent(new Event(EVENTO_GRUPOS));
+  }
+  return { fechados, alternar };
+}
+
+function GrupoLateral({
+  grupo,
+  destinos,
+  caminho,
+  dados,
+  aberto,
+  aoAlternar,
+}: {
+  grupo: Grupo;
+  destinos: Destino[];
+  caminho: string;
+  dados: DadosNav;
+  aberto: boolean;
+  aoAlternar: () => void;
+}) {
+  const temAtivo = destinos.some((d) => estaAtivo(d, caminho));
+  const idLista = `nav-grupo-${grupo.id}`;
   return (
-    <nav aria-label="Principal" className="flex flex-col gap-1">
-      {PRINCIPAIS.map((d) => (
-        <ItemLateral key={d.href} destino={d} caminho={caminho} selo={pendentesDe(d, dados)} />
-      ))}
-      <div className="my-2 border-t border-border" role="presentation" />
-      {visiveis(SECUNDARIOS, dados.usuario).map((d) => (
-        <ItemLateral key={d.href} destino={d} caminho={caminho} selo={0} />
-      ))}
+    <div className="flex flex-col gap-0.5">
+      <button
+        type="button"
+        onClick={aoAlternar}
+        aria-expanded={aberto}
+        aria-controls={idLista}
+        className="flex h-8 items-center justify-between rounded-control px-3 text-xs font-medium tracking-[0.08em] uppercase outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        <span className={temAtivo && !aberto ? "text-ink" : "text-faint"}>{grupo.rotulo}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn("size-3.5 text-faint transition-transform", aberto ? "" : "-rotate-90")}
+        />
+      </button>
+      <div id={idLista} className={cn("flex-col gap-0.5", aberto ? "flex" : "hidden")}>
+        {destinos.map((d) => (
+          <ItemLateral key={d.href} destino={d} caminho={caminho} selo={pendentesDe(d, dados)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ListaLateral({ caminho, dados }: { caminho: string; dados: DadosNav }) {
+  const { fechados, alternar } = useGruposFechados();
+  return (
+    <nav aria-label="Principal" className="flex flex-col gap-4">
+      {GRUPOS.map((g) => {
+        const destinos = visiveis(g.destinos, dados.usuario);
+        if (destinos.length === 0) return null;
+        return (
+          <GrupoLateral
+            key={g.id}
+            grupo={g}
+            destinos={destinos}
+            caminho={caminho}
+            dados={dados}
+            aberto={!fechados.has(g.id)}
+            aoAlternar={() => alternar(g.id)}
+          />
+        );
+      })}
     </nav>
   );
 }
@@ -170,7 +275,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
         onClick={() => setAberto(true)}
         aria-haspopup="dialog"
         aria-expanded={aberto}
-        className={cn(ITEM_INFERIOR, ativo ? "font-medium text-brand" : "text-muted-foreground")}
+        className={cn(ITEM_INFERIOR, ativo ? "bg-active font-medium text-ink" : "text-muted-foreground")}
       >
         <Ellipsis className="size-5" aria-hidden="true" />
         <span className="max-w-full truncate">Mais</span>

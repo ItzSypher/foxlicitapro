@@ -234,7 +234,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
     });
   }
 
-  const abaveis = "inline-flex h-11 flex-1 items-center justify-center rounded-[5px] text-sm text-muted-foreground aria-selected:bg-brand-fill aria-selected:font-medium aria-selected:text-black outline-none focus-visible:ring-2 focus-visible:ring-brand";
+  const abaveis = "-mb-px inline-flex h-11 flex-1 items-center justify-center border-b-2 border-transparent text-sm text-muted-foreground aria-selected:border-brand aria-selected:font-semibold aria-selected:text-ink outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand";
   const abaixoDoMinimo = cotacao !== null && totalCentavos > 0 && total < cotacao.precoMinimo;
 
   return (
@@ -302,7 +302,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
               </button>
               <button type="button" onClick={duplicar} disabled={pendente} className={BOTAO_SECUNDARIO}>
                 <Copy aria-hidden className="size-4" />
-                Duplicar
+                {pendente ? "Duplicando…" : "Duplicar"}
               </button>
               <button
                 type="button"
@@ -344,7 +344,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
       <div
         role="tablist"
         aria-label="Modo de exibição"
-        className="flex gap-1 rounded-control border border-control bg-raised p-0.5 xl:hidden"
+        className="flex border-b border-border xl:hidden"
       >
         <button type="button" role="tab" aria-selected={aba === "editar"} onClick={() => setAba("editar")} className={abaveis}>
           Editar
@@ -362,7 +362,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
       >
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-[13px] text-muted-foreground">Total</span>
-          <span className="font-mono text-xl font-semibold tabular-nums text-ink">{formatarMoeda(total)}</span>
+          <span className="text-xl font-semibold tabular-nums text-ink">{formatarMoeda(total)}</span>
         </div>
         <p className="line-clamp-2 text-xs text-muted-foreground">{valorPorExtenso(total)}</p>
         {abaixoDoMinimo && cotacao && (
@@ -382,8 +382,8 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
           {cotacao && (
             <p className="rounded-card border border-border bg-surface px-4 py-3 text-[13px] text-muted-foreground">
               Seu preço mínimo:{" "}
-              <span className="font-mono tabular-nums text-ink">{formatarMoeda(cotacao.precoMinimo)}</span> · alvo:{" "}
-              <span className="font-mono tabular-nums text-ink">{formatarMoeda(cotacao.precoAlvo)}</span>
+              <span className="tabular-nums text-ink">{formatarMoeda(cotacao.precoMinimo)}</span> · alvo:{" "}
+              <span className="tabular-nums text-ink">{formatarMoeda(cotacao.precoAlvo)}</span>
             </p>
           )}
 
@@ -415,7 +415,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
           <SecaoItens itens={form.itens} aoMudar={(itens) => setForm((f) => ({ ...f, itens }))} />
 
           <Secao id="secao-condicoes" titulo="Condições">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <CampoLinha
                 id="validade"
                 rotulo="Validade (dias)"
@@ -433,7 +433,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
                   type="date"
                   value={form.data}
                   onChange={(e) => campo("data")(e.target.value)}
-                  className={cn(CONTROLE, "font-mono tabular-nums")}
+                  className={cn(CONTROLE, "tabular-nums")}
                 />
               </div>
             </div>
@@ -502,7 +502,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
               {titulo}. A proposta e o link enviado deixam de existir. Não dá para desfazer.
             </SheetDescription>
           </SheetHeader>
-          <div className="flex flex-col gap-2 px-4 pb-6">
+          <div className="flex flex-col gap-2 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={excluir}

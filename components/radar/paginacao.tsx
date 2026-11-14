@@ -30,22 +30,24 @@ export function Paginacao({ pagina, totalPaginas, inicio, fim, total, porPagina,
   return (
     <nav
       aria-label="Paginação"
+      aria-busy={ocupado}
       className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
     >
       <div className="flex items-center justify-between gap-3 md:justify-start md:gap-4">
         <p className="text-[13px] text-muted-foreground md:text-sm">
-          <span className="font-mono tabular-nums">
+          <span className="tabular-nums">
             {inicio}–{fim}
           </span>{" "}
-          de <span className="font-mono tabular-nums">{total}</span>
+          de <span className="tabular-nums">{total}</span>
+          {ocupado ? <span className="ml-2 text-faint">Carregando…</span> : null}
         </p>
         {porPagina !== undefined && onPorPagina ? (
-        <label className="flex items-center gap-2 text-[13px] text-muted-foreground md:text-sm">
+        <label className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground md:text-sm">
           Por página
           <select
             value={porPagina}
             onChange={(evento) => onPorPagina(Number(evento.target.value))}
-            className="h-11 cursor-pointer rounded-control border border-border bg-surface px-2 font-mono text-sm tabular-nums text-ink outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand md:h-9"
+            className="h-11 cursor-pointer rounded-control border border-border bg-surface px-2 text-sm tabular-nums text-ink outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand md:h-9"
           >
             {POR_PAGINA_OPCOES.map((n) => (
               <option key={n} value={n}>
@@ -69,7 +71,7 @@ export function Paginacao({ pagina, totalPaginas, inicio, fim, total, porPagina,
               <ChevronLeft className="size-4" aria-hidden="true" />
               Anterior
             </button>
-            <span className="font-mono text-sm tabular-nums text-muted-foreground">
+            <span className="text-sm tabular-nums text-muted-foreground">
               {pagina} de {totalPaginas}
             </span>
             <button
@@ -105,7 +107,7 @@ export function Paginacao({ pagina, totalPaginas, inicio, fim, total, porPagina,
                     onClick={() => onIr(item)}
                     className={cn(
                       BASE_BOTAO,
-                      "min-w-9 px-2 font-mono tabular-nums",
+                      "min-w-9 px-2 tabular-nums",
                       item === pagina
                         ? "border-control bg-active font-semibold text-ink"
                         : "border-transparent text-muted-foreground hover:bg-raised hover:text-ink",

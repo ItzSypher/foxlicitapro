@@ -49,7 +49,7 @@ export function BlocoAnalise({ analise }: { analise: AnaliseAssistente }) {
                 <span className="font-medium">Item {s.numero}</span>
                 {s.marcaModelo.trim() !== "" ? ` · ${s.marcaModelo}` : ""}
                 {s.precoSugerido !== null ? (
-                  <span className="font-mono tabular-nums"> · {formatarMoeda(s.precoSugerido)}</span>
+                  <span className="tabular-nums"> · {formatarMoeda(s.precoSugerido)}</span>
                 ) : null}
                 {s.observacao.trim() !== "" ? <span className="block text-[13px] text-muted-foreground">{s.observacao}</span> : null}
               </li>

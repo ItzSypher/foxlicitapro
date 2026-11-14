@@ -31,7 +31,7 @@ function Numero({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5 rounded-card border border-border bg-ground p-3">
       <span className="text-xs text-muted-foreground">{rotulo}</span>
-      <span className="font-mono text-2xl leading-tight font-semibold tabular-nums text-ink wrap-break-word">{valor}</span>
+      <span className="text-xl leading-tight font-semibold tabular-nums text-ink wrap-break-word sm:text-2xl">{valor}</span>
     </div>
   );
 }
@@ -84,7 +84,7 @@ export function Concorrentes({ compra, inicial, buscadoEmInicial, valorEstimado,
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => buscar(buscadoEm !== null)} disabled={ocupado} className={BOTAO}>
               <Search aria-hidden="true" className="size-4" />
-              {buscadoEm === null ? "Buscar preços no PNCP" : "Buscar de novo"}
+              {ocupado ? "Buscando…" : buscadoEm === null ? "Buscar preços no PNCP" : "Buscar de novo"}
             </button>
             {quando ? <span className="text-[13px] text-muted-foreground">Última busca: {quando}</span> : null}
           </div>
@@ -138,7 +138,7 @@ export function Concorrentes({ compra, inicial, buscadoEmInicial, valorEstimado,
                       {p.uf ? ` · ${p.uf}` : ""}
                       {p.publicadaEm ? ` · ${fmtMes.format(new Date(p.publicadaEm))}` : ""}
                     </p>
-                    <p className="font-mono text-sm tabular-nums text-ink">
+                    <p className="text-sm tabular-nums text-ink">
                       {formatarMoeda(p.valorHomologado)}
                       {p.valorEstimado !== null ? (
                         <span className="text-muted-foreground"> de {formatarMoeda(p.valorEstimado)}</span>

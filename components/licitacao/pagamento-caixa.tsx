@@ -81,7 +81,7 @@ function Numero({ rotulo, valor, detalhe }: { rotulo: string; valor: string; det
   return (
     <div className="flex min-w-0 flex-col gap-0.5 rounded-card border border-border bg-ground p-3">
       <span className="text-xs text-muted-foreground">{rotulo}</span>
-      <span className="font-mono text-2xl leading-tight font-semibold tabular-nums text-ink wrap-break-word">{valor}</span>
+      <span className="text-xl leading-tight font-semibold tabular-nums text-ink wrap-break-word sm:text-2xl">{valor}</span>
       {detalhe ? <span className="text-[13px] leading-snug text-muted-foreground">{detalhe}</span> : null}
     </div>
   );
