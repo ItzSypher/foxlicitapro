@@ -279,3 +279,26 @@
     box-shadow: none !important;
   }
 }
+
+/* Preloader da raposa: respiração lenta, só transform e opacity. */
+@keyframes raposa-respira {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.raposa-respira {
+  animation: raposa-respira 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .raposa-respira {
+    animation: none;
+  }
+}

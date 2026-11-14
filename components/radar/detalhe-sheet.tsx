@@ -76,7 +76,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
               </SheetDescription>
             </SheetHeader>
 
-            <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain p-4">
               <Secao titulo="Texto do edital">
                 <p className="text-sm leading-relaxed wrap-break-word text-ink">{item.objeto}</p>
               </Secao>
@@ -84,9 +84,9 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
               <Secao titulo="Órgão">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                   <dt className="text-muted-foreground">Órgão</dt>
-                  <dd className="text-ink">{item.orgao}</dd>
+                  <dd className="min-w-0 wrap-break-word text-ink">{item.orgao}</dd>
                   <dt className="text-muted-foreground">Unidade</dt>
-                  <dd className="text-ink">{item.unidade}</dd>
+                  <dd className="min-w-0 wrap-break-word text-ink">{item.unidade}</dd>
                   <dt className="text-muted-foreground">CNPJ</dt>
                   <dd className="font-mono tabular-nums text-ink">{formatarCnpj(item.orgaoCnpj)}</dd>
                 </dl>
@@ -197,10 +197,10 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
               </Secao>
             </div>
 
-            <SheetFooter className="mt-0 gap-2 border-t border-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))] min-[480px]:flex-row min-[480px]:flex-wrap">
+            <SheetFooter className="mt-0 flex-none flex-row flex-wrap gap-2 border-t border-border bg-popover p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <Link
                 href={`/licitacao/${item.orgaoCnpj}/${item.anoCompra}/${item.sequencialCompra}`}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-control bg-brand-fill px-4 text-sm font-semibold whitespace-nowrap text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand"
+                className="inline-flex h-11 basis-full items-center justify-center rounded-control bg-brand-fill px-4 text-sm font-semibold whitespace-nowrap text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand"
               >
                 Ver licitação completa
               </Link>
@@ -209,7 +209,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                 href={item.linkPncp}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cn(buttonVariants({ variant: "outline" }), "h-11 flex-1 px-4 text-sm")}
+                className={cn(buttonVariants({ variant: "outline" }), "h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] px-4 text-sm")}
               >
                 Abrir no PNCP
               </a>
@@ -218,7 +218,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                   href={item.linkOrigem}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={cn(buttonVariants({ variant: "outline" }), "h-11 flex-1 px-4 text-sm")}
+                  className={cn(buttonVariants({ variant: "outline" }), "h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] px-4 text-sm")}
                 >
                   Sistema de origem
                 </a>

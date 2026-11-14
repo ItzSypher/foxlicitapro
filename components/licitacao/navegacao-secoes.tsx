@@ -33,11 +33,24 @@ function useSecaoAtiva(): string {
       },
       { rootMargin: "-120px 0px -55% 0px" },
     );
-    for (const s of SECOES) {
-      const el = document.getElementById(s.id);
-      if (el) observador.observe(el);
-    }
-    return () => observador.disconnect();
+    const observados = new Set<Element>();
+    const varrer = () => {
+      for (const s of SECOES) {
+        const el = document.getElementById(s.id);
+        if (el && !observados.has(el)) {
+          observados.add(el);
+          observador.observe(el);
+        }
+      }
+    };
+    varrer();
+    // As seções chegam aos poucos (streaming): observa também as que entram depois.
+    const mutacoes = new MutationObserver(varrer);
+    mutacoes.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      mutacoes.disconnect();
+      observador.disconnect();
+    };
   }, []);
 
   return ativa;

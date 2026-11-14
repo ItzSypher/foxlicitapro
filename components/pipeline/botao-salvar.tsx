@@ -40,36 +40,32 @@ export function BotaoSalvarPipeline({
 
   if (marcado) {
     return (
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-11 items-center gap-2 text-sm text-ink md:h-9">
-            <BookmarkCheck aria-hidden="true" className="size-4 text-positive" />
-            No pipeline
-          </span>
-          <Link
-            href="/pipeline"
-            className="inline-flex h-11 items-center rounded-control px-2 text-sm font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand md:h-9"
-          >
-            Ver
-          </Link>
-        </div>
+      <div className="flex h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] items-center justify-center gap-2 text-sm text-ink">
+        <BookmarkCheck aria-hidden="true" className="size-4 shrink-0 text-positive" />
+        <span className="truncate">No pipeline</span>
+        <Link
+          href="/pipeline"
+          className="inline-flex h-11 shrink-0 items-center rounded-control px-2 font-medium text-ink underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Ver
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="contents">
       <button
         type="button"
         onClick={salvar}
         disabled={pendente}
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-control border border-control bg-transparent px-4 text-sm font-medium text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 md:h-9"
+        className="inline-flex h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] items-center justify-center gap-2 rounded-control border border-control bg-transparent px-4 text-sm font-medium whitespace-nowrap text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
       >
-        <BookmarkPlus aria-hidden="true" className="size-4" />
-        Salvar no pipeline
+        <BookmarkPlus aria-hidden="true" className="size-4 shrink-0" />
+        {pendente ? "Salvando…" : "Salvar no pipeline"}
       </button>
       {erro ? (
-        <p role="alert" className="text-xs text-negative">
+        <p role="alert" className="order-last basis-full text-sm text-negative">
           {erro}
         </p>
       ) : null}

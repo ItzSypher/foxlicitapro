@@ -183,7 +183,7 @@ export function erroDoStatus(status: number, motivo = "", modelo: string = nomeD
   if (/api[ _]?key/i.test(motivo)) {
     return new ErroAssistente(
       "chave-invalida",
-      "A chave do assistente foi recusada. Confira o valor de GEMINI_API_KEY na Vercel (sem aspas nem espaços) e faça um novo deploy.",
+      `A chave do assistente foi recusada (${motivo}). Confira GEMINI_API_KEY na Vercel e faça um novo deploy.`,
       status,
     );
   }
