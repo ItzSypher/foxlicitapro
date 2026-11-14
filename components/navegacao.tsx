@@ -11,6 +11,7 @@ import {
   Ellipsis,
   FileText,
   Radar,
+  Truck,
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
@@ -45,6 +46,8 @@ const PRINCIPAIS: ReadonlyArray<Destino> = [
   { href: "/calculadora", rotulo: "Calculadora", rotuloCurto: "Calcular", icone: Calculator },
 ];
 
+const FORNECEDORES: Destino = { href: "/fornecedores", rotulo: "Fornecedores", rotuloCurto: "Fornecedores", icone: Truck };
+
 const SECUNDARIOS: ReadonlyArray<Destino> = [
   { href: "/preferencias", rotulo: "Preferências", rotuloCurto: "Preferências", icone: SlidersHorizontal },
   { href: "/equipe", rotulo: "Equipe", rotuloCurto: "Equipe", icone: Users, somentePara: "dono" },
@@ -63,13 +66,13 @@ const [PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
 
 /** Grupos da barra lateral, na ordem em que aparecem. */
 const GRUPOS: ReadonlyArray<Grupo> = [
-  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, PROPOSTAS, CALCULADORA] },
+  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, PROPOSTAS, CALCULADORA, FORNECEDORES] },
   { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, PREFERENCIAS] },
   { id: "admin", rotulo: "Admin", destinos: [EMPRESAS] },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/preferencias", "/equipe", "/empresa", "/admin"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/fornecedores", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   nome: string;
@@ -265,6 +268,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
   const ativo = AREAS_MAIS.some((base) => caminho === base || caminho.startsWith(`${base}/`)) || caminho.startsWith("/equipe");
   const { usuario } = dados;
   const itens: Destino[] = [
+    FORNECEDORES,
     ...visiveis(SECUNDARIOS, usuario),
     { href: "/equipe/conta", rotulo: "Minha conta", rotuloCurto: "Conta", icone: UserRound },
   ];

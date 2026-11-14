@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
-import { salvarCotacaoAction } from "@/app/(app)/calculadora/actions";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { salvarCotacaoAction, sugerirPrecoAction } from "@/app/(app)/calculadora/actions";
+import type { SugestaoPreco } from "@/core/fornecedores";
 import { resumirObjeto } from "@/core/objeto";
 import type { Regime } from "@/core/precificacao";
 import type { Frente } from "@/core/types";
@@ -29,6 +30,8 @@ interface Props {
   cotacoes: CotacaoSalva[];
   /** CNAEs da empresa, por frente */
   cnaes: CnaePerfil[];
+  /** Fornecedores ativos; vazio quando a pessoa não pode registrar preço de fornecedor */
+  fornecedores: { id: string; nome: string }[];
 }
 
 const OPCOES_FRENTE: readonly { valor: Frente; rotulo: string }[] = [
@@ -43,17 +46,38 @@ const OPCOES_REGIME: readonly { valor: Regime; rotulo: string }[] = [
 
 type Aviso = { tom: "ok" | "erro"; texto: string } | null;
 
-export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Props) {
+export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes, fornecedores }: Props) {
   const [f, setF] = useState<Formulario>(inicial);
   const [ativa, setAtiva] = useState<string | null>(null);
   const [aviso, setAviso] = useState<Aviso>(null);
   const [salvando, iniciarSalvar] = useTransition();
+  const [fornecedorId, setFornecedorId] = useState("");
+  const [resposta, setResposta] = useState<{ para: string; valor: SugestaoPreco | null }>({ para: "", valor: null });
   const resultadosRef = useRef<HTMLDivElement>(null);
 
   const estado = useMemo(() => calcularFormulario(f), [f]);
   const erros: Partial<Record<CampoNumerico, string>> = estado.tipo === "erro" ? estado.erros : {};
   const margem = margemDoCnae(f.cnae);
   const opcoesCnae = cnaesDaFrente(cnaes, f.frente).map((c) => ({ valor: c.codigo, rotulo: `${c.codigo} · ${c.descricao}` }));
+
+  // Sugestão de preço de fornecedor para itens parecidos, depois de uma pausa na digitação.
+  const descricaoDigitada = f.descricao;
+  useEffect(() => {
+    if (descricaoDigitada.trim().length < 3) return;
+    let atual = true;
+    const t = setTimeout(() => {
+      void sugerirPrecoAction(descricaoDigitada).then((valor) => {
+        if (atual) setResposta({ para: descricaoDigitada, valor });
+      });
+    }, 400);
+    return () => {
+      atual = false;
+      clearTimeout(t);
+    };
+  }, [descricaoDigitada]);
+
+  // Só vale a sugestão pedida para o texto que está na tela.
+  const sugestao = resposta.para === descricaoDigitada ? resposta.valor : null;
 
   function mudar<K extends keyof Formulario>(campo: K, valor: Formulario[K]): void {
     setF((atual) => ({ ...atual, [campo]: valor }));
@@ -108,6 +132,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Pr
         margemAlvo: e.margemAlvo,
         regime: e.regime,
         vendasPrevistasNoMes: e.vendasPrevistasNoMes,
+        fornecedorId: fornecedorId === "" ? null : fornecedorId,
       });
       setAviso(resposta.ok ? { tom: "ok", texto: "Cotação salva." } : { tom: "erro", texto: resposta.mensagem });
     });
@@ -145,6 +170,19 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Pr
               onMudar={(v) => mudar("descricao", v)}
               placeholder="Ex.: 20 monitores de 24 polegadas"
             />
+            {sugestao !== null && (
+              <div role="status" className="flex flex-col gap-1 rounded-card border border-border bg-raised px-3 py-2.5 text-[13px]">
+                <span className="text-xs text-muted-foreground">Preço de fornecedor para item parecido</span>
+                <span className="text-ink">
+                  Último: <span className="tabular-nums">{formatarMoeda(sugestao.ultimo.preco)}</span> · {sugestao.ultimo.fornecedorNome}
+                </span>
+                {sugestao.menor.id !== sugestao.ultimo.id && (
+                  <span className="text-ink">
+                    Menor: <span className="tabular-nums">{formatarMoeda(sugestao.menor.preco)}</span> · {sugestao.menor.fornecedorNome}
+                  </span>
+                )}
+              </div>
+            )}
             <Segmentado nome="cal-frente" rotulo="Frente" valor={f.frente} opcoes={OPCOES_FRENTE} onMudar={mudarFrente} />
             <CampoSelect
               id="cal-cnae"
@@ -164,6 +202,17 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes }: Pr
               erro={erros.custo}
               placeholder="0,00"
             />
+            {fornecedores.length > 0 && (
+              <CampoSelect
+                id="cal-fornecedor"
+                rotulo="Fornecedor (opcional)"
+                valor={fornecedorId}
+                onMudar={setFornecedorId}
+                opcoes={fornecedores.map((x) => ({ valor: x.id, rotulo: x.nome }))}
+                vazio="Nenhum"
+                dica="Ao salvar, o custo também vira preço deste fornecedor."
+              />
+            )}
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
               <CampoNumero
                 id="cal-frete"

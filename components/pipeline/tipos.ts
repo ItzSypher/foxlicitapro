@@ -1,3 +1,4 @@
+import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
 import type { MarcaJuridica } from "@/core/revisao-juridica";
 import type { OportunidadeComScore } from "@/core/types";
 
@@ -50,6 +51,8 @@ export interface ItemPipeline {
   comentarios: number;
   /** Passos do checklist jurídico já marcados (vazio para itens sem revisão) */
   revisao: MarcaJuridica[];
+  /** Resumo das cotações da calculadora ligadas ao item (null: nenhuma) */
+  cotacoes: ResumoCotacoes | null;
 }
 
 /** Pessoa que pode ser responsável por um item */

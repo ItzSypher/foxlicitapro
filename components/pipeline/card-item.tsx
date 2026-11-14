@@ -6,10 +6,11 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { comentarAction, lerComentariosAction, salvarNotas } from "@/app/(app)/pipeline/actions";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ComentarioPipeline } from "@/core/types-equipe";
+import { margemEmPercentual, type Estatistica, type ResumoCotacoes } from "@/core/cotacoes-resumo";
 import { resumirObjeto } from "@/core/objeto";
 import { PASSOS_JURIDICOS, checklistCompleto } from "@/core/revisao-juridica";
 import type { Faixa } from "@/core/types";
-import { restanteMs } from "@/lib/formato";
+import { formatarMoeda, plural, restanteMs } from "@/lib/formato";
 import { useAgora } from "@/lib/relogio";
 import { cn } from "@/lib/utils";
 import { formatarReais, textoFecha } from "./formato";
@@ -91,6 +92,112 @@ function LinhaRevisao({
           inicial={dado.revisao}
           podeMarcar={podeRevisar}
         />
+      </Folha>
+    </>
+  );
+}
+
+function LinhaEstatistica({ rotulo, e }: { rotulo: string; e: Estatistica }) {
+  return (
+    <div className="grid grid-cols-[4rem_repeat(3,minmax(0,1fr))] items-baseline gap-x-2 text-[13px]">
+      <span className="text-xs text-muted-foreground">{rotulo}</span>
+      <span className="font-mono tabular-nums text-ink">{formatarMoeda(e.media)}</span>
+      <span className="font-mono tabular-nums text-ink">{formatarMoeda(e.menor)}</span>
+      <span className="font-mono tabular-nums text-ink">{formatarMoeda(e.maior)}</span>
+    </div>
+  );
+}
+
+function CabecalhoEstatistica() {
+  return (
+    <div className="grid grid-cols-[4rem_repeat(3,minmax(0,1fr))] gap-x-2 text-xs text-faint">
+      <span />
+      <span>Média</span>
+      <span>Menor</span>
+      <span>Maior</span>
+    </div>
+  );
+}
+
+/** Selo "Cotado R$ X · margem Y%" que abre o resumo das cotações; sem cotação, atalho para cotar. */
+function LinhaCotacoes({
+  dado,
+  resumo,
+  titulo,
+  aoAbrir,
+}: {
+  dado: ItemPipeline;
+  resumo: ResumoCotacoes | null;
+  titulo: string;
+  aoAbrir: (aberto: boolean) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const cotar = `/calculadora?item=${encodeURIComponent(dado.id)}`;
+  function mudar(valor: boolean) {
+    setAberto(valor);
+    aoAbrir(valor);
+  }
+  if (resumo === null) {
+    if (dado.etapa === "ganha" || dado.etapa === "perdida") return null;
+    return (
+      <Link href={cotar} className={LINHA_FOLHA}>
+        <span>Sem cotação</span>
+        <span className="flex items-center gap-1 text-[13px] font-medium text-brand">
+          Cotar
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </span>
+      </Link>
+    );
+  }
+  return (
+    <>
+      <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
+        <span className="min-w-0 truncate">
+          Cotado <span className="font-mono tabular-nums">{formatarMoeda(resumo.ultima.precoVenda)}</span> · margem{" "}
+          <span className="font-mono tabular-nums">{margemEmPercentual(resumo.ultima.margem)}%</span>
+        </span>
+        <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+      </button>
+      <Folha
+        aberto={aberto}
+        aoMudar={mudar}
+        titulo="Cotações do item"
+        descricao={`${titulo} · ${resumo.quantidade} ${plural(resumo.quantidade, "cotação", "cotações")}`}
+      >
+        {resumo.frentes.map((g) => (
+          <section key={g.frente} aria-label={g.frente === "produtos" ? "Produtos" : "Serviços"} className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold text-ink">
+              {g.frente === "produtos" ? "Produtos" : "Serviços"}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {g.quantidade} {plural(g.quantidade, "cotação", "cotações")}
+              </span>
+            </h3>
+            <CabecalhoEstatistica />
+            <LinhaEstatistica rotulo="Venda" e={g.venda} />
+            <LinhaEstatistica rotulo="Custo" e={g.custo} />
+            <ul className="flex flex-col gap-2 border-t border-border pt-2">
+              {g.listas.map((l) => (
+                <li key={l.chave} className="flex flex-col gap-1 rounded-control bg-raised px-2.5 py-2">
+                  <p className="text-[13px] leading-snug text-ink">
+                    {l.descricao}
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {l.quantidade} {plural(l.quantidade, "cotação", "cotações")}
+                    </span>
+                  </p>
+                  <CabecalhoEstatistica />
+                  <LinhaEstatistica rotulo="Venda" e={l.venda} />
+                  <LinhaEstatistica rotulo="Custo" e={l.custo} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        <Link
+          href={cotar}
+          className="inline-flex h-11 items-center justify-center rounded-control border border-control px-4 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Cotar de novo
+        </Link>
       </Folha>
     </>
   );
@@ -419,10 +526,11 @@ export function CardItem({
   const [notasAbertas, setNotasAbertas] = useState(false);
   const [comentariosAbertos, setComentariosAbertos] = useState(false);
   const [revisaoAberta, setRevisaoAberta] = useState(false);
+  const [cotacoesAbertas, setCotacoesAbertas] = useState(false);
   const titulo = useMemo(() => resumirObjeto(item.objeto), [item.objeto]);
   const tituloCurto = titulo.length > 90 ? `${titulo.slice(0, 89)}…` : titulo;
   const pncp = item.linkPncp;
-  const podeArrastar = arrastavel && !notasAbertas && !comentariosAbertos && !revisaoAberta && !confirmando;
+  const podeArrastar = arrastavel && !notasAbertas && !comentariosAbertos && !revisaoAberta && !cotacoesAbertas && !confirmando;
 
   return (
     <li
@@ -478,6 +586,8 @@ export function CardItem({
           {item.valorEstimado === null ? "—" : formatarReais(item.valorEstimado)}
         </span>
       </p>
+
+      <LinhaCotacoes dado={dado} resumo={dado.cotacoes} titulo={tituloCurto} aoAbrir={setCotacoesAbertas} />
 
       <Responsavel
         dado={dado}

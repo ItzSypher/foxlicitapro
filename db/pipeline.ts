@@ -3,8 +3,10 @@ import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "@/db/client";
 import type { OportunidadeComScore } from "@/core/types";
+import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
 import type { ComentarioPipeline } from "@/core/types-equipe";
 import { validarSaidaDaRevisao, type MarcaJuridica } from "@/core/revisao-juridica";
+import { resumirCotacoesPorItem } from "@/db/cotacoes";
 import { listarMarcasPorItem, paraMarca } from "@/db/revisao-juridica";
 import {
   ETAPAS,
@@ -110,6 +112,7 @@ export async function listarPipeline(empresaId: string): Promise<ItemPipeline[]>
     order by i.ordem asc, i.criado_em asc
   `;
   const marcas = await listarMarcasPorItem(empresaId).catch((): Map<string, MarcaJuridica[]> => new Map());
+  const cotacoes = await resumirCotacoesPorItem(empresaId).catch(() => new Map<string, ResumoCotacoes>());
   const itens: ItemPipeline[] = [];
   for (const linha of linhas) {
     const lida = linhaSchema.safeParse(linha);
@@ -132,6 +135,7 @@ export async function listarPipeline(empresaId: string): Promise<ItemPipeline[]>
       responsavelNome: d.responsavel_nome,
       comentarios: d.comentarios,
       revisao: marcas.get(d.id) ?? [],
+      cotacoes: cotacoes.get(d.id) ?? null,
     });
   }
   return itens;

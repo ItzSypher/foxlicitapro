@@ -18,6 +18,8 @@ export async function removerEmpresaDeTeste(id: string): Promise<void> {
   await sql`delete from pipeline_comentarios where empresa_id = ${id}`;
   await sql`delete from pipeline_historico where empresa_id = ${id}`;
   await sql`delete from cotacoes where empresa_id = ${id}`;
+  await sql`delete from fornecedor_precos where empresa_id = ${id}`;
+  await sql`delete from fornecedores where empresa_id = ${id}`;
   await sql`delete from propostas where empresa_id = ${id}`;
   await sql`delete from palavras_chave where empresa_id = ${id}`;
   await sql`delete from preferencias where empresa_id = ${id}`;

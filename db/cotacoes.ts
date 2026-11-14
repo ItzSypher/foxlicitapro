@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "@/db/client";
 import type { CalculoPrecificacao, EntradaPrecificacao } from "@/core/precificacao";
+import { resumirCotacoes, type CotacaoParaResumo, type ResumoCotacoes } from "@/core/cotacoes-resumo";
 import type { Frente } from "@/core/types";
 
 const FrenteSchema = z.enum(["servicos", "produtos"]);
@@ -158,4 +159,45 @@ export async function lerItemParaCotacao(empresaId: string, id: string): Promise
     frente: dados.data.score.frenteCasada,
     cnae: dados.data.score.cnaesCasados[0] ?? null,
   };
+}
+
+interface LinhaCotacaoDoItem {
+  item_id: string;
+  descricao: string;
+  frente: string;
+  entrada: unknown;
+  preco_alvo: string;
+  criado_em: Date;
+}
+
+/** Resumo por item do pipeline (chave: id do item) das cotações da empresa. Linhas inválidas são ignoradas. */
+export async function resumirCotacoesPorItem(empresaId: string): Promise<Map<string, ResumoCotacoes>> {
+  const linhas = await sql<LinhaCotacaoDoItem[]>`
+    select item_id, descricao, frente, entrada, preco_alvo, criado_em
+    from cotacoes
+    where empresa_id = ${empresaId} and item_id is not null
+  `;
+  const porItem = new Map<string, CotacaoParaResumo[]>();
+  for (const l of linhas) {
+    const entrada = EntradaSchema.safeParse(l.entrada);
+    const frente = FrenteSchema.safeParse(l.frente);
+    const venda = paraNumero(l.preco_alvo);
+    if (!entrada.success || !frente.success || venda === null) continue;
+    const lista = porItem.get(l.item_id) ?? [];
+    lista.push({
+      descricao: l.descricao,
+      frente: frente.data,
+      precoVenda: venda,
+      custo: entrada.data.custo,
+      margem: entrada.data.margemAlvo,
+      criadoEm: l.criado_em.toISOString(),
+    });
+    porItem.set(l.item_id, lista);
+  }
+  const resumos = new Map<string, ResumoCotacoes>();
+  for (const [itemId, lista] of porItem) {
+    const resumo = resumirCotacoes(lista);
+    if (resumo) resumos.set(itemId, resumo);
+  }
+  return resumos;
 }

@@ -2,7 +2,9 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { CalculadoraView } from "@/components/calculadora/calculadora-view";
 import { formularioInicial } from "@/components/calculadora/estado";
+import { temPermissao } from "@/core/permissoes";
 import { listarCotacoes, lerItemParaCotacao } from "@/db/cotacoes";
+import { listarFornecedores } from "@/db/fornecedores";
 import type { CotacaoSalva, ItemParaCotacao } from "@/db/cotacoes";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
 import { perfilAtual } from "@/lib/empresa-atual";
@@ -39,6 +41,15 @@ export default async function CalculadoraPage({ searchParams }: Props) {
     cotacoes = [];
   }
 
+  let fornecedores: { id: string; nome: string }[] = [];
+  if (temPermissao(sessao, "editar_propostas")) {
+    try {
+      fornecedores = (await listarFornecedores(sessao.empresaId)).filter((f) => f.ativo).map((f) => ({ id: f.id, nome: f.nome }));
+    } catch {
+      fornecedores = [];
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
@@ -52,6 +63,7 @@ export default async function CalculadoraPage({ searchParams }: Props) {
         inicial={formularioInicial(frentePadrao, oportunidade, perfil)}
         cotacoes={cotacoes}
         cnaes={perfil.cnaes}
+        fornecedores={fornecedores}
       />
     </div>
   );
