@@ -1,5 +1,6 @@
 "use client";
 
+import { Interruptor } from "@/components/ui/interruptor";
 import { REGIOES, ROTULO_REGIAO, type CnaePerfil } from "@/core/perfil";
 import type { Frente, Regiao } from "@/core/types";
 
@@ -65,16 +66,13 @@ export function SeletorRegioes({ regioes, onChange, desabilitado = false }: Prop
   return (
     <div className="flex flex-col gap-1">
       {REGIOES.map((r) => (
-        <label key={r} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-ink">
-          <input
-            type="checkbox"
-            checked={regioes.includes(r)}
-            disabled={desabilitado}
-            onChange={(e) => onChange(e.target.checked ? [...regioes, r] : regioes.filter((x) => x !== r))}
-            className="size-5 accent-[var(--color-brand-fill)]"
-          />
-          {ROTULO_REGIAO[r]}
-        </label>
+        <Interruptor
+          key={r}
+          checked={regioes.includes(r)}
+          disabled={desabilitado}
+          onChange={(e) => onChange(e.target.checked ? [...regioes, r] : regioes.filter((x) => x !== r))}
+          rotulo={ROTULO_REGIAO[r]}
+        />
       ))}
     </div>
   );

@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** Lista de empresas (nome, linha de dados, ação) e o cartão de nova empresa. */
 export default function CarregandoAdminEmpresas() {
   return (
-    <div className="flex max-w-[860px] min-w-0 flex-col gap-5" aria-busy="true" role="status" aria-label="Carregando as empresas">
+    <div className="mx-auto flex w-full max-w-[860px] min-w-0 flex-col gap-5" aria-busy="true" role="status" aria-label="Carregando as empresas">
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] leading-tight font-semibold text-ink">Empresas</h1>
         <p className="text-sm text-muted-foreground">

@@ -4,7 +4,14 @@ import { listarUsuariosAtivos } from "@/db/usuarios";
 import { temPermissao } from "@/core/permissoes";
 import { exigirSessao } from "@/lib/sessao";
 import { PipelineView } from "@/components/pipeline/pipeline-view";
-import { ehEtapa, type EtapaId, type ItemPipeline, type PessoaPipeline } from "@/components/pipeline/tipos";
+import {
+  ehEtapa,
+  ehFiltroRegiao,
+  type EtapaId,
+  type FiltroRegiaoPipeline,
+  type ItemPipeline,
+  type PessoaPipeline,
+} from "@/components/pipeline/tipos";
 
 /** Instante do pedido; o cliente parte dele para evitar divergência na hidratação. */
 function momento(): number {
@@ -31,6 +38,9 @@ export default async function PipelinePage({
   const bruto = Array.isArray(params.etapa) ? params.etapa[0] : params.etapa;
   const etapaInicial: EtapaId = ehEtapa(bruto) ? bruto : "radar";
 
+  const regiaoBruta = Array.isArray(params.regiao) ? params.regiao[0] : params.regiao;
+  const regiaoInicial: FiltroRegiaoPipeline = ehFiltroRegiao(regiaoBruta) ? regiaoBruta : "todas";
+
   let itens: ItemPipeline[] | null;
   try {
     itens = await listarPipeline(sessao.empresaId);
@@ -44,6 +54,7 @@ export default async function PipelinePage({
     <PipelineView
       itens={itens}
       etapaInicial={etapaInicial}
+      regiaoInicial={regiaoInicial}
       agoraInicial={momento()}
       usuarioId={sessao.usuarioId}
       pessoas={pessoas}

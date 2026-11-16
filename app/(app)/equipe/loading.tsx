@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** Lista de pessoas (nome, e-mail, pílulas, resumo, ações) e o cartão de adicionar. */
 export default function CarregandoEquipe() {
   return (
-    <div className="flex min-w-0 flex-col gap-4 lg:gap-6" aria-busy="true" role="status" aria-label="Carregando a equipe">
+    <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-4 lg:gap-6" aria-busy="true" role="status" aria-label="Carregando a equipe">
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Equipe</h1>
         <p className="text-sm text-muted-foreground">Quem acessa o painel. Cada pessoa entra com o próprio e-mail e senha.</p>

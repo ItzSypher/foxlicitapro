@@ -1,6 +1,6 @@
 import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
 import type { MarcaJuridica } from "@/core/revisao-juridica";
-import type { OportunidadeComScore } from "@/core/types";
+import type { OportunidadeComScore, Regiao } from "@/core/types";
 
 /** Tipos e regras puras do pipeline, compartilhados entre servidor e cliente. */
 
@@ -64,6 +64,41 @@ export interface PessoaPipeline {
 /** "Só os meus": sou o responsável, ou adicionei e ninguém assumiu. */
 export function ehMeu(item: ItemPipeline, usuarioId: string): boolean {
   return item.responsavelId === usuarioId || (item.responsavelId === null && item.criadoPorId === usuarioId);
+}
+
+/** Rótulo curto da região, usado na etiqueta do card e no filtro. */
+export const ROTULO_REGIAO: Record<Regiao, string> = {
+  "nova-iguacu": "Nova Iguaçu",
+  capital: "Capital",
+  baixada: "Baixada",
+  rj: "Interior RJ",
+  "fora-rj": "Fora do RJ",
+};
+
+export const REGIOES_PIPELINE: readonly Regiao[] = ["nova-iguacu", "baixada", "capital", "rj", "fora-rj"];
+
+/** "todas" não filtra; as demais mostram só os itens da região. */
+export type FiltroRegiaoPipeline = "todas" | Regiao;
+
+export function ehFiltroRegiao(valor: unknown): valor is FiltroRegiaoPipeline {
+  return valor === "todas" || REGIOES_PIPELINE.some((r) => r === valor);
+}
+
+export function filtrarPorRegiao(itens: readonly ItemPipeline[], filtro: FiltroRegiaoPipeline): ItemPipeline[] {
+  return filtro === "todas" ? [...itens] : itens.filter((i) => i.item.regiao === filtro);
+}
+
+export function contarPorRegiao(itens: readonly ItemPipeline[]): Record<FiltroRegiaoPipeline, number> {
+  const contagem: Record<FiltroRegiaoPipeline, number> = {
+    todas: itens.length,
+    "nova-iguacu": 0,
+    baixada: 0,
+    capital: 0,
+    rj: 0,
+    "fora-rj": 0,
+  };
+  for (const i of itens) contagem[i.item.regiao] += 1;
+  return contagem;
 }
 
 export interface ResumoEtapa {

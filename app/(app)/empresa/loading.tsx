@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** Nome fantasia, atividades com a frente de cada uma e as regiões, na ordem do formulário. */
 export default function CarregandoEmpresa() {
   return (
-    <div className="flex max-w-[720px] min-w-0 flex-col gap-5" aria-busy="true" role="status" aria-label="Carregando a empresa">
+    <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-5" aria-busy="true" role="status" aria-label="Carregando a empresa">
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] leading-tight font-semibold text-ink">Empresa</h1>
         <Skeleton className="h-4 w-80 max-w-full" />

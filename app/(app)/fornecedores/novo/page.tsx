@@ -12,7 +12,7 @@ export default async function NovoFornecedorPage() {
   const podeEditar = temPermissao(sessao, "editar_propostas");
 
   return (
-    <div className="flex max-w-[720px] flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-5">
       <header className="flex flex-col gap-1">
         <Link href="/fornecedores" className="text-[13px] text-muted-foreground underline-offset-4 hover:underline">
           Fornecedores

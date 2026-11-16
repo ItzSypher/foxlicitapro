@@ -49,13 +49,13 @@ export default async function FornecedorPage({ params }: Props) {
   };
 
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:gap-x-8">
-      <div className="flex flex-col gap-5">
-        <header className="flex flex-col gap-1">
+    <div className="mx-auto grid w-full max-w-[1040px] min-w-0 gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:gap-x-8">
+      <div className="flex min-w-0 flex-col gap-5">
+        <header className="flex min-w-0 flex-col gap-1">
           <Link href="/fornecedores" className="text-[13px] text-muted-foreground underline-offset-4 hover:underline">
             Fornecedores
           </Link>
-          <h1 className="text-[22px] font-semibold leading-tight text-ink">{fornecedor.nome}</h1>
+          <h1 className="text-[22px] font-semibold leading-tight break-words text-ink">{fornecedor.nome}</h1>
         </header>
         <FormularioFornecedor key={`${fornecedor.id}-${JSON.stringify(dados)}`} id={fornecedor.id} inicial={dados} podeEditar={podeEditar} />
       </div>

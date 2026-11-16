@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CarregandoConta() {
   return (
-    <div className="flex max-w-md min-w-0 flex-col gap-4 lg:gap-6" aria-busy="true" role="status" aria-label="Carregando a conta">
+    <div className="mx-auto flex w-full max-w-md min-w-0 flex-col gap-4 lg:gap-6" aria-busy="true" role="status" aria-label="Carregando a conta">
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Minha conta</h1>
         <Skeleton className="h-4 w-40" />

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { salvarFornecedorAction } from "@/app/(app)/fornecedores/actions";
 import { formatarCnpj } from "@/core/brasilapi";
 import type { DadosFornecedor } from "@/core/fornecedores";
+import { Interruptor } from "@/components/ui/interruptor";
 import { BOTAO_PRIMARIO, CONTROLE } from "./estilo";
 
 interface Props {
@@ -124,10 +125,12 @@ export function FormularioFornecedor({ id, inicial, podeEditar }: Props) {
             className="w-full resize-y rounded-control border border-control bg-raised p-3 text-base leading-snug text-ink outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-70"
           />
         </div>
-        <label className="flex min-h-11 items-center gap-3 text-sm text-ink">
-          <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} className="size-5 accent-brand" />
-          Fornecedor ativo (aparece nas sugestões de preço)
-        </label>
+        <Interruptor
+          checked={ativo}
+          onChange={(e) => setAtivo(e.target.checked)}
+          rotulo="Fornecedor ativo"
+          descricao="Aparece nas sugestões de preço."
+        />
       </fieldset>
       {podeEditar ? (
         <div className="flex flex-col gap-2">

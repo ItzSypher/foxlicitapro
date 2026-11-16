@@ -9,6 +9,7 @@ import {
   type Permissao,
 } from "@/core/permissoes";
 import type { Papel } from "@/core/types-equipe";
+import { Interruptor } from "@/components/ui/interruptor";
 import { CONTROLE } from "@/components/propostas/campos";
 
 export interface ValorAcesso {
@@ -75,17 +76,14 @@ export function CamposAcesso({
           <fieldset className="flex flex-col gap-1">
             <legend className="mb-1 text-[13px] font-medium text-ink">O que a pessoa pode fazer</legend>
             {PERMISSOES.map((p) => (
-              <label key={p} className="flex min-h-11 items-center gap-3 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  name={nomeados ? "permissoes" : undefined}
-                  value={p}
-                  checked={valor.permissoes.includes(p)}
-                  onChange={(e) => alternar(p, e.target.checked)}
-                  className="size-5 shrink-0 accent-brand-fill"
-                />
-                {ROTULO_PERMISSAO[p]}
-              </label>
+              <Interruptor
+                key={p}
+                name={nomeados ? "permissoes" : undefined}
+                value={p}
+                checked={valor.permissoes.includes(p)}
+                onChange={(e) => alternar(p, e.target.checked)}
+                rotulo={ROTULO_PERMISSAO[p]}
+              />
             ))}
           </fieldset>
           <div className="flex flex-col gap-1.5">

@@ -21,7 +21,7 @@ export default async function EquipePage() {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+    <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-4 lg:gap-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Equipe</h1>
         <p className="text-sm text-muted-foreground">Quem acessa o painel. Cada pessoa entra com o próprio e-mail e senha.</p>

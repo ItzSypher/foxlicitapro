@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Interruptor } from "@/components/ui/interruptor";
 import { Pilula } from "@/components/radar/pilula";
 import { formatarNumeroBR, parseNumeroBR } from "@/components/calculadora/numero";
 import { calcularCaixa, type LimitesCaixa } from "@/core/caixa";
@@ -179,10 +180,7 @@ export function PagamentoCaixa({ numeroControle, custoCotado, origemCusto, prazo
           />
         </div>
 
-        <label className="flex min-h-11 items-center gap-3 text-sm text-ink">
-          <input type="checkbox" checked={mensal} onChange={(e) => setMensal(e.target.checked)} className="size-5 accent-brand" />
-          Receita mensal (medição todo mês)
-        </label>
+        <Interruptor checked={mensal} onChange={(e) => setMensal(e.target.checked)} rotulo="Receita mensal (medição todo mês)" />
         {mensal ? (
           <div className="sm:max-w-xs">
             <Campo id="caixa-meses" rotulo="Duração do contrato (meses)" valor={meses} onMudar={setMeses} modo="numeric" />

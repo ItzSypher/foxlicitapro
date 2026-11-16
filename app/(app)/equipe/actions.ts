@@ -125,6 +125,24 @@ export async function redefinirSenhaAction(id: string): Promise<RespostaSenha> {
   }
 }
 
+/** O dono define a senha de outra pessoa da equipe. A própria senha se troca em /equipe/conta. */
+export async function definirSenhaAction(id: string, _anterior: EstadoSenha, dados: FormData): Promise<EstadoSenha> {
+  const dono = await comoDono();
+  if (!dono) return { ok: false, erro: SEM_PERMISSAO };
+  if (!z.uuid().safeParse(id).success) return { ok: false, erro: "Pessoa não encontrada." };
+  if (id === dono.usuarioId) return { ok: false, erro: "Para trocar a sua senha, use Minha conta." };
+  const lido = SenhaDigitadaSchema.safeParse({ senha: textoDe(dados.get("senha")), confirmar: textoDe(dados.get("confirmar")) });
+  if (!lido.success) return { ok: false, erro: lido.error.issues[0]?.message ?? "Senha inválida." };
+  try {
+    const gravou = await definirSenhaUsuario(dono.empresaId, id, await hashSenha(lido.data.senha));
+    if (!gravou) return { ok: false, erro: "Pessoa não encontrada." };
+    return { ok: true, erro: null };
+  } catch (e) {
+    console.error("[equipe]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível salvar agora. Tente de novo." };
+  }
+}
+
 export async function alternarAtivoAction(id: string, ativo: boolean): Promise<RespostaSimples> {
   let dono;
   try {

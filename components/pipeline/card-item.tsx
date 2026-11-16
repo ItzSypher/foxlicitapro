@@ -17,7 +17,7 @@ import { formatarReais, textoFecha } from "./formato";
 import { MenuAcoes } from "./menu-acoes";
 import { CLASSE_FOLHA, useColunas } from "./midia";
 import { RevisaoJuridica } from "./revisao-juridica";
-import type { EtapaId, ItemPipeline, PessoaPipeline } from "./tipos";
+import { ROTULO_REGIAO, type EtapaId, type ItemPipeline, type PessoaPipeline } from "./tipos";
 
 const COR_FAIXA: Record<Faixa, string> = {
   go: "text-positive",
@@ -580,10 +580,20 @@ export function CardItem({
 
       <p className="line-clamp-3 text-sm font-medium leading-snug text-ink">{titulo}</p>
 
-      <p className="text-[13px] leading-snug text-muted-foreground">
-        {item.municipio} ·{" "}
-        <span className="font-mono tabular-nums">
-          {item.valorEstimado === null ? "—" : formatarReais(item.valorEstimado)}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-snug text-muted-foreground">
+        <span
+          className={cn(
+            "inline-flex h-5 shrink-0 items-center rounded-control border px-1.5 text-[11px] leading-none font-medium whitespace-nowrap",
+            item.regiao === "nova-iguacu" ? "border-brand text-ink" : "border-border",
+          )}
+        >
+          {ROTULO_REGIAO[item.regiao]}
+        </span>
+        <span className="min-w-0">
+          {item.municipio} ·{" "}
+          <span className="font-mono tabular-nums">
+            {item.valorEstimado === null ? "—" : formatarReais(item.valorEstimado)}
+          </span>
         </span>
       </p>
 

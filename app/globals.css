@@ -241,6 +241,22 @@
   display: none;
 }
 
+/* Trilho do Kanban: sem barra no celular (desliza com o dedo); fina e no tom do tema no computador. */
+@media (max-width: 767px) {
+  .trilho-rolagem {
+    scrollbar-width: none;
+  }
+  .trilho-rolagem::-webkit-scrollbar {
+    display: none;
+  }
+}
+@media (min-width: 768px) {
+  .trilho-rolagem {
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-control) transparent;
+  }
+}
+
 /* Impressão de propostas: some a casca do app e o documento sai em A4, preto no branco. */
 @page {
   size: A4;

@@ -2,13 +2,42 @@
 
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { cn } from "@/lib/utils";
 import { BlocoErro } from "./bloco-erro";
 import { Coluna } from "./coluna";
 import { linhaDeNumeros } from "./formato";
 import { useColunas } from "./midia";
-import { ETAPAS, ehMeu, montarResumo, type EtapaId, type ItemPipeline, type PessoaPipeline } from "./tipos";
+import {
+  ETAPAS,
+  REGIOES_PIPELINE,
+  ROTULO_REGIAO,
+  contarPorRegiao,
+  ehMeu,
+  filtrarPorRegiao,
+  montarResumo,
+  type EtapaId,
+  type FiltroRegiaoPipeline,
+  type ItemPipeline,
+  type PessoaPipeline,
+} from "./tipos";
+
+const OPCOES_REGIAO: ReadonlyArray<{ id: FiltroRegiaoPipeline; rotulo: string }> = [
+  { id: "todas", rotulo: "Todas" },
+  ...REGIOES_PIPELINE.map((r) => ({ id: r, rotulo: ROTULO_REGIAO[r] })),
+];
+
+/** Troca parâmetros da URL sem navegar, preservando os demais; valor null remove o parâmetro. */
+function atualizarUrl(mudancas: Record<string, string | null>) {
+  const params = new URLSearchParams(window.location.search);
+  for (const [chave, valor] of Object.entries(mudancas)) {
+    if (valor === null) params.delete(chave);
+    else params.set(chave, valor);
+  }
+  const texto = params.toString();
+  window.history.replaceState(null, "", window.location.pathname + (texto === "" ? "" : "?" + texto));
+}
 
 type Acao =
   | { tipo: "mover"; id: string; etapa: EtapaId }
@@ -32,6 +61,7 @@ interface Props {
   /** null quando a leitura do banco falhou */
   itens: ItemPipeline[] | null;
   etapaInicial: EtapaId;
+  regiaoInicial: FiltroRegiaoPipeline;
   agoraInicial: number;
   usuarioId: string;
   /** Pessoas ativas que podem assumir um item */
@@ -42,10 +72,10 @@ interface Props {
   podeRevisar: boolean;
 }
 
-export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar }: Props) {
+export function PipelineView({ itens: itensServidor, etapaInicial, regiaoInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar }: Props) {
   if (itensServidor === null) {
     return (
-      <div className="flex flex-col gap-4 lg:gap-6">
+      <div data-largura-total className="flex flex-col gap-4 lg:gap-6">
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Pipeline</h1>
         <BlocoErro />
       </div>
@@ -55,6 +85,7 @@ export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial,
     <Quadro
       itensServidor={itensServidor}
       etapaInicial={etapaInicial}
+      regiaoInicial={regiaoInicial}
       agoraInicial={agoraInicial}
       usuarioId={usuarioId}
       pessoas={pessoas}
@@ -67,6 +98,7 @@ export function PipelineView({ itens: itensServidor, etapaInicial, agoraInicial,
 function Quadro({
   itensServidor,
   etapaInicial,
+  regiaoInicial,
   agoraInicial,
   usuarioId,
   pessoas,
@@ -75,6 +107,7 @@ function Quadro({
 }: {
   itensServidor: ItemPipeline[];
   etapaInicial: EtapaId;
+  regiaoInicial: FiltroRegiaoPipeline;
   agoraInicial: number;
   usuarioId: string;
   pessoas: PessoaPipeline[];
@@ -83,7 +116,12 @@ function Quadro({
 }) {
   const [todos, aplicar] = useOptimistic(itensServidor, reduzir);
   const [soMeus, setSoMeus] = useState(false);
-  const itens = useMemo(() => (soMeus ? todos.filter((i) => ehMeu(i, usuarioId)) : todos), [todos, soMeus, usuarioId]);
+  const [regiao, setRegiao] = useState<FiltroRegiaoPipeline>(regiaoInicial);
+  const [abertas, setAbertas] = useState<ReadonlySet<EtapaId>>(() => new Set());
+  const [bordas, setBordas] = useState({ esquerda: false, direita: false });
+  const doUsuario = useMemo(() => (soMeus ? todos.filter((i) => ehMeu(i, usuarioId)) : todos), [todos, soMeus, usuarioId]);
+  const contagemRegiao = useMemo(() => contarPorRegiao(doUsuario), [doUsuario]);
+  const itens = useMemo(() => filtrarPorRegiao(doUsuario, regiao), [doUsuario, regiao]);
   const [, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<EtapaId>(etapaInicial);
@@ -142,7 +180,36 @@ function Quadro({
 
   function escolherAba(id: EtapaId) {
     setAba(id);
-    window.history.replaceState(null, "", `?etapa=${id}`);
+    atualizarUrl({ etapa: id });
+  }
+
+  function escolherRegiao(id: FiltroRegiaoPipeline) {
+    setRegiao(id);
+    atualizarUrl({ regiao: id === "todas" ? null : id });
+  }
+
+  function alternarColuna(id: EtapaId, aberta: boolean) {
+    setAbertas((atual) => {
+      const novo = new Set(atual);
+      if (aberta) novo.add(id);
+      else novo.delete(id);
+      return novo;
+    });
+  }
+
+  /** Mostra as setas só quando há coluna escondida de cada lado. */
+  const medirBordas = useCallback(() => {
+    const quadro = trilho.current;
+    if (!quadro) return;
+    const esquerda = quadro.scrollLeft > 1;
+    const direita = quadro.scrollLeft + quadro.clientWidth < quadro.scrollWidth - 1;
+    setBordas((atual) => (atual.esquerda === esquerda && atual.direita === direita ? atual : { esquerda, direita }));
+  }, []);
+
+  function rolarLado(sentido: 1 | -1) {
+    const quadro = trilho.current;
+    if (!quadro) return;
+    quadro.scrollBy({ left: sentido * Math.max(300, quadro.clientWidth * 0.8), behavior: "smooth" });
   }
 
   /** Posição de rolagem do trilho em que a coluna da etapa fica inteira na vista. */
@@ -167,6 +234,7 @@ function Quadro({
 
   /** Deslizar entre etapas no celular: quando a rolagem assenta, a aba acompanha a coluna à vista. */
   function aoRolar() {
+    medirBordas();
     if (colunas) return;
     window.clearTimeout(pausa.current);
     pausa.current = window.setTimeout(() => {
@@ -202,6 +270,43 @@ function Quadro({
     [],
   );
 
+  const vazio = todos.length === 0;
+
+  // Computador: a roda vertical do mouse rola o quadro na horizontal, exceto sobre uma lista que ainda rola.
+  useEffect(() => {
+    const quadro = trilho.current;
+    if (!quadro || !colunas) return;
+    function aoGirar(e: WheelEvent) {
+      if (!quadro || e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const maximo = quadro.scrollWidth - quadro.clientWidth;
+      const sentido = e.deltaY > 0 ? 1 : -1;
+      if ((sentido > 0 && quadro.scrollLeft >= maximo - 1) || (sentido < 0 && quadro.scrollLeft <= 0)) return;
+      let no = e.target instanceof Element ? e.target : null;
+      while (no && no !== quadro) {
+        if (no instanceof HTMLElement) {
+          const eixo = getComputedStyle(no).overflowY;
+          if ((eixo === "auto" || eixo === "scroll") && no.scrollHeight > no.clientHeight + 1) {
+            const podeDescer = no.scrollTop + no.clientHeight < no.scrollHeight - 1;
+            const podeSubir = no.scrollTop > 0;
+            if ((sentido > 0 && podeDescer) || (sentido < 0 && podeSubir)) return;
+          }
+        }
+        no = no.parentElement;
+      }
+      e.preventDefault();
+      const fator = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? quadro.clientWidth : 1;
+      quadro.scrollLeft += e.deltaY * fator;
+    }
+    quadro.addEventListener("wheel", aoGirar, { passive: false });
+    const observador = new ResizeObserver(medirBordas);
+    observador.observe(quadro);
+    for (const coluna of Array.from(quadro.children)) observador.observe(coluna);
+    return () => {
+      quadro.removeEventListener("wheel", aoGirar);
+      observador.disconnect();
+    };
+  }, [colunas, vazio, medirBordas]);
+
   // Mantém a aba ativa à vista na fileira de segmentos.
   useEffect(() => {
     const fileira = tablist.current;
@@ -221,24 +326,59 @@ function Quadro({
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="text-[22px] font-semibold leading-tight text-ink">Pipeline</h1>
-          <p className="font-mono text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
-        </div>
-        <button
-          type="button"
-          aria-pressed={soMeus}
-          onClick={() => setSoMeus((v) => !v)}
-          className={cn(
-            "inline-flex h-11 shrink-0 items-center rounded-control border px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand",
-            soMeus ? "border-brand bg-active font-medium text-ink" : "border-control text-muted-foreground hover:bg-active hover:text-ink",
-          )}
-        >
-          Só os meus
-        </button>
+    <div
+      data-largura-total
+      className={cn(
+        "flex min-w-0 flex-col gap-4 lg:gap-5",
+        vazio ? "" : "md:h-[calc(100dvh-9.25rem)] md:min-h-[26rem] lg:h-[calc(100dvh-5rem)]",
+      )}
+    >
+      <div className="flex min-w-0 flex-col gap-1">
+        <h1 className="text-[22px] font-semibold leading-tight text-ink">Pipeline</h1>
+        <p className="font-mono text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
       </div>
+
+      {vazio ? null : (
+        <div className="flex items-center gap-2 lg:gap-3">
+          <div
+            role="group"
+            aria-label="Região"
+            className="sem-barra flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+          >
+            {OPCOES_REGIAO.map((o) => {
+              const ativa = regiao === o.id;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  aria-pressed={ativa}
+                  onClick={() => escolherRegiao(o.id)}
+                  className={cn(
+                    "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border px-3 text-sm whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
+                    ativa
+                      ? "border-control bg-active font-medium text-ink"
+                      : "border-border bg-surface text-muted-foreground hover:bg-raised hover:text-ink",
+                  )}
+                >
+                  {o.rotulo}
+                  <span className="font-mono text-xs tabular-nums">{contagemRegiao[o.id]}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+          type="button"
+            aria-pressed={soMeus}
+            onClick={() => setSoMeus((v) => !v)}
+            className={cn(
+              "inline-flex h-11 shrink-0 items-center rounded-control border px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
+              soMeus ? "border-brand bg-active font-medium text-ink" : "border-control text-muted-foreground hover:bg-active hover:text-ink",
+            )}
+          >
+            Só os meus
+          </button>
+        </div>
+      )}
 
       {erro ? (
         <p
@@ -291,10 +431,31 @@ function Quadro({
             })}
           </div>
 
+          <div className="relative min-w-0 md:min-h-0 md:flex-1">
+          {colunas && bordas.esquerda ? (
+            <button
+              type="button"
+              aria-label="Rolar o quadro para a esquerda"
+              onClick={() => rolarLado(-1)}
+              className="absolute top-1/2 left-1 z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-control bg-surface text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              <ChevronLeft aria-hidden="true" className="size-5" />
+            </button>
+          ) : null}
+          {colunas && bordas.direita ? (
+            <button
+              type="button"
+              aria-label="Rolar o quadro para a direita"
+              onClick={() => rolarLado(1)}
+              className="absolute top-1/2 right-1 z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-control bg-surface text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              <ChevronRight aria-hidden="true" className="size-5" />
+            </button>
+          ) : null}
           <div
             ref={ligarTrilho}
             onScroll={aoRolar}
-            className="sem-barra relative flex min-w-0 snap-x snap-mandatory items-start gap-3 overflow-x-auto md:h-[calc(100dvh-17rem)] md:snap-none md:items-stretch md:pb-2 lg:h-[calc(100dvh-13rem)]"
+            className="trilho-rolagem relative flex min-w-0 snap-x snap-mandatory items-start gap-3 overflow-x-auto md:h-full md:snap-none md:items-stretch md:pb-2"
           >
             {ETAPAS.map((e) => (
               <Coluna
@@ -305,6 +466,8 @@ function Quadro({
                 resumo={resumo.porEtapa[e.id]}
                 ativaNoTelefone={aba === e.id}
                 colunas={colunas}
+                aberta={abertas.has(e.id)}
+                aoAlternar={alternarColuna}
                 agoraInicial={agoraInicial}
                 pessoas={pessoas}
                 aoResponsavel={trocarResponsavel}
@@ -321,6 +484,7 @@ function Quadro({
                 aoRemover={remover}
               />
             ))}
+          </div>
           </div>
         </>
       )}

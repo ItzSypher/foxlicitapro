@@ -21,7 +21,7 @@ function CartaoLista({ chips }: { chips: number }) {
 /** Três listas de termos, o interruptor do resumo e os limites de caixa, como no formulário. */
 export default function CarregandoPreferencias() {
   return (
-    <div className="flex max-w-[720px] flex-col gap-5" aria-busy="true" role="status" aria-label="Carregando as preferências">
+    <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-5" aria-busy="true" role="status" aria-label="Carregando as preferências">
       <div className="flex flex-col gap-1">
         <h1 className="text-[22px] leading-tight font-semibold text-ink">Preferências</h1>
         <p className="text-sm text-muted-foreground">Aqui você diz o que quer ver no Radar e quem recebe o resumo por e-mail.</p>

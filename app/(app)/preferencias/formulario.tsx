@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { formatarNumeroBR, parseNumeroBR } from "@/components/calculadora/numero";
+import { Interruptor } from "@/components/ui/interruptor";
 import type { Preferencias } from "@/core/types-equipe";
 import { cn } from "@/lib/utils";
 import { salvarPreferenciasAction } from "./actions";
@@ -103,40 +104,14 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
         vazio="Nenhum e-mail cadastrado."
       />
 
-      <section className="flex items-center justify-between gap-4 rounded-card border border-border bg-surface p-4">
-        <div className="min-w-0">
-          <h2 id="titulo-resumo" className="text-base font-semibold text-ink">
-            Receber resumo diário
-          </h2>
-          <p className="text-[13px] text-muted-foreground">
-            Desligado, ninguém recebe o e-mail, mesmo com endereços na lista.
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={resumoAtivo}
-          aria-labelledby="titulo-resumo"
+      <section className="rounded-card border border-border bg-surface px-4 py-3">
+        <Interruptor
+          rotulo={<span className="text-base font-semibold">Receber resumo diário</span>}
+          descricao="Desligado, ninguém recebe o e-mail, mesmo com endereços na lista."
+          checked={resumoAtivo}
           disabled={somenteLeitura}
-          onClick={() => setResumoAtivo((atual) => !atual)}
-          className="inline-flex h-11 w-14 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <span
-            aria-hidden="true"
-            className={cn(
-              "flex h-7 w-12 items-center rounded-full border p-0.5 transition-colors",
-              resumoAtivo ? "border-transparent bg-brand-fill" : "border-control bg-raised",
-            )}
-          >
-            <span
-              className={cn(
-                "size-5 rounded-full transition-transform duration-150",
-                resumoAtivo ? "translate-x-5 bg-black" : "translate-x-0 bg-muted-foreground",
-              )}
-            />
-          </span>
-          <span className="sr-only">{resumoAtivo ? "Ligado" : "Desligado"}</span>
-        </button>
+          onChange={(e) => setResumoAtivo(e.currentTarget.checked)}
+        />
       </section>
 
       <section className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4" aria-labelledby="titulo-caixa">

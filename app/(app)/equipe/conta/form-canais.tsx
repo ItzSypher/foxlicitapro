@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Interruptor } from "@/components/ui/interruptor";
 import { CONTROLE } from "@/components/propostas/campos";
 import { salvarCanaisAction, type EstadoCanais } from "../actions";
 
@@ -15,8 +16,6 @@ interface Props {
   whatsappDisponivel: boolean;
 }
 
-const CAIXA = "mt-0.5 size-5 shrink-0 accent-brand-fill";
-
 export function FormCanais({ whatsapp, email, avisoWhatsapp, whatsappDisponivel }: Props) {
   const [estado, acao, pendente] = useActionState(salvarCanaisAction, ESTADO_INICIAL);
   return (
@@ -26,10 +25,7 @@ export function FormCanais({ whatsapp, email, avisoWhatsapp, whatsappDisponivel 
         <p className="text-[13px] text-muted-foreground">O sino do painel sempre mostra tudo. Escolha se quer receber também fora dele.</p>
       </div>
 
-      <label className="flex min-h-11 items-start gap-3 text-sm text-ink">
-        <input type="checkbox" name="avisoEmail" defaultChecked={email} className={CAIXA} />
-        <span>Receber por e-mail</span>
-      </label>
+      <Interruptor name="avisoEmail" defaultChecked={email} rotulo="Receber por e-mail" />
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="whatsapp" className="text-[13px] font-medium text-ink">
@@ -48,13 +44,12 @@ export function FormCanais({ whatsapp, email, avisoWhatsapp, whatsappDisponivel 
         />
       </div>
 
-      <label className="flex min-h-11 items-start gap-3 text-sm text-ink">
-        <input type="checkbox" name="avisoWhatsapp" defaultChecked={avisoWhatsapp} className={CAIXA} />
-        <span>
-          Receber por WhatsApp
-          {whatsappDisponivel ? null : <span className="block text-[13px] text-muted-foreground">Ainda não está ativo neste painel. Sua escolha fica guardada.</span>}
-        </span>
-      </label>
+      <Interruptor
+        name="avisoWhatsapp"
+        defaultChecked={avisoWhatsapp}
+        rotulo="Receber por WhatsApp"
+        descricao={whatsappDisponivel ? undefined : "Ainda não está ativo neste painel. Sua escolha fica guardada."}
+      />
 
       {estado.erro ? (
         <p role="alert" className="text-[13px] text-negative">

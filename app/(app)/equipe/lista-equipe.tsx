@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { Pilula } from "@/components/radar/pilula";
 import { CONTROLE } from "@/components/propostas/campos";
 import { ROTULO_PAPEL, ROTULO_PERMISSAO } from "@/core/permissoes";
@@ -10,8 +11,10 @@ import {
   adicionarPessoaAction,
   alternarAtivoAction,
   atualizarAcessosAction,
+  definirSenhaAction,
   redefinirSenhaAction,
   type EstadoAdicionar,
+  type EstadoSenha,
 } from "./actions";
 import { CamposAcesso, acessoPadrao, type ValorAcesso } from "./campos-acesso";
 import { SenhaUnica } from "./senha-unica";
@@ -146,11 +149,91 @@ function FormAdicionar() {
   );
 }
 
+const SENHA_INICIAL: EstadoSenha = { erro: null, ok: false };
+
+function FormDefinirSenha({ id, nome, aoFechar }: { id: string; nome: string; aoFechar: () => void }) {
+  const [estado, acao, pendente] = useActionState(definirSenhaAction.bind(null, id), SENHA_INICIAL);
+  const [visivel, setVisivel] = useState(false);
+  const tipo = visivel ? "text" : "password";
+
+  if (estado.ok) {
+    return (
+      <div role="status" className="flex flex-col gap-3 rounded-card border border-brand bg-surface p-3">
+        <p className="text-sm text-ink">Senha atualizada. Avise a pessoa.</p>
+        <button type="button" onClick={aoFechar} className={`${BOTAO} w-full sm:w-fit`}>
+          Fechar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form action={acao} className="flex flex-col gap-3 rounded-card border border-border bg-surface p-3">
+      <p className="text-sm font-medium text-ink">Definir senha de {nome}</p>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={`senha-${id}`} className="text-[13px] font-medium text-ink">
+          Nova senha (mínimo 8 caracteres)
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            id={`senha-${id}`}
+            name="senha"
+            type={tipo}
+            required
+            minLength={8}
+            maxLength={200}
+            autoComplete="new-password"
+            className={`${CONTROLE} min-w-0 flex-1`}
+          />
+          <button
+            type="button"
+            onClick={() => setVisivel((v) => !v)}
+            aria-label={visivel ? "Ocultar senha" : "Mostrar senha"}
+            aria-pressed={visivel}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-control border border-control bg-raised text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            {visivel ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={`confirmar-${id}`} className="text-[13px] font-medium text-ink">
+          Repita a senha
+        </label>
+        <input
+          id={`confirmar-${id}`}
+          name="confirmar"
+          type={tipo}
+          required
+          minLength={8}
+          maxLength={200}
+          autoComplete="new-password"
+          className={CONTROLE}
+        />
+      </div>
+      {estado.erro ? (
+        <p role="alert" className="text-[13px] text-negative">
+          {estado.erro}
+        </p>
+      ) : null}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button type="submit" disabled={pendente} className={BOTAO}>
+          {pendente ? "Salvando…" : "Salvar"}
+        </button>
+        <button type="button" onClick={aoFechar} disabled={pendente} className={BOTAO}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean }) {
   const [pendente, iniciar] = useTransition();
   const [senha, setSenha] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [editando, setEditando] = useState(false);
+  const [definindo, setDefinindo] = useState(false);
   const [acesso, setAcesso] = useState<ValorAcesso>({
     papel: usuario.papel,
     permissoes: usuario.permissoes,
@@ -230,14 +313,20 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
           Editar acessos
         </button>
         <button type="button" onClick={redefinir} disabled={pendente} className={BOTAO}>
-          {pendente && !editando ? "Aguarde…" : "Redefinir senha"}
+          {pendente && !editando ? "Aguarde…" : "Gerar senha aleatória"}
         </button>
+        {!ehVoce ? (
+          <button type="button" onClick={() => setDefinindo((v) => !v)} disabled={pendente} className={BOTAO}>
+            Definir senha
+          </button>
+        ) : null}
         {!ehVoce ? (
           <button type="button" onClick={alternar} disabled={pendente} className={BOTAO}>
             {usuario.ativo ? "Desativar" : "Reativar"}
           </button>
         ) : null}
       </div>
+      {definindo && !ehVoce ? <FormDefinirSenha id={usuario.id} nome={usuario.nome} aoFechar={() => setDefinindo(false)} /> : null}
       {senha ? <SenhaUnica titulo={`Nova senha de ${usuario.nome}`} senha={senha} aoFechar={() => setSenha(null)} /> : null}
       {erro && !editando ? (
         <p role="alert" className="text-[13px] text-negative">
