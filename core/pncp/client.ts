@@ -29,17 +29,36 @@ export interface ResultadoModalidade {
 const ESPERAS_RETRY_PADRAO_MS: readonly number[] = [700, 1500];
 const STATUS_COM_RETRY: ReadonlySet<number> = new Set([429, 502, 503, 504]);
 
+/** Estado da consulta quando ninguém pede outro: o Radar diário olha só o Rio de Janeiro. */
+export const UF_PADRAO = "RJ";
+
 export interface OpcoesBusca {
   /** Permite trocar o fetch nos testes */
   fetchImpl?: typeof fetch;
   agora?: Date;
   /** Esperas entre tentativas; lista vazia desliga o retry (usado nos testes) */
   esperasRetryMs?: readonly number[];
+  /** Sigla da UF. Ausente vale "RJ"; `null` consulta o Brasil todo (sem o parâmetro uf). */
+  uf?: string | null;
+  /** Código IBGE do município (7 dígitos); ausente não filtra por município */
+  codigoMunicipioIbge?: string;
+  /** Máximo de páginas por modalidade; ausente vale 10 */
+  maxPaginas?: number;
+  /** Timeout de cada chamada, em ms; ausente vale 8000 */
+  timeoutMs?: number;
+  /** Janela, em dias a partir de hoje, das propostas que ainda encerram; ausente vale 60 */
+  diasAFrente?: number;
 }
 
-/** Data de hoje + 60 dias no formato yyyyMMdd, no fuso de Brasília. */
-export function dataFinalPara(agora: Date): string {
-  const futuro = new Date(agora.getTime() + DIAS_A_FRENTE * 24 * 60 * 60 * 1000);
+/** Parâmetros da consulta que mudam conforme a busca; o resto é fixo. */
+export interface ParametrosConsulta {
+  uf: string | null;
+  codigoMunicipioIbge?: string;
+}
+
+/** Data de hoje + 60 dias (ou `dias`) no formato yyyyMMdd, no fuso de Brasília. */
+export function dataFinalPara(agora: Date, dias: number = DIAS_A_FRENTE): string {
+  const futuro = new Date(agora.getTime() + dias * 24 * 60 * 60 * 1000);
   const partes = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
     year: "numeric",
@@ -50,14 +69,21 @@ export function dataFinalPara(agora: Date): string {
   return `${valor("year")}${valor("month")}${valor("day")}`;
 }
 
-function montarUrl(modalidadeId: ModalidadeId, dataFinal: string, pagina: number): string {
+/** URL da consulta. Sem `uf` na consulta o parâmetro some (Brasil todo); o município só entra se informado. */
+export function montarUrl(
+  modalidadeId: ModalidadeId,
+  dataFinal: string,
+  pagina: number,
+  consulta: ParametrosConsulta = { uf: UF_PADRAO },
+): string {
   const params = new URLSearchParams({
     dataFinal,
     codigoModalidadeContratacao: String(modalidadeId),
-    uf: "RJ",
-    pagina: String(pagina),
-    tamanhoPagina: String(TAMANHO_PAGINA),
   });
+  if (consulta.uf !== null) params.set("uf", consulta.uf);
+  if (consulta.codigoMunicipioIbge) params.set("codigoMunicipioIbge", consulta.codigoMunicipioIbge);
+  params.set("pagina", String(pagina));
+  params.set("tamanhoPagina", String(TAMANHO_PAGINA));
   return `${URL_BASE}?${params.toString()}`;
 }
 
@@ -75,13 +101,14 @@ async function chamar(
   fetchImpl: typeof fetch,
   url: string,
   esperasMs: readonly number[],
+  timeoutMs: number,
 ): Promise<Response> {
   for (let tentativa = 0; ; tentativa += 1) {
     const ultima = tentativa >= esperasMs.length;
     try {
       const resposta = await fetchImpl(url, {
         headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
         next: { revalidate: REVALIDAR_SEGUNDOS },
       });
       if (ultima || !STATUS_COM_RETRY.has(resposta.status)) return resposta;
@@ -99,8 +126,10 @@ async function lerPagina(
   dataFinal: string,
   pagina: number,
   esperasMs: readonly number[],
+  consulta: ParametrosConsulta,
+  timeoutMs: number,
 ): Promise<PaginaLida> {
-  const resposta = await chamar(fetchImpl, montarUrl(modalidadeId, dataFinal, pagina), esperasMs);
+  const resposta = await chamar(fetchImpl, montarUrl(modalidadeId, dataFinal, pagina, consulta), esperasMs, timeoutMs);
   if (resposta.status === 204) return { itens: [], totalPaginas: 0 };
   if (!resposta.ok) {
     throw new ErroPncp(`PNCP respondeu HTTP ${resposta.status} (modalidade ${modalidadeId}, página ${pagina})`, resposta.status);
@@ -117,26 +146,40 @@ async function lerPagina(
   return { itens, totalPaginas: corpo.data.totalPaginas ?? 1 };
 }
 
+/** Resultado de uma modalidade com a conta de páginas, para avisar quando a busca foi cortada. */
+export interface ResultadoModalidadeDetalhado extends ResultadoModalidade {
+  /** Páginas pedidas ao PNCP (a primeira conta mesmo quando falha) */
+  paginasConsultadas: number;
+  /** Total de páginas que o PNCP informou; 0 quando a primeira página falhou */
+  totalPaginas: number;
+}
+
 /**
- * Busca todas as contratações de uma modalidade: primeira página em série,
- * demais em paralelo, até o limite de 10 páginas. Nunca lança: a falha vira `falhou`.
+ * Busca as contratações de uma modalidade: primeira página em série, demais em lotes,
+ * até `maxPaginas` (10 por padrão). Nunca lança: a falha vira `falhou`.
  */
-export async function buscarModalidade(
+export async function buscarModalidadeDetalhada(
   modalidadeId: ModalidadeId,
   opcoes: OpcoesBusca = {},
-): Promise<ResultadoModalidade> {
+): Promise<ResultadoModalidadeDetalhado> {
   const fetchImpl = opcoes.fetchImpl ?? fetch;
-  const dataFinal = dataFinalPara(opcoes.agora ?? new Date());
+  const dataFinal = dataFinalPara(opcoes.agora ?? new Date(), opcoes.diasAFrente);
   const esperasMs = opcoes.esperasRetryMs ?? ESPERAS_RETRY_PADRAO_MS;
+  const maxPaginas = Math.max(1, Math.floor(opcoes.maxPaginas ?? MAX_PAGINAS));
+  const timeoutMs = opcoes.timeoutMs ?? TIMEOUT_MS;
+  const consulta: ParametrosConsulta = {
+    uf: opcoes.uf === undefined ? UF_PADRAO : opcoes.uf,
+    ...(opcoes.codigoMunicipioIbge ? { codigoMunicipioIbge: opcoes.codigoMunicipioIbge } : {}),
+  };
 
   let primeira: PaginaLida;
   try {
-    primeira = await lerPagina(fetchImpl, modalidadeId, dataFinal, 1, esperasMs);
+    primeira = await lerPagina(fetchImpl, modalidadeId, dataFinal, 1, esperasMs, consulta, timeoutMs);
   } catch {
-    return { modalidadeId, contratacoes: [], falhou: true };
+    return { modalidadeId, contratacoes: [], falhou: true, paginasConsultadas: 1, totalPaginas: 0 };
   }
 
-  const ultima = Math.min(primeira.totalPaginas, MAX_PAGINAS);
+  const ultima = Math.min(primeira.totalPaginas, maxPaginas);
   const numerosRestantes: number[] = [];
   for (let n = 2; n <= ultima; n += 1) numerosRestantes.push(n);
 
@@ -146,7 +189,7 @@ export async function buscarModalidade(
     const lote = numerosRestantes.slice(i, i + PAGINAS_POR_LOTE);
     restantes.push(
       ...(await Promise.allSettled(
-        lote.map((n) => lerPagina(fetchImpl, modalidadeId, dataFinal, n, esperasMs)),
+        lote.map((n) => lerPagina(fetchImpl, modalidadeId, dataFinal, n, esperasMs, consulta, timeoutMs)),
       )),
     );
   }
@@ -157,10 +200,30 @@ export async function buscarModalidade(
     if (r.status === "fulfilled") contratacoes.push(...r.value.itens);
     else falhou = true;
   }
+  return {
+    modalidadeId,
+    contratacoes,
+    falhou,
+    paginasConsultadas: Math.max(1, ultima),
+    totalPaginas: primeira.totalPaginas,
+  };
+}
+
+/** Busca todas as contratações de uma modalidade. Nunca lança: a falha vira `falhou`. */
+export async function buscarModalidade(
+  modalidadeId: ModalidadeId,
+  opcoes: OpcoesBusca = {},
+): Promise<ResultadoModalidade> {
+  const { contratacoes, falhou } = await buscarModalidadeDetalhada(modalidadeId, opcoes);
   return { modalidadeId, contratacoes, falhou };
 }
 
 /** Busca as duas modalidades de forma independente. */
 export async function buscarContratacoes(opcoes: OpcoesBusca = {}): Promise<ResultadoModalidade[]> {
   return Promise.all(MODALIDADES.map((m) => buscarModalidade(m, opcoes)));
+}
+
+/** Igual a `buscarContratacoes`, com a conta de páginas de cada modalidade. */
+export async function buscarContratacoesDetalhadas(opcoes: OpcoesBusca = {}): Promise<ResultadoModalidadeDetalhado[]> {
+  return Promise.all(MODALIDADES.map((m) => buscarModalidadeDetalhada(m, opcoes)));
 }

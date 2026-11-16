@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { AMOSTRA_DISPENSA } from "./amostra-real";
-import { buscarModalidade, dataFinalPara } from "./client";
+import { buscarModalidade, buscarModalidadeDetalhada, dataFinalPara } from "./client";
 
 function respostaJson(corpo: unknown, status = 200): Response {
   return new Response(JSON.stringify(corpo), { status, headers: { "Content-Type": "application/json" } });
@@ -38,6 +38,42 @@ describe("buscarModalidade", () => {
     });
   });
 
+  it("aceita UF, município, limite de páginas e janela próprios", async () => {
+    const fetchImpl = vi.fn(async (entrada: string | URL | Request) => {
+      const n = Number(new URL(String(entrada)).searchParams.get("pagina"));
+      return respostaJson(pagina(n, 20));
+    });
+    const agora = new Date("2026-11-10T12:00:00-03:00");
+    const r = await buscarModalidadeDetalhada(6, {
+      fetchImpl,
+      esperasRetryMs: [],
+      agora,
+      uf: "SP",
+      codigoMunicipioIbge: "3550308",
+      maxPaginas: 3,
+      diasAFrente: 15,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(r.paginasConsultadas).toBe(3);
+    expect(r.totalPaginas).toBe(20);
+    const url = new URL(String(fetchImpl.mock.calls[0]?.[0]));
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      dataFinal: "20261125",
+      codigoModalidadeContratacao: "6",
+      uf: "SP",
+      codigoMunicipioIbge: "3550308",
+      pagina: "1",
+      tamanhoPagina: "50",
+    });
+  });
+
+  it("uf null consulta o Brasil todo, sem o parâmetro uf", async () => {
+    const fetchImpl = vi.fn(async (_entrada: string | URL | Request) => new Response(null, { status: 204 }));
+    await buscarModalidade(8, { fetchImpl, esperasRetryMs: [], uf: null });
+    const url = new URL(String(fetchImpl.mock.calls[0]?.[0]));
+    expect(url.searchParams.has("uf")).toBe(false);
+  });
+
   it("limita a 10 páginas", async () => {
     const fetchImpl = vi.fn(async (entrada: string | URL | Request) => {
       const n = Number(new URL(String(entrada)).searchParams.get("pagina"));
@@ -67,7 +103,7 @@ describe("buscarModalidade", () => {
 
   it("tenta de novo quando o PNCP responde 429", async () => {
     let chamadas = 0;
-    const fetchImpl = vi.fn(async (_entrada: string | URL | Request) => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
       chamadas += 1;
       return chamadas === 1 ? new Response("limite", { status: 429 }) : respostaJson(pagina(1, 1));
     });

@@ -32,6 +32,7 @@ import { CardOportunidade } from "./card-oportunidade";
 import { DetalheSheet } from "./detalhe-sheet";
 import { AvisoFalhaParcial, EstadoErro, EstadoVazio } from "./estados";
 import { BarraFiltros } from "./filtros";
+import { BuscaForaRjSheet } from "./busca-fora-rj";
 import { BuscaPalavras } from "./busca-palavras";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
 import { Paginacao } from "./paginacao";
@@ -396,6 +397,10 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
             onVisao={mudarVisao}
             onLimparPainel={limparPainel}
           />
+
+          <div className="-mt-2 flex justify-end lg:-mt-3">
+            <BuscaForaRjSheet />
+          </div>
 
           {aviso ? <AvisoFalhaParcial texto={aviso} /> : null}
 
