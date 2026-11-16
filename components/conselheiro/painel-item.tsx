@@ -26,7 +26,7 @@ export interface CabecalhoItem {
   linkLicitacao: string;
 }
 
-export const MENSAGEM_INDISPONIVEL = "Conselheiro indisponível: falta configurar a chave do assistente.";
+const MENSAGEM_INDISPONIVEL = "Conselheiro indisponível: falta configurar a chave do assistente.";
 
 const dataHora = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
 

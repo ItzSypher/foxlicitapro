@@ -229,25 +229,9 @@
   animation-delay: calc(min(var(--i, 0), 11) * 40ms + 420ms + var(--s, 0) * 70ms);
 }
 
-/* Anel que respira ao redor do ícone do cartão "Encerrando" no resumo do Radar. */
-@keyframes painel-pulso {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-brand-fill) 45%, transparent);
-  }
-  60% {
-    box-shadow: 0 0 0 7px color-mix(in srgb, var(--c-brand-fill) 0%, transparent);
-  }
-}
-
-.painel-pulso {
-  animation: painel-pulso 2.4s ease-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .card-entrada,
-  .termo-enche,
-  .painel-pulso {
+  .termo-enche {
     animation: none;
   }
 }

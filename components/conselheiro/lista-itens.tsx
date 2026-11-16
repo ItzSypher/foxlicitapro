@@ -36,12 +36,12 @@ const OPCOES: ReadonlyArray<{ id: Filtro; rotulo: string }> = [
 const CONTROLE =
   "h-11 w-full rounded-control border-0 bg-raised px-3 pl-9 text-base text-ink placeholder:text-faint outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
-export function hrefDoItem(id: string): string {
+function hrefDoItem(id: string): string {
   return `/conselheiro?item=${encodeURIComponent(id)}`;
 }
 
 /** Itens que passam pela busca (todas as palavras em objeto, órgão ou município, sem acento) e pela região. */
-export function filtrarItens(itens: readonly ItemDaLista[], busca: string, regiao: Filtro): ItemDaLista[] {
+function filtrarItens(itens: readonly ItemDaLista[], busca: string, regiao: Filtro): ItemDaLista[] {
   const termos = normalizarTexto(busca).split(" ").filter((t) => t !== "");
   return itens.filter((i) => {
     if (regiao !== "todas" && i.regiao !== regiao) return false;

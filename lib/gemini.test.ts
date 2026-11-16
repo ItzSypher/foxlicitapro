@@ -66,7 +66,7 @@ describe("configuração", () => {
 
   it("a ficha usa GEMINI_MODEL_FICHA, depois GEMINI_MODEL, depois o padrão", () => {
     delete process.env.GEMINI_MODEL_FICHA;
-    expect(nomeDoModeloFicha()).toBe("gemini-3.8-flash");
+    expect(nomeDoModeloFicha()).toBe("gemini-2.5-flash-lite");
     process.env.GEMINI_MODEL = "gemini-4-hydrogen";
     expect(nomeDoModeloFicha()).toBe("gemini-4-hydrogen");
     process.env.GEMINI_MODEL_FICHA = "gemini-4-lite";
@@ -77,13 +77,13 @@ describe("configuração", () => {
   });
 
   it("usa GEMINI_MODEL quando válido e o padrão caso contrário", () => {
-    expect(nomeDoModelo()).toBe("gemini-3.8-flash");
+    expect(nomeDoModelo()).toBe("gemini-2.5-flash-lite");
     process.env.GEMINI_MODEL = "gemini-4-hydrogen";
     expect(nomeDoModelo()).toBe("gemini-4-hydrogen");
     process.env.GEMINI_MODEL = "../outro?x=1";
-    expect(nomeDoModelo()).toBe("gemini-3.8-flash");
-    expect(urlDoModelo("gemini-3.8-flash")).toBe(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+    expect(nomeDoModelo()).toBe("gemini-2.5-flash-lite");
+    expect(urlDoModelo("gemini-2.5-flash-lite")).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
     );
   });
 });
@@ -118,7 +118,7 @@ describe("chamadas", () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(respostaGemini('{"ok":true}'));
     await expect(gerarJson(pedidoJson, { ...OPCOES, fetchImpl })).resolves.toEqual({ ok: true });
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(String(url)).toContain("/models/gemini-3.8-flash:generateContent");
+    expect(String(url)).toContain("/models/gemini-2.5-flash-lite:generateContent");
     expect((init?.headers as Record<string, string>)["x-goog-api-key"]).toBe(CHAVE);
     expect(String(init?.body)).not.toContain(CHAVE);
   });

@@ -6,10 +6,3 @@ export const TEXTO_FAIXA: Record<Faixa, string> = {
   atencao: "text-warning",
   nogo: "text-negative",
 };
-
-/** Pastilha da lista: fundo da cor da faixa a 15% e texto na cor da faixa. */
-export const PASTILHA_FAIXA: Record<Faixa, string> = {
-  go: "bg-go/15 text-positive",
-  atencao: "bg-atencao/15 text-warning",
-  nogo: "bg-nogo/15 text-negative",
-};

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-export const SECOES: ReadonlyArray<{ id: string; rotulo: string }> = [
+const SECOES: ReadonlyArray<{ id: string; rotulo: string }> = [
   { id: "datas", rotulo: "Datas" },
   { id: "ficha", rotulo: "Ficha" },
   { id: "caixa", rotulo: "Caixa" },
