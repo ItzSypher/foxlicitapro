@@ -3,10 +3,13 @@ import { Lightbulb } from "lucide-react";
 import { SinoAvisos } from "@/components/avisos/sino-avisos";
 import { BotaoSair } from "@/components/botao-sair";
 import { Marca } from "@/components/marca";
+import { BotaoTour } from "@/components/novidades/botao-tour";
+import { Novidades } from "@/components/novidades/novidades";
 import { NavInferior, NavLateral, type DadosNav } from "@/components/navegacao";
 import { TemaToggle } from "@/components/tema-toggle";
 import { contarNaoLidos } from "@/db/avisos";
 import { contarPropostasParaMim } from "@/db/propostas";
+import { podeFazerTour } from "@/lib/novidades";
 import { rotuloPapel } from "@/lib/papel";
 import { perfilDaEmpresa } from "@/lib/empresa-atual";
 import { lerSessao } from "@/lib/sessao";
@@ -52,6 +55,7 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
               <span className="text-xs text-muted-foreground">{rotuloPapel(usuario.papel)} · Minha conta</span>
             </Link>
           ) : null}
+          {usuario && podeFazerTour(usuario.papel) ? <BotaoTour /> : null}
           <TemaToggle modo="completo" />
           <BotaoSair modo="completo" />
         </div>
@@ -80,6 +84,7 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
       </header>
 
       <NavInferior dados={dados} />
+      {usuario ? <Novidades usuarioId={usuario.id} papel={usuario.papel} /> : null}
     </>
   );
 }
@@ -114,7 +119,7 @@ export async function CascaComDados() {
     <Casca
       dados={{
         usuario: sessao
-          ? { nome: sessao.nome, papel: sessao.papel, superadmin: sessao.superadmin, resultados: temPermissao(sessao, "aprovar_propostas") }
+          ? { id: sessao.usuarioId, nome: sessao.nome, papel: sessao.papel, superadmin: sessao.superadmin, resultados: temPermissao(sessao, "aprovar_propostas") }
           : null,
         pendentes,
         avisos,

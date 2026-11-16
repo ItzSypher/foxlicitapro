@@ -22,9 +22,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { BotaoSair } from "@/components/botao-sair";
+import { BotaoTour } from "@/components/novidades/botao-tour";
 import { TemaToggle } from "@/components/tema-toggle";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Papel } from "@/core/types-equipe";
+import { podeFazerTour } from "@/lib/novidades";
 import { rotuloPapel } from "@/lib/papel";
 import { cn } from "@/lib/utils";
 
@@ -92,6 +94,8 @@ const GRUPOS: ReadonlyArray<Grupo> = [
 const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/resultados", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
+  /** Identifica a pessoa para lembrar, neste aparelho, o que ela já viu */
+  id: string;
   nome: string;
   papel: Papel;
   superadmin?: boolean;
@@ -330,6 +334,9 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
                 </Link>
               );
             })}
+            {usuario && podeFazerTour(usuario.papel) ? (
+              <BotaoTour aoAbrir={() => setAberto(false)} className="h-12 text-ink" />
+            ) : null}
             <TemaToggle modo="completo" className="h-12 text-ink" />
             <BotaoSair modo="completo" className="h-12 text-ink" />
           </nav>
