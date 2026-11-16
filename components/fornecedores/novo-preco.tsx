@@ -65,8 +65,8 @@ export function NovoPreco({ fornecedorId }: { fornecedorId: string }) {
           className={CONTROLE}
         />
       </div>
-      <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-3">
-        <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1">
           <label htmlFor="preco-valor" className="text-[13px] font-medium text-ink">
             Preço (R$)
           </label>

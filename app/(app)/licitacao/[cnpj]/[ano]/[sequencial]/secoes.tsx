@@ -314,7 +314,7 @@ export function EsqueletoTopo() {
         <Skeleton className="h-6 w-2/3 max-w-md" />
         <Skeleton className="h-4 w-full max-w-lg" />
       </div>
-      <div className="grid gap-4 rounded-card border border-border bg-surface p-4 md:grid-cols-3 md:gap-0 md:p-0">
+      <div className="grid grid-cols-1 gap-4 rounded-card border border-border bg-surface p-4 md:grid-cols-3 md:gap-0 md:p-0">
         {Array.from({ length: 3 }, (_, i) => (
           <div key={i} className="flex flex-col gap-2 md:p-4">
             <Skeleton className="h-3 w-24" />

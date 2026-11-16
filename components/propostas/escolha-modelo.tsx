@@ -23,7 +23,7 @@ export function EscolhaModelo({ compra, sugerido }: Props) {
   return (
     <form action={enviar} className="flex flex-col gap-3">
       <input type="hidden" name="compra" value={compra} />
-      <ul className="grid gap-3 md:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {MODELOS.map((m) => {
           const indicado = m.id === sugerido;
           return (

@@ -82,13 +82,13 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
               </Secao>
 
               <Secao titulo="Órgão">
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
                   <dt className="text-muted-foreground">Órgão</dt>
                   <dd className="min-w-0 wrap-break-word text-ink">{item.orgao}</dd>
                   <dt className="text-muted-foreground">Unidade</dt>
                   <dd className="min-w-0 wrap-break-word text-ink">{item.unidade}</dd>
                   <dt className="text-muted-foreground">CNPJ</dt>
-                  <dd className="font-mono tabular-nums text-ink">{formatarCnpj(item.orgaoCnpj)}</dd>
+                  <dd className="min-w-0 font-mono tabular-nums text-ink">{formatarCnpj(item.orgaoCnpj)}</dd>
                 </dl>
               </Secao>
 
@@ -103,7 +103,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                   {item.valorEstimado === null ? (
                     <p className="text-2xl font-medium text-muted-foreground">Sigiloso</p>
                   ) : (
-                    <p className="font-mono text-2xl font-medium tabular-nums text-ink">
+                    <p className="font-mono text-2xl font-medium tabular-nums wrap-break-word text-ink">
                       {formatarMoeda(item.valorEstimado)}
                     </p>
                   )}

@@ -49,7 +49,7 @@ export default async function FornecedorPage({ params }: Props) {
   };
 
   return (
-    <div className="mx-auto grid w-full max-w-[1040px] min-w-0 gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:gap-x-8">
+    <div className="mx-auto grid w-full max-w-[1040px] min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:gap-x-8">
       <div className="flex min-w-0 flex-col gap-5">
         <header className="flex min-w-0 flex-col gap-1">
           <Link href="/fornecedores" className="text-[13px] text-muted-foreground underline-offset-4 hover:underline">
@@ -98,7 +98,7 @@ export default async function FornecedorPage({ params }: Props) {
             </h2>
             <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-card border border-border">
               {precos.map((p) => (
-                <li key={p.id} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 px-3 py-2.5">
+                <li key={p.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 px-3 py-2.5">
                   <span className="truncate text-sm text-ink">{p.descricao}</span>
                   <span className="text-right text-[13px] tabular-nums text-ink">{formatarMoeda(p.preco)}</span>
                   <span className="text-xs text-faint">

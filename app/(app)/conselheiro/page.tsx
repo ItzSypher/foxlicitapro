@@ -132,7 +132,7 @@ export default async function ConselheiroPage({ searchParams }: Props) {
           Não foi possível carregar o Pipeline agora. Tente de novo em instantes.
         </p>
       ) : (
-        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-start">
+        <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-start">
           <ListaItensConselheiro
             itens={lista}
             selecionado={escolhido?.id ?? null}

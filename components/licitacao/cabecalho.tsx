@@ -61,7 +61,7 @@ export function CabecalhoLicitacao({
         <p className="text-[13px] leading-snug wrap-break-word text-muted-foreground">{identificacao}</p>
       </div>
 
-      <div className="grid gap-4 rounded-card border border-border bg-surface p-4 md:grid-cols-3 md:gap-0 md:p-0">
+      <div className="grid grid-cols-1 gap-4 rounded-card border border-border bg-surface p-4 md:grid-cols-3 md:gap-0 md:p-0">
         <div className="flex min-w-0 flex-col gap-2 md:p-4">
           <p className={ROTULO}>Nota</p>
           {score ? (

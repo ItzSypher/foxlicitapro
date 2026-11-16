@@ -136,7 +136,7 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
             Licitação que pedir mais que isso recebe o alerta “Pede mais caixa do que você definiu” e perde um pouco de nota. Vazio = sem limite.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-[13px] font-medium text-ink">
             Capital máximo por licitação (R$)
             <input

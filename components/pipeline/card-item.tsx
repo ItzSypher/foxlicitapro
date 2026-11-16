@@ -102,18 +102,18 @@ function LinhaRevisao({
 
 function LinhaEstatistica({ rotulo, e }: { rotulo: string; e: Estatistica }) {
   return (
-    <div className="grid grid-cols-[4rem_repeat(3,minmax(0,1fr))] items-baseline gap-x-2 text-[13px]">
+    <div className="grid grid-cols-[3.25rem_repeat(3,minmax(0,1fr))] items-baseline gap-x-2 text-xs sm:grid-cols-[4rem_repeat(3,minmax(0,1fr))] sm:text-[13px]">
       <span className="text-xs text-muted-foreground">{rotulo}</span>
-      <span className="font-mono tabular-nums text-ink">{formatarMoeda(e.media)}</span>
-      <span className="font-mono tabular-nums text-ink">{formatarMoeda(e.menor)}</span>
-      <span className="font-mono tabular-nums text-ink">{formatarMoeda(e.maior)}</span>
+      <span className="font-mono tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.media)}</span>
+      <span className="font-mono tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.menor)}</span>
+      <span className="font-mono tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.maior)}</span>
     </div>
   );
 }
 
 function CabecalhoEstatistica() {
   return (
-    <div className="grid grid-cols-[4rem_repeat(3,minmax(0,1fr))] gap-x-2 text-xs text-faint">
+    <div className="grid grid-cols-[3.25rem_repeat(3,minmax(0,1fr))] sm:grid-cols-[4rem_repeat(3,minmax(0,1fr))] gap-x-2 text-xs text-faint">
       <span />
       <span>Média</span>
       <span>Menor</span>

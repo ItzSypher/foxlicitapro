@@ -75,7 +75,7 @@ export function FormularioFechamento({ itemId, etapa, valorInicial, custoInicial
     >
       {etapa === "ganha" ? (
         <>
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex min-w-0 flex-col gap-1">
               <label htmlFor={`${id}-valor`} className="text-[13px] text-muted-foreground">
                 Valor homologado (R$)

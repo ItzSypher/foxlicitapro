@@ -106,7 +106,7 @@ export default async function ResultadosPage({
       <Indicadores r={r} />
 
       {comMeses ? (
-        <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <Secao id="titulo-grafico" titulo="Valor ganho por mês">
             <GraficoMeses meses={r.porMes} />
             <p className="sr-only">Total no período: {formatarMoeda(r.valorGanho)}</p>
@@ -118,7 +118,7 @@ export default async function ResultadosPage({
         </div>
       ) : null}
 
-      <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <BarrasQuebra titulo="Por região" itens={r.porRegiao} />
         <BarrasQuebra titulo="Por frente" itens={r.porFrente} />
         <BarrasMotivos motivos={r.motivosPerda} />

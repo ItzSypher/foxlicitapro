@@ -284,7 +284,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
         aoEnviar={acessos.editar ? () => setEnviarAberto(true) : undefined}
       />
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
         <div className="flex min-w-0 flex-col gap-3">
           <div className="nao-imprimir flex flex-wrap items-center gap-2">
             <div role="group" aria-label="Modo do documento" className="inline-flex rounded-control border border-control bg-ground p-0.5">

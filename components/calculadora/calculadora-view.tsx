@@ -146,7 +146,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes, forn
 
   return (
     <>
-      <div className="grid gap-6 pb-[calc(64px+56px+env(safe-area-inset-bottom))] lg:grid-cols-[420px_minmax(0,1fr)] lg:gap-x-8 lg:pb-0">
+      <div className="grid grid-cols-1 gap-6 pb-[calc(64px+56px+env(safe-area-inset-bottom))] lg:grid-cols-[420px_minmax(0,1fr)] lg:gap-x-8 lg:pb-0">
         <div className="flex flex-col gap-5 lg:col-start-1 lg:row-start-1">
           {objeto !== null && (
             <div className="flex flex-col gap-1 rounded-card border border-border bg-raised px-3 py-2.5">
@@ -213,7 +213,7 @@ export function CalculadoraView({ itemId, objeto, inicial, cotacoes, cnaes, forn
                 dica="Ao salvar, o custo também vira preço deste fornecedor."
               />
             )}
-            <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
               <CampoNumero
                 id="cal-frete"
                 rotulo="Frete ou deslocamento"

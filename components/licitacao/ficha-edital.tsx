@@ -101,7 +101,7 @@ function SelosPagamento({ ficha }: { ficha: FichaEdital }) {
 }
 
 function Grade({ children }: { children: React.ReactNode }) {
-  return <dl className="grid gap-x-4 gap-y-4 sm:grid-cols-2">{children}</dl>;
+  return <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">{children}</dl>;
 }
 
 function GruposDaFicha({ ficha }: { ficha: FichaEdital }) {

@@ -31,7 +31,7 @@ export default async function FornecedoresPage({ searchParams }: Props) {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+    <div className="mx-auto flex w-full max-w-[960px] min-w-0 flex-col gap-4 lg:gap-6">
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-[22px] font-semibold leading-tight text-ink">Fornecedores</h1>

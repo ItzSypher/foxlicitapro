@@ -274,11 +274,11 @@ function LinhaPessoa({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean })
     <li className="flex min-w-0 flex-col gap-3 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex min-w-0 flex-col">
-          <p className="truncate text-sm font-medium text-ink">
+          <p className="text-sm font-medium [overflow-wrap:anywhere] text-ink">
             {usuario.nome}
             {ehVoce ? " (você)" : ""}
           </p>
-          <p className="truncate text-[13px] text-muted-foreground">{usuario.email}</p>
+          <p className="text-[13px] [overflow-wrap:anywhere] text-muted-foreground">{usuario.email}</p>
         </div>
         <span className="flex shrink-0 items-center gap-2">
           <Pilula tom="neutro">{ROTULO_PAPEL[usuario.papel]}</Pilula>

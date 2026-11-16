@@ -96,11 +96,11 @@ export function FormularioFornecedor({ id, inicial, podeEditar }: Props) {
     >
       <fieldset disabled={!podeEditar || salvando} className="flex min-w-0 flex-col gap-4">
         <Campo id="forn-nome" rotulo="Nome" valor={nome} onMudar={setNome} placeholder="Ex.: Distribuidora Alfa" />
-        <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
           <Campo id="forn-cnpj" rotulo="CNPJ (opcional)" valor={cnpj} onMudar={setCnpj} modo="numeric" placeholder="00.000.000/0000-00" />
           <Campo id="forn-contato" rotulo="Contato" valor={contato} onMudar={setContato} placeholder="Nome de quem atende" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
           <Campo id="forn-telefone" rotulo="Telefone ou WhatsApp" valor={telefone} onMudar={setTelefone} tipo="tel" modo="tel" />
           <Campo id="forn-email" rotulo="E-mail" valor={email} onMudar={setEmail} tipo="email" modo="email" />
         </div>

@@ -158,7 +158,7 @@ export default async function ImprimirResultadosPage({
 
         <Resumo r={r} />
 
-        <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
           <Quebra titulo="Por região" itens={r.porRegiao} />
           <Quebra titulo="Por frente" itens={r.porFrente} />
         </div>

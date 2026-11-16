@@ -36,7 +36,7 @@ interface Props {
 
 function Linha({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-0.5 @md:grid-cols-[9rem_minmax(0,1fr)] @md:gap-x-3">
+    <div className="grid grid-cols-1 gap-0.5 @md:grid-cols-[9rem_minmax(0,1fr)] @md:gap-x-3">
       <dt className="font-semibold">{rotulo}</dt>
       <dd className="min-w-0">{children}</dd>
     </div>
