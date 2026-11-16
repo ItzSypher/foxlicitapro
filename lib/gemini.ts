@@ -10,8 +10,8 @@ import { z } from "zod";
  */
 
 const URL_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-/** O modelo mais barato da tabela de preços (Flash-Lite); troque por GEMINI_MODEL sem mexer no código. */
-export const MODELO_PADRAO = "gemini-2.5-flash-lite";
+/** O Flash-Lite mais barato liberado para as chaves novas (o 2.5 é recusado); troque por GEMINI_MODEL sem mexer no código. */
+export const MODELO_PADRAO = "gemini-3.1-flash-lite";
 const TIMEOUT_MS = 60_000;
 const ESPERA_RETRY_MS = 1500;
 const STATUS_COM_RETRY: ReadonlySet<number> = new Set([429, 500, 502, 503, 504]);
