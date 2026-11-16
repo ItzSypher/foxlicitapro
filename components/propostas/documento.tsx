@@ -7,7 +7,7 @@ import { formatarMoeda } from "@/lib/formato";
 
 const quantidadeFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 });
 
-function quantidadeTexto(n: number): string {
+export function quantidadeTexto(n: number): string {
   return quantidadeFmt.format(n);
 }
 
