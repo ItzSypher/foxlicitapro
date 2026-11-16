@@ -40,9 +40,9 @@ function LinkCotar({ itemId }: { itemId: string }) {
       href={`/calculadora?item=${encodeURIComponent(itemId)}`}
       className="inline-flex min-h-11 items-center gap-1 rounded-control text-[13px] text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:min-h-8"
     >
-      Sem custo: cote um fornecedor
-      <ChevronRight aria-hidden="true" className="size-3.5" />
-      <span className="font-medium text-ink underline underline-offset-4">Cotar</span>
+      <span className="whitespace-nowrap">Sem custo ·</span>
+      <span className="font-medium whitespace-nowrap text-ink underline underline-offset-4">Cotar fornecedor</span>
+      <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />
     </Link>
   );
 }
@@ -532,7 +532,7 @@ function Responsavel({
       <Seletor
         id={id}
         rotulo="Responsável"
-        posicaoRotulo="lado"
+        posicaoRotulo="acima"
         valor={dado.responsavelId ?? ""}
         aoMudar={(valor) => aoMudar(valor === "" ? null : valor)}
         opcoes={[
