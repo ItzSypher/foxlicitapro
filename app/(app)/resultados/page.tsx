@@ -1,66 +1,29 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import { Download, Printer } from "lucide-react";
+import { FiltrosLista } from "@/components/resultados/filtros-lista";
 import { GraficoMeses } from "@/components/resultados/grafico-meses";
+import { Indicadores } from "@/components/resultados/indicadores";
+import { ListaResultados } from "@/components/resultados/lista-resultados";
+import { BarrasMotivos, BarrasQuebra } from "@/components/resultados/quebras";
+import { SeletorPeriodo } from "@/components/resultados/seletor-periodo";
+import { BOTAO_SECUNDARIO } from "@/components/propostas/campos";
 import { temPermissao } from "@/core/permissoes";
-import { PERIODOS, ROTULO_PERIODO, calcularResultados, ehPeriodo, type PeriodoResultados, type Resultados } from "@/core/resultados";
-import { lerDadosResultados } from "@/db/resultados";
-import { formatarMoeda, formatarMoedaCurta, plural } from "@/lib/formato";
+import { consultaResultados } from "@/core/resultados";
+import { montarRelatorio, type Relatorio } from "@/lib/resultados-relatorio";
+import { formatarMoeda } from "@/lib/formato";
 import { exigirSessao } from "@/lib/sessao";
-import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Resultados · FoxLicita Pro" };
 
-function Numero({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe?: string }) {
+function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-card border border-border bg-surface p-4">
-      <dt className="text-[13px] text-muted-foreground">{rotulo}</dt>
-      <dd className="text-3xl leading-tight font-semibold tabular-nums text-ink">{valor}</dd>
-      {detalhe ? <p className="text-xs text-muted-foreground">{detalhe}</p> : null}
-    </div>
-  );
-}
-
-function percentual(taxa: number | null): string {
-  return taxa === null ? "—" : `${Math.round(taxa * 100)}%`;
-}
-
-function Painel({ r }: { r: Resultados }) {
-  const decididas = r.ganhas + r.perdidas;
-  return (
-    <>
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Numero rotulo="Licitações analisadas" valor={String(r.analisadas)} />
-        <Numero rotulo="Propostas enviadas" valor={String(r.propostasEnviadas)} />
-        <Numero rotulo="Ganhas" valor={String(r.ganhas)} />
-        <Numero rotulo="Perdidas" valor={String(r.perdidas)} />
-        <Numero
-          rotulo="Taxa de vitória"
-          valor={percentual(r.taxaVitoria)}
-          detalhe={decididas === 0 ? "Sem disputa decidida no período" : `${decididas} ${plural(decididas, "disputa decidida", "disputas decididas")}`}
-        />
-        <Numero rotulo="Valor ganho" valor={formatarMoedaCurta(r.valorGanho)} detalhe="Proposta, ou valor estimado do órgão" />
-        <Numero rotulo="Receita mensal contratada" valor={formatarMoedaCurta(r.receitaMensal)} detalhe="Ganhas com medição mensal" />
-        <Numero
-          rotulo="Capital de giro comprometido"
-          valor={formatarMoedaCurta(r.capitalComprometido)}
-          detalhe={
-            r.ganhasEmAndamento === 0
-              ? "Nenhuma ganha em andamento hoje"
-              : `Estimado em ${r.ganhasEmAndamento} ${plural(r.ganhasEmAndamento, "ganha em andamento", "ganhas em andamento")} hoje`
-          }
-        />
-      </dl>
-
-      {r.porMes.length > 1 ? (
-        <section aria-labelledby="titulo-grafico" className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
-          <h2 id="titulo-grafico" className="text-base font-semibold text-ink">
-            Valor ganho por mês
-          </h2>
-          <GraficoMeses meses={r.porMes} />
-          <p className="sr-only">Total no período: {formatarMoeda(r.valorGanho)}</p>
-        </section>
-      ) : null}
-    </>
+    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4">
+      <h2 id={id} className="text-base font-semibold text-ink">
+        {titulo}
+      </h2>
+      {children}
+    </section>
   );
 }
 
@@ -83,47 +46,90 @@ export default async function ResultadosPage({
   }
 
   const params = await searchParams;
-  const bruto = Array.isArray(params.periodo) ? params.periodo[0] : params.periodo;
-  const periodo: PeriodoResultados = ehPeriodo(Number(bruto)) ? (Number(bruto) as PeriodoResultados) : 3;
-
-  let resultados: Resultados | null = null;
+  let relatorio: Relatorio | null = null;
   try {
-    const dados = await lerDadosResultados(sessao.empresaId);
-    resultados = calcularResultados({ agora, periodo, ...dados });
+    relatorio = await montarRelatorio(sessao.empresaId, params, agora);
   } catch (e) {
     console.error("[resultados] leitura falhou:", e instanceof Error ? e.message : e);
   }
 
-  return (
-    <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-      <header className="flex flex-col gap-1">
+  const cabecalho = (
+    <header className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-1">
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Resultados</h1>
-        <p className="text-sm text-muted-foreground">O que o pipeline já entregou.</p>
-      </header>
-
-      <nav aria-label="Período" className="flex w-full max-w-sm gap-1 rounded-control border border-border bg-raised p-1">
-        {PERIODOS.map((p) => (
+        <p className="text-sm text-muted-foreground">O que o pipeline já entregou, com custo, lucro e motivos de perda.</p>
+      </div>
+      {relatorio ? (
+        <div className="flex flex-wrap gap-2">
+          <a href={`/resultados/csv${consultaResultados(relatorio.periodo, relatorio.filtros)}`} download className={BOTAO_SECUNDARIO}>
+            <Download aria-hidden="true" className="size-4" />
+            Baixar CSV
+          </a>
           <Link
-            key={p}
-            href={`/resultados?periodo=${p}`}
-            aria-current={p === periodo ? "page" : undefined}
-            className={cn(
-              "flex h-11 flex-1 items-center justify-center rounded-control px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand",
-              p === periodo ? "bg-active font-medium text-ink" : "text-muted-foreground hover:text-ink",
-            )}
+            href={`/resultados/imprimir${consultaResultados(relatorio.periodo, relatorio.filtros)}`}
+            prefetch={false}
+            className={BOTAO_SECUNDARIO}
           >
-            {ROTULO_PERIODO[p]}
+            <Printer aria-hidden="true" className="size-4" />
+            Baixar PDF
           </Link>
-        ))}
-      </nav>
+        </div>
+      ) : null}
+    </header>
+  );
 
-      {resultados ? (
-        <Painel r={resultados} />
-      ) : (
+  if (!relatorio) {
+    return (
+      <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-4 lg:gap-6">
+        {cabecalho}
         <p role="alert" className="text-sm text-negative">
           Não foi possível carregar os resultados agora. Tente de novo em instantes.
         </p>
-      )}
+      </div>
+    );
+  }
+
+  const { periodo, filtros, resultados: r, linhas, pessoas } = relatorio;
+  const comMeses = r.porMes.length > 1;
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-4 lg:gap-6">
+      {cabecalho}
+
+      <SeletorPeriodo periodo={periodo} filtros={filtros} agora={agora} />
+
+      <section aria-label="Filtros" className="flex min-w-0 flex-col gap-2">
+        <FiltrosLista periodo={periodo} filtros={filtros} pessoas={pessoas} />
+        <p className="text-xs text-muted-foreground">Região, frente e responsável valem para tudo na página. Situação e ordem valem só para a lista.</p>
+      </section>
+
+      <Indicadores r={r} />
+
+      {comMeses ? (
+        <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+          <Secao id="titulo-grafico" titulo="Valor ganho por mês">
+            <GraficoMeses meses={r.porMes} />
+            <p className="sr-only">Total no período: {formatarMoeda(r.valorGanho)}</p>
+          </Secao>
+          <Secao id="titulo-grafico-lucro" titulo="Lucro por mês">
+            <GraficoMeses meses={r.porMes} serie="lucro" />
+            <p className="sr-only">Lucro no período: {formatarMoeda(r.lucroTotal)}</p>
+          </Secao>
+        </div>
+      ) : null}
+
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <BarrasQuebra titulo="Por região" itens={r.porRegiao} />
+        <BarrasQuebra titulo="Por frente" itens={r.porFrente} />
+        <BarrasMotivos motivos={r.motivosPerda} />
+      </div>
+
+      <section aria-labelledby="titulo-lista" className="flex min-w-0 flex-col gap-3">
+        <h2 id="titulo-lista" className="text-base font-semibold text-ink">
+          Licitações
+        </h2>
+        <ListaResultados linhas={linhas} podeEditar={temPermissao(sessao, "mover_pipeline") || temPermissao(sessao, "aprovar_propostas")} />
+      </section>
     </div>
   );
 }

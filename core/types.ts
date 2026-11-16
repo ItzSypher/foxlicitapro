@@ -26,6 +26,8 @@ export interface Oportunidade {
   modalidadeNome: string;
   /** ISO 8601 com fuso de Brasília */
   dataAbertura: string | null;
+  /** ISO 8601 da publicação no PNCP; ausente em itens guardados antes de o campo existir */
+  dataPublicacao?: string | null;
   dataEncerramento: string;
   anoCompra: number;
   sequencialCompra: number;

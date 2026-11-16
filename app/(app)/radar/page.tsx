@@ -4,7 +4,7 @@ import type { LimitesCaixa } from "@/core/caixa";
 import type { RespostaRadar } from "@/core/types";
 import { RadarComPipeline } from "@/components/pipeline/radar-com-pipeline";
 import { temPermissao } from "@/core/permissoes";
-import { idsNoPipeline } from "@/db/pipeline";
+import { idsNoPipeline, resumoPipeline, type ResumoPipeline } from "@/db/pipeline";
 import { listarPalavrasChave } from "@/db/palavras-chave";
 import { exigirSessao } from "@/lib/sessao";
 import { perfilAtual } from "@/lib/empresa-atual";
@@ -12,7 +12,8 @@ import { lerPreferencias } from "@/db/preferencias";
 import { obterRadar, paginaDaResposta } from "@/lib/radar-dados";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
 import { COOKIE_VISAO, lerAba, lerBusca, lerFiltros, lerPagina, lerPalavras, lerVisao } from "@/lib/radar-filtros";
-import { lerPorPagina } from "@/lib/radar-pagina";
+import type { PipelinePainel } from "@/lib/radar-painel";
+import { lerPorPagina, type PaginaRadar } from "@/lib/radar-pagina";
 
 type ParametrosDaUrl = Record<string, string | string[] | undefined>;
 
@@ -39,13 +40,18 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
   const sessao = await exigirSessao();
   const [preferencias, perfil] = await Promise.all([lerPreferencias(sessao.empresaId), perfilAtual()]);
   const limites: LimitesCaixa = { capitalMaximo: preferencias.capitalMaximo, diasMaximosParado: preferencias.diasMaximosParado };
-  const [resposta, ids, palavras] = await Promise.all([
+  const [resposta, ids, palavras, resumoPipe] = await Promise.all([
     obterRadar(frente, limites, perfil).catch((): RespostaRadar | null => null),
     idsNoPipeline(sessao.empresaId).catch((): Set<string> => new Set()),
     listarPalavrasChave(sessao.empresaId, sessao.usuarioId).catch((): string[] => []),
+    // Uma consulta de contagem; se falhar, o cartão do pipeline só perde os números.
+    resumoPipeline(sessao.empresaId).catch((): ResumoPipeline | null => null),
   ]);
+  const pipeline: PipelinePainel | null = resumoPipe
+    ? { ativas: resumoPipe.ativas, emDisputa: resumoPipe.emDisputa.quantidade }
+    : null;
 
-  const pagina = resposta
+  const base = resposta
     ? paginaDaResposta(resposta, {
         frente,
         filtros: lerFiltros(params),
@@ -59,6 +65,7 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
         perfil,
       })
     : null;
+  const pagina: PaginaRadar | null = base ? { ...base, painel: { ...base.painel, pipeline } } : null;
 
   return (
     <RadarComPipeline

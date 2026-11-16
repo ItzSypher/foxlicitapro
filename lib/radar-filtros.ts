@@ -1,9 +1,9 @@
 import type { Faixa, ModalidadeId, OportunidadeComScore, Regiao } from "@/core/types";
 import { normalizarTexto } from "@/core/cnae-keywords";
 
-export type FiltroRegiao = "todo" | "nova-iguacu" | "baixada" | "capital";
+export type FiltroRegiao = "todo" | "nova-iguacu" | "baixada" | "capital" | "interior";
 export type FiltroModalidade = "todas" | "dispensa" | "pregao";
-export type Ordem = "sinal" | "prazo" | "valor";
+export type Ordem = "sinal" | "prazo" | "valor" | "recentes";
 
 export interface Filtros {
   regiao: FiltroRegiao;
@@ -51,6 +51,7 @@ export const REGIOES: ReadonlyArray<{ id: FiltroRegiao; rotulo: string }> = [
   { id: "nova-iguacu", rotulo: "Nova Iguaçu" },
   { id: "baixada", rotulo: "Baixada Fluminense" },
   { id: "capital", rotulo: "RJ Capital" },
+  { id: "interior", rotulo: "Interior RJ" },
 ];
 
 export const MODALIDADES: ReadonlyArray<{ id: FiltroModalidade; rotulo: string }> = [
@@ -63,6 +64,7 @@ export const ORDENS: ReadonlyArray<{ id: Ordem; rotulo: string }> = [
   { id: "sinal", rotulo: "Melhor nota" },
   { id: "prazo", rotulo: "Prazo" },
   { id: "valor", rotulo: "Maior valor" },
+  { id: "recentes", rotulo: "Mais recentes" },
 ];
 
 /** Identificadores do PNCP: 6 = Pregão eletrônico, 8 = Dispensa. */
@@ -96,13 +98,14 @@ function pertenceARegiao(regiao: Regiao, filtro: FiltroRegiao): boolean {
   if (regiao === "fora-rj") return false;
   if (filtro === "todo") return true;
   if (filtro === "baixada") return regiao === "baixada" || regiao === "nova-iguacu";
+  if (filtro === "interior") return regiao === "rj";
   return regiao === filtro;
 }
 
 export function contarPorRegiao(
   lista: ReadonlyArray<OportunidadeComScore>,
 ): Record<FiltroRegiao, number> {
-  const contagem: Record<FiltroRegiao, number> = { todo: 0, "nova-iguacu": 0, baixada: 0, capital: 0 };
+  const contagem: Record<FiltroRegiao, number> = { todo: 0, "nova-iguacu": 0, baixada: 0, capital: 0, interior: 0 };
   for (const item of lista) {
     for (const { id } of REGIOES) {
       if (pertenceARegiao(item.regiao, id)) contagem[id] += 1;
@@ -114,6 +117,12 @@ export function contarPorRegiao(
 function pertenceAModalidade(id: ModalidadeId, filtro: FiltroModalidade): boolean {
   if (filtro === "todas") return true;
   return filtro === "dispensa" ? id === 8 : id === 6;
+}
+
+/** Instante da publicação no PNCP; itens sem a data valem 0 e ficam por último em "mais recentes". */
+function publicacao(item: OportunidadeComScore): number {
+  const valor = Date.parse(item.dataPublicacao ?? "");
+  return Number.isNaN(valor) ? 0 : valor;
 }
 
 function prazo(item: OportunidadeComScore): number {
@@ -140,6 +149,7 @@ export function filtrarEOrdenar(
 
   return filtrada.sort((a, b) => {
     if (filtros.ordem === "prazo") return porPrazo(a, b);
+    if (filtros.ordem === "recentes") return publicacao(b) - publicacao(a) || porPrazo(a, b);
     if (filtros.ordem === "valor") {
       const va = a.valorEstimado;
       const vb = b.valorEstimado;
@@ -227,6 +237,7 @@ export function fraseVazio(filtros: Filtros): string {
     "nova-iguacu": "em Nova Iguaçu",
     baixada: "na Baixada Fluminense",
     capital: "na capital do Rio de Janeiro",
+    interior: "no interior do RJ",
   };
   return `Nenhuma ${tipo} ${local[filtros.regiao]} hoje.`;
 }

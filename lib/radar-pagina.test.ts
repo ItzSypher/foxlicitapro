@@ -108,7 +108,7 @@ describe("página do Radar montada no servidor", () => {
     ];
     const p = montar(consulta({ filtros: { ...FILTROS_PADRAO, regiao: "baixada" } }), mista);
     expect(p.itens.map((i) => i.id).sort()).toEqual(["id-1", "id-4"]);
-    expect(p.contagensRegiao).toEqual({ todo: 3, "nova-iguacu": 1, baixada: 2, capital: 1 });
+    expect(p.contagensRegiao).toEqual({ todo: 3, "nova-iguacu": 1, baixada: 2, capital: 1, interior: 0 });
     const pregoes = montar(consulta({ filtros: { ...FILTROS_PADRAO, modalidade: "pregao" } }), mista);
     expect(pregoes.itens.map((i) => i.id)).toEqual(["id-4"]);
   });

@@ -12,6 +12,7 @@ import {
   type Filtros,
   type Resumo,
 } from "./radar-filtros";
+import { calcularPainel, type PainelDia } from "./radar-painel";
 
 /** Itens por página que o seletor oferece. */
 export const POR_PAGINA_OPCOES = [6, 12, 18] as const;
@@ -83,6 +84,8 @@ export interface PaginaRadar {
   /** Quantas abertas passaram pelos filtros, base da frase "escolhidas de N abertas" */
   baseRecomendacao: number;
   resumo: Resumo;
+  /** Resumo do dia sobre as abertas que passaram pelos filtros atuais */
+  painel: PainelDia;
   /** Palavras-chave marcadas que existem entre as guardadas */
   selecionadas: string[];
   atualizadoEm: string;
@@ -133,6 +136,7 @@ export function montarPaginaRadar(
     contagensAbas: { "para-voce": recomendadas.length, todas: todas.length },
     baseRecomendacao: base.length,
     resumo: resumir(oportunidades, agora),
+    painel: calcularPainel(base, agora),
     selecionadas,
     atualizadoEm,
     falhas,

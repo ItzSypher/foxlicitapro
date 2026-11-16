@@ -56,6 +56,8 @@ export interface ItemPipeline {
   cotacoes: ResumoCotacoes | null;
   /** Preço sugerido calculado no servidor pela página (null: ainda não calculado, ex. listagem sem perfil) */
   preco: PrecoSugerido | null;
+  /** Total da proposta aprovada, pronta ou enviada ligada ao item (null: nenhuma) */
+  valorProposto: number | null;
 }
 
 /** Pessoa que pode ser responsável por um item */

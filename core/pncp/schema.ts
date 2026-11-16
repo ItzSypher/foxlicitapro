@@ -34,6 +34,7 @@ export const contratacaoSchema = z.object({
   modalidadeNome: textoOpcional,
   /** Data e hora sem fuso, ex.: "2026-11-06T11:00:00" */
   dataAberturaProposta: textoOpcional,
+  dataPublicacaoPncp: textoOpcional,
   dataEncerramentoProposta: textoOpcional,
   anoCompra: z.number().int(),
   sequencialCompra: z.number().int(),

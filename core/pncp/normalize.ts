@@ -66,6 +66,7 @@ export function normalizarContratacao(c: ContratacaoPncp, agora: Date = new Date
     modalidadeId: c.modalidadeId,
     modalidadeNome: limparTexto(c.modalidadeNome) || (c.modalidadeId === 6 ? "Pregão - Eletrônico" : "Dispensa"),
     dataAbertura: paraIsoBrasilia(c.dataAberturaProposta),
+    dataPublicacao: paraIsoBrasilia(c.dataPublicacaoPncp),
     dataEncerramento,
     anoCompra: c.anoCompra,
     sequencialCompra: c.sequencialCompra,

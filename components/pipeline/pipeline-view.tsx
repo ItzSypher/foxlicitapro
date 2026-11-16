@@ -8,6 +8,7 @@ import { frasePrazoEncerrado } from "@/core/encerradas";
 import { cn } from "@/lib/utils";
 import { BlocoErro } from "./bloco-erro";
 import { Coluna } from "./coluna";
+import { FolhaFechamento, type FechamentoPendente } from "./folha-fechamento";
 import { linhaDeNumeros } from "./formato";
 import { useColunas } from "./midia";
 import {
@@ -138,6 +139,7 @@ function Quadro({
   );
   const [, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
+  const [fechamento, setFechamento] = useState<FechamentoPendente | null>(null);
   const [aba, setAba] = useState<EtapaId>(etapaInicial);
   const [arrastandoId, setArrastandoId] = useState<string | null>(null);
   const [alvo, setAlvo] = useState<EtapaId | null>(null);
@@ -169,7 +171,20 @@ function Quadro({
     iniciar(async () => {
       aplicar({ tipo: "mover", id, etapa });
       const r = await moverEtapa(id, etapa);
-      if (!r.ok) setErro(r.erro);
+      if (!r.ok) {
+        setErro(r.erro);
+        return;
+      }
+      // Ganha ou Perdida: abre a folha para registrar o valor homologado, o custo real ou o motivo.
+      if (etapa === "ganha" || etapa === "perdida") {
+        setFechamento({
+          itemId: id,
+          etapa,
+          titulo: atual.item.objeto,
+          valorSugerido: atual.valorProposto ?? atual.item.valorEstimado,
+          custoSugerido: atual.preco?.custoTotal ?? null,
+        });
+      }
     });
   }
 
@@ -522,6 +537,7 @@ function Quadro({
           </div>
         </>
       )}
+      <FolhaFechamento pendente={fechamento} aoFechar={() => setFechamento(null)} />
     </div>
   );
 }

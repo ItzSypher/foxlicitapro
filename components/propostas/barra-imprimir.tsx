@@ -6,7 +6,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { BOTAO_PRIMARIO } from "@/components/propostas/campos";
 
 /** Abre o diálogo de impressão ao carregar e deixa o botão para repetir. Some na impressão. */
-export function BarraImprimir({ voltarPara }: { voltarPara: string }) {
+export function BarraImprimir({ voltarPara, rotuloVoltar = "Voltar à proposta" }: { voltarPara: string; rotuloVoltar?: string }) {
   useEffect(() => {
     const t = window.setTimeout(() => window.print(), 600);
     return () => window.clearTimeout(t);
@@ -24,7 +24,7 @@ export function BarraImprimir({ voltarPara }: { voltarPara: string }) {
           className="inline-flex h-11 items-center gap-1.5 rounded-control px-3 text-sm text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
         >
           <ArrowLeft aria-hidden className="size-4" />
-          Voltar à proposta
+          {rotuloVoltar}
         </Link>
       </div>
       <p className="text-[13px] text-muted-foreground">No diálogo de impressão, escolha Salvar como PDF.</p>

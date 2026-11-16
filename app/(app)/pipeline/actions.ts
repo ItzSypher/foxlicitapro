@@ -17,9 +17,12 @@ import {
 } from "@/db/pipeline";
 import { definirPasso, listarMarcas } from "@/db/revisao-juridica";
 import { lerUsuarioDaEmpresa } from "@/db/usuarios";
+import { MOTIVOS_PERDA, type MotivoPerda } from "@/core/fechamento";
+import { temPermissao } from "@/core/permissoes";
 import { ehPassoJuridico, type MarcaJuridica } from "@/core/revisao-juridica";
+import { gravarFechamento } from "@/db/resultados";
 import { avisarJuridicoPendente, avisarResponsavel } from "@/lib/avisos";
-import { lerSessao, verificarPermissao } from "@/lib/sessao";
+import { SEM_PERMISSAO, lerSessao, verificarPermissao } from "@/lib/sessao";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ComentarioPipeline, Sessao } from "@/core/types-equipe";
 import type { EtapaId, ResultadoAcao } from "@/components/pipeline/tipos";
@@ -209,5 +212,43 @@ export async function comentarAction(id: string, texto: string): Promise<Respost
   } catch (e) {
     console.error("[pipeline]", e instanceof Error ? e.message : e);
     return { ok: false, erro: "Não foi possível comentar agora. Tente de novo." };
+  }
+}
+
+const valorFechamentoSchema = z.number().finite().min(0, "Informe um valor válido.").max(1_000_000_000_000).nullable();
+const fechamentoSchema = z.object({
+  valorHomologado: valorFechamentoSchema,
+  custoReal: valorFechamentoSchema,
+  motivoPerda: z.enum(MOTIVOS_PERDA).nullable(),
+});
+
+export interface DadosFechamentoForm {
+  valorHomologado: number | null;
+  custoReal: number | null;
+  motivoPerda: MotivoPerda | null;
+}
+
+/**
+ * Grava o que a licitação rendeu (ganha) ou o motivo da perda. Vale para quem mexe no pipeline e para quem aprova
+ * propostas, que é quem vê e corrige os números na tela de Resultados.
+ */
+export async function registrarFechamento(id: string, dados: DadosFechamentoForm): Promise<ResultadoAcao> {
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, erro: SEM_SESSAO };
+  if (!temPermissao(sessao, "mover_pipeline") && !temPermissao(sessao, "aprovar_propostas")) {
+    return { ok: false, erro: SEM_PERMISSAO };
+  }
+  const i = idSchema.safeParse(id);
+  const d = fechamentoSchema.safeParse(dados);
+  if (!i.success || !d.success) return { ok: false, erro: d.success ? ERRO_DADOS : "Confira os valores informados." };
+  try {
+    const achou = await gravarFechamento(sessao.empresaId, i.data, d.data);
+    if (!achou) return { ok: false, erro: "Esse item não está mais em Ganha nem em Perdida." };
+    atualizarTelas();
+    revalidatePath("/resultados");
+    return { ok: true };
+  } catch (e) {
+    console.error("[pipeline] fechamento:", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível salvar o fechamento. Tente de novo." };
   }
 }

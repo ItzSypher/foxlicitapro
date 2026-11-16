@@ -35,6 +35,7 @@ import { BarraFiltros } from "./filtros";
 import { BuscaPalavras } from "./busca-palavras";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
 import { Paginacao } from "./paginacao";
+import { PainelDiaView } from "./painel-dia";
 import { SeletorAba } from "./seletor-aba";
 import { SeletorFrente } from "./seletor-frente";
 
@@ -91,6 +92,7 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
   const [aberta, setAberta] = useState<OportunidadeComScore | null>(null);
   const [detalheAberto, setDetalheAberto] = useState(false);
   const topoRef = useRef<HTMLDivElement>(null);
+  const aposPainelRef = useRef<HTMLDivElement>(null);
   const rolarAoTrocar = useRef(false);
 
   const numeroDaPagina = dados?.pagina ?? 1;
@@ -256,6 +258,36 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
     ]);
   }, [navegar]);
 
+  /** Leva a pessoa à lista depois de um clique no resumo; sem animação se ela pediu menos movimento. */
+  const rolarParaLista = useCallback(() => {
+    const reduzir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.setTimeout(() => {
+      aposPainelRef.current?.scrollIntoView({ block: "start", behavior: reduzir ? "auto" : "smooth" });
+    }, 0);
+  }, []);
+
+  /** Cada cartão do resumo troca a aba, a ordem e a página numa navegação só. */
+  const verLista = useCallback(
+    (nova: Aba, ordem: Ordem) => {
+      navegar([
+        ["aba", nova === ABA_PADRAO ? null : nova],
+        ["ordem", ordem === FILTROS_PADRAO.ordem ? null : ordem],
+        ["pagina", null],
+      ]);
+      rolarParaLista();
+    },
+    [navegar, rolarParaLista],
+  );
+
+  const escolherRegiaoDoPainel = useCallback(
+    (valor: FiltroRegiao) => {
+      // Tocar na região já escolhida volta para todo o RJ.
+      mudarFiltro("regiao", valor === filtros.regiao ? FILTROS_PADRAO.regiao : valor, FILTROS_PADRAO.regiao);
+      rolarParaLista();
+    },
+    [mudarFiltro, filtros.regiao, rolarParaLista],
+  );
+
   const abrirDetalhe = useCallback((item: OportunidadeComScore) => {
     setAberta(item);
     setDetalheAberto(true);
@@ -323,6 +355,19 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
 
       {dados ? (
         <>
+          <PainelDiaView
+            painel={dados.painel}
+            contagensRegiao={dados.contagensRegiao}
+            regiaoAtiva={filtros.regiao}
+            ocupado={pendente}
+            aoVerNovas={() => verLista("todas", "recentes")}
+            aoVerEncerrando={() => verLista("todas", "prazo")}
+            aoVerSinalAlto={() => verLista("todas", "sinal")}
+            aoVerValor={() => verLista("todas", "valor")}
+            aoEscolherRegiao={escolherRegiaoDoPainel}
+          />
+          <div ref={aposPainelRef} aria-hidden="true" className="-mt-4 scroll-mt-[68px] lg:-mt-5 lg:scroll-mt-6" />
+
           <SeletorAba aba={aba} contagens={dados.contagensAbas} onEscolher={mudarAba} />
 
           <BuscaPalavras

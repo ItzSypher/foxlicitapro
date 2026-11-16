@@ -84,6 +84,7 @@ const linhaSchema = z.object({
   responsavel: z.string().nullable(),
   responsavel_nome: z.string().nullable(),
   comentarios: z.number(),
+  valor_proposto: z.union([z.string(), z.number()]).nullable(),
 });
 
 const historicoSchema = z.object({
@@ -98,13 +99,21 @@ export interface EventoHistorico {
   em: string;
 }
 
+function valorProposto(v: string | number | null): number | null {
+  if (v === null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Todos os itens, por etapa e ordem. Linhas com `dados` inválidos são ignoradas e registradas. */
 export async function listarPipeline(empresaId: string): Promise<ItemPipeline[]> {
   const linhas = await sql`
     select i.id, i.etapa, i.ordem, i.dados, i.notas, i.criado_em, i.atualizado_em,
            i.criado_por, c.nome as criado_por_nome,
            i.responsavel, r.nome as responsavel_nome,
-           (select count(*)::int from pipeline_comentarios k where k.empresa_id = i.empresa_id and k.item_id = i.id) as comentarios
+           (select count(*)::int from pipeline_comentarios k where k.empresa_id = i.empresa_id and k.item_id = i.id) as comentarios,
+           (select max(p.total) from propostas p
+            where p.empresa_id = i.empresa_id and p.compra_id = i.id and p.status in ('aprovada', 'pronta', 'enviada')) as valor_proposto
     from pipeline_itens i
     left join usuarios c on c.id = i.criado_por
     left join usuarios r on r.id = i.responsavel
@@ -137,6 +146,7 @@ export async function listarPipeline(empresaId: string): Promise<ItemPipeline[]>
       revisao: marcas.get(d.id) ?? [],
       cotacoes: cotacoes.get(d.id) ?? null,
       preco: null,
+      valorProposto: valorProposto(d.valor_proposto),
     });
   }
   return itens;

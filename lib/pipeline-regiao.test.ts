@@ -25,6 +25,7 @@ function item(id: string, regiao: Regiao, valor: number | null, etapa: ItemPipel
     revisao: [],
     cotacoes: null,
     preco: null,
+    valorProposto: null,
     item: {
       id,
       objeto: "Objeto",

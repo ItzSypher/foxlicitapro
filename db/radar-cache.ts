@@ -19,6 +19,7 @@ const oportunidadeSchema: z.ZodType<Oportunidade> = z.object({
   modalidadeId: z.union([z.literal(6), z.literal(8)]),
   modalidadeNome: z.string(),
   dataAbertura: dataIso.nullable(),
+  dataPublicacao: dataIso.nullish(),
   dataEncerramento: dataIso,
   anoCompra: z.number(),
   sequencialCompra: z.number(),

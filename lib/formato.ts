@@ -89,3 +89,8 @@ export function formatarRestanteCurto(restante: number): string {
 export function plural(n: number, singular: string, pluralTexto: string): string {
   return n === 1 ? singular : pluralTexto;
 }
+
+/** 0,2537 vira "25,4%"; casas decimais ajustáveis. */
+export function formatarPercentual(fracao: number, casas = 1): string {
+  return `${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas }).format(fracao * 100)}%`;
+}

@@ -1,4 +1,5 @@
 import { CardEsqueleto } from "@/components/radar/estados";
+import { PainelEsqueleto } from "@/components/radar/painel-esqueleto";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CarregandoRadar() {
@@ -8,6 +9,7 @@ export default function CarregandoRadar() {
         <h1 className="text-[22px] leading-tight font-semibold text-ink">Radar</h1>
         <Skeleton className="h-11 w-11 md:h-9 md:w-[200px]" />
       </div>
+      <PainelEsqueleto />
       <div className="flex gap-2 overflow-hidden">
         {[112, 128, 176, 120].map((largura, i) => (
           <Skeleton key={i} className="h-11 shrink-0 lg:h-9" style={{ width: largura }} />
