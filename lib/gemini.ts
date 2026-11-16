@@ -60,11 +60,16 @@ export function limparChave(bruta: string): string {
     .replace(/\s+/g, "");
 }
 
-/** Descreve o formato da chave sem revelar o valor (chaves do AI Studio: "AIza" + 35 caracteres). */
+/**
+ * Descreve o formato da chave sem revelar o valor. O AI Studio gera chaves no formato antigo
+ * ("AIza" + 35 caracteres) e no novo ("AQ." seguido de um texto longo).
+ */
 export function diagnosticoChave(chave: string): string {
-  if (/^AIza[0-9A-Za-z_-]{35}$/.test(chave)) return "o formato da chave está certo; ela pode ter sido apagada ou restrita no Google";
-  const inicio = chave.startsWith("AIza") ? "começa com AIza" : "não começa com AIza";
-  return `a chave configurada tem ${chave.length} caracteres e ${inicio}; o esperado são 39 caracteres começando com AIza`;
+  const antiga = /^AIza[0-9A-Za-z_-]{35}$/.test(chave);
+  const nova = /^AQ\.[0-9A-Za-z._-]{30,}$/.test(chave);
+  if (antiga || nova) return `o formato da chave está certo (${chave.length} caracteres); ela pode ter sido apagada, restrita ou estar sem faturamento no Google`;
+  const inicio = chave.startsWith("AQ.") ? "começa com AQ." : chave.startsWith("AIza") ? "começa com AIza" : "não começa com AQ. nem com AIza";
+  return `a chave configurada tem ${chave.length} caracteres e ${inicio}; parece incompleta ou de outro serviço`;
 }
 
 function chaveConfigurada(): string {

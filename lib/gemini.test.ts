@@ -48,9 +48,10 @@ describe("chave colada", () => {
 
   it("descreve o formato sem mostrar o valor", () => {
     expect(diagnosticoChave(VALIDA)).toContain("formato da chave está certo");
+    expect(diagnosticoChave(`AQ.${"b".repeat(48)}`)).toContain("formato da chave está certo");
     const ruim = diagnosticoChave("xyz123");
     expect(ruim).toContain("6 caracteres");
-    expect(ruim).toContain("não começa com AIza");
+    expect(ruim).toContain("não começa com AQ. nem com AIza");
     expect(ruim).not.toContain("xyz123");
   });
 });
