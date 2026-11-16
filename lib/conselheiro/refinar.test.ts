@@ -53,10 +53,10 @@ describe("refinarSaida", () => {
     expect(r.veredito).toBe("vale");
   });
 
-  it("valor estranho ganha aviso nos riscos, sem passar de 8", () => {
+  it("valor estranho ganha aviso nos riscos, sem passar de 4", () => {
     const cheio = { ...SAIDA, precoComentario: "Compre por R$ 10,00 na revenda.", riscos: Array.from({ length: 8 }, (_, i) => `Risco ${i}`) };
     const r = refinarSaida(cheio, livre);
-    expect(r.riscos).toHaveLength(8);
+    expect(r.riscos).toHaveLength(4);
     expect(r.riscos.at(-1)).toBe(AVISO_VALORES_ESTRANHOS);
   });
 });

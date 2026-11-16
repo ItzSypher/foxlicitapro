@@ -7,6 +7,9 @@ import { calcularScore } from "@/core/score";
 import type { Frente, OportunidadeComScore, Score } from "@/core/types";
 import type { AnaliseAssistente } from "@/core/types-equipe";
 import { lerProposta, listarPropostas } from "@/db/propostas";
+import { listarPipeline } from "@/db/pipeline";
+import { ehEncerrado } from "@/core/encerradas";
+import { ROTULO_ETAPA } from "@/components/pipeline/tipos";
 import { formatarMoeda } from "@/lib/formato";
 import { obterRadar } from "@/lib/radar-dados";
 import type { PerfilEmpresa } from "@/core/perfil";
@@ -117,6 +120,24 @@ async function contextoRadar(frente: Frente, perfil: PerfilEmpresa): Promise<str
   ].join("\n");
 }
 
+const MAX_PIPELINE = 15;
+
+/** Itens vivos do Pipeline (sem ganhas, perdidas e encerradas), pelo prazo mais próximo. Vai em toda página. */
+async function contextoPipeline(empresaId: string, agora: Date): Promise<string> {
+  const itens = await listarPipeline(empresaId).catch(() => null);
+  if (!itens) return "PIPELINE: não foi possível ler agora.";
+  const ativos = itens
+    .filter((i) => i.etapa !== "ganha" && i.etapa !== "perdida" && !ehEncerrado(i.etapa, i.item.dataEncerramento, agora))
+    .sort((a, b) => Date.parse(a.item.dataEncerramento) - Date.parse(b.item.dataEncerramento));
+  if (ativos.length === 0) return "PIPELINE: nenhuma licitação ativa.";
+  return [
+    `PIPELINE: ${ativos.length} licitações ativas, da que fecha primeiro para a última${ativos.length > MAX_PIPELINE ? ` (só as ${MAX_PIPELINE} primeiras abaixo)` : ""}.`,
+    ...ativos
+      .slice(0, MAX_PIPELINE)
+      .map((i) => `${linhaRadar(i.item)} | etapa ${ROTULO_ETAPA[i.etapa]} | responsável ${i.responsavelNome ?? "ninguém"}`),
+  ].join("\n");
+}
+
 /** Prompt de sistema completo: regras fixas + contexto da página atual montado no servidor. */
 export async function montarSistemaDoChat(rota: RotaAssistente, frente: Frente, agora: Date, empresaId: string): Promise<string> {
   const perfil = await perfilDaEmpresa(empresaId);
@@ -132,8 +153,9 @@ export async function montarSistemaDoChat(rota: RotaAssistente, frente: Frente, 
       contexto = await contextoRadar(frente, perfil);
       break;
     case "outra":
-      contexto = "Página atual: sem dados de licitação. Responda dúvidas gerais e sugira abrir o Radar ou uma licitação.";
+      contexto = "Página atual: sem dados de uma licitação específica. Use o PIPELINE abaixo e, para oportunidades novas, sugira abrir o Radar.";
       break;
   }
-  return `${sistemaChat(perfil)}\n\nAGORA: ${agoraEmBrasilia(agora)} (Brasília)\n\nCONTEXTO\n${contexto}`;
+  const pipeline = await contextoPipeline(empresaId, agora);
+  return `${sistemaChat(perfil)}\n\nAGORA: ${agoraEmBrasilia(agora)} (Brasília)\n\nCONTEXTO\n${contexto}\n\n${pipeline}`;
 }

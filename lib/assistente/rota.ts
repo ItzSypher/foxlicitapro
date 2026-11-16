@@ -33,7 +33,7 @@ export function sugestoesRapidas(rota: RotaAssistente): string[] {
     case "proposta":
       return ["O que falta nesta proposta?"];
     case "outra":
-      return [];
+      return ["O que fecha primeiro no meu pipeline?", "Qual item está sem responsável?"];
   }
 }
 
