@@ -19,6 +19,7 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
   const [prioritarios, setPrioritarios] = useState<string[]>(inicial.termosPrioritarios);
   const [bloqueados, setBloqueados] = useState<string[]>(inicial.termosBloqueadosParaVoce);
   const [emails, setEmails] = useState<string[]>(inicial.emailsResumo);
+  const [excecoesPregao, setExcecoesPregao] = useState<string[]>(inicial.excecoesPregao);
   const [resumoAtivo, setResumoAtivo] = useState(inicial.resumoAtivo);
   const [capital, setCapital] = useState(inicial.capitalMaximo === null ? "" : formatarNumeroBR(inicial.capitalMaximo));
   const [dias, setDias] = useState(inicial.diasMaximosParado === null ? "" : String(inicial.diasMaximosParado));
@@ -50,6 +51,7 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
         resumoAtivo,
         capitalMaximo,
         diasMaximosParado,
+        excecoesPregao,
       });
       if (!resultado.ok) {
         setAviso({ tom: "erro", texto: resultado.erro });
@@ -58,6 +60,7 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
       setPrioritarios(resultado.preferencias.termosPrioritarios);
       setBloqueados(resultado.preferencias.termosBloqueadosParaVoce);
       setEmails(resultado.preferencias.emailsResumo);
+      setExcecoesPregao(resultado.preferencias.excecoesPregao);
       setResumoAtivo(resultado.preferencias.resumoAtivo);
       setCapital(resultado.preferencias.capitalMaximo === null ? "" : formatarNumeroBR(resultado.preferencias.capitalMaximo));
       setDias(resultado.preferencias.diasMaximosParado === null ? "" : String(resultado.preferencias.diasMaximosParado));
@@ -91,6 +94,16 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
         somenteLeitura={somenteLeitura}
         placeholder="Ex.: cftv, câmera"
         vazio="Nenhum termo bloqueado."
+      />
+
+      <ListaChips
+        titulo="Pregão: exceções que valem a pena"
+        ajuda="Pregão fica fora do foco atual. O conselheiro só recomenda um pregão quando o objeto tem um destes termos."
+        valores={excecoesPregao}
+        onChange={setExcecoesPregao}
+        somenteLeitura={somenteLeitura}
+        placeholder="Ex.: suporte gerenciado"
+        vazio="Nenhuma exceção: todo pregão fica fora do foco."
       />
 
       <ListaChips

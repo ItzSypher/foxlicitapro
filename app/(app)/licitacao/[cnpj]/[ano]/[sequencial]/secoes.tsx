@@ -8,6 +8,9 @@ import { CabecalhoLicitacao } from "@/components/licitacao/cabecalho";
 import { gerarSinais, linhaIdentificacao, montarOportunidade } from "@/components/licitacao/dominio";
 import { DatasEdital } from "@/components/licitacao/datas-edital";
 import { Concorrentes } from "@/components/licitacao/concorrentes";
+import { PrecoSugeridoDetalhe } from "@/components/preco/preco-sugerido-detalhe";
+import { SeloVeredito } from "@/components/preco/selo-veredito";
+import { Colapsavel } from "@/components/licitacao/colapsavel";
 import { FichaEditalSecao } from "@/components/licitacao/ficha-edital";
 import { PagamentoCaixa } from "@/components/licitacao/pagamento-caixa";
 import { ItensCompra } from "@/components/licitacao/itens-compra";
@@ -19,12 +22,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { resumirObjeto } from "@/core/objeto";
 import { calcularCapitalGiro } from "@/core/capital-giro";
-import { montarResultado, type ResultadoConcorrentes } from "@/core/concorrentes";
+import { montarResultado, type AmostraConcorrente, type ResultadoConcorrentes } from "@/core/concorrentes";
+import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
+import type { PrecoFornecedor } from "@/core/fornecedores";
+import { precoSugeridoDoItem } from "@/core/preco-sugerido";
+import { formatarMoeda } from "@/lib/formato";
 import { calcularScore } from "@/core/score";
 import type { FichaSalva } from "@/core/ficha";
 import type { OportunidadeComScore } from "@/core/types";
 import { lerAmostrasEmCache, lerBuscaRecente } from "@/db/concorrentes";
-import { listarCotacoes } from "@/db/cotacoes";
+import { listarCotacoes, resumirCotacoesDoItem } from "@/db/cotacoes";
+import { listarPrecosRecentes } from "@/db/fornecedores";
 import { lerFicha } from "@/db/fichas";
 import { lerPreferencias } from "@/db/preferencias";
 import { idsNoPipeline } from "@/db/pipeline";
@@ -73,9 +81,10 @@ const dadosDoPedido = cache(async (cnpj: string, ano: string, sequencial: string
     perfilDoPedido(),
     frenteDoPedido(),
   ]);
-  const [ficha, cotacoes, preferencias] = await Promise.all([
+  const [ficha, cotacoes, resumoCotacoes, preferencias] = await Promise.all([
     lerFicha(detalhe.numeroControle).catch((): FichaSalva | null => null),
     listarCotacoes(sessao.empresaId, detalhe.numeroControle, 1).catch(() => []),
+    resumirCotacoesDoItem(sessao.empresaId, detalhe.numeroControle).catch((): ResumoCotacoes | null => null),
     lerPreferencias(sessao.empresaId),
   ]);
   const limites = { capitalMaximo: preferencias.capitalMaximo, diasMaximosParado: preferencias.diasMaximosParado };
@@ -107,18 +116,18 @@ const dadosDoPedido = cache(async (cnpj: string, ano: string, sequencial: string
       )
     : null;
   const oportunidade: OportunidadeComScore | null = base && score ? { ...base, score } : null;
-  return { sessao, detalhe, perfil, frente, ficha, cotacao, custoCotado, prazos, limites, score, oportunidade, agora };
+  return { sessao, detalhe, perfil, frente, ficha, cotacao, resumoCotacoes, custoCotado, prazos, limites, score, oportunidade, agora };
 });
 
 const concorrentesDoPedido = cache(async (cnpj: string, ano: string, sequencial: string) => {
   const detalhe = await detalheDoPedido(cnpj, ano, sequencial);
   const [amostras, busca] = await Promise.all([
-    lerAmostrasEmCache().catch(() => []),
+    lerAmostrasEmCache().catch((): AmostraConcorrente[] => []),
     lerBuscaRecente(detalhe.numeroControle).catch(() => null),
   ]);
   const resultado: ResultadoConcorrentes | null =
     busca !== null ? montarResultado(amostras, detalhe.objeto, detalhe.uf, detalhe.numeroControle, detalhe.valorEstimado) : null;
-  return { detalhe, resultado, buscadoEm: busca?.buscadoEm ?? null };
+  return { detalhe, resultado, amostras, buscadoEm: busca?.buscadoEm ?? null };
 });
 
 /** Dispara a leitura do PNCP e do banco já na página, antes de qualquer seção pedir. */
@@ -195,6 +204,44 @@ export async function SecaoCaixa({ chave }: { chave: ChaveUrl }) {
       limites={d.limites}
       agoraInicial={d.agora}
     />
+  );
+}
+
+/** Preço sugerido por regras (piso, alvo e teto) a partir das cotações do item e das amostras de concorrentes já gravadas. */
+export async function SecaoPreco({ chave }: { chave: ChaveUrl }) {
+  const [d, c] = await Promise.all([
+    dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial),
+    concorrentesDoPedido(chave.cnpj, chave.ano, chave.sequencial),
+  ]);
+  const precosFornecedor =
+    d.resumoCotacoes === null
+      ? await listarPrecosRecentes(d.sessao.empresaId).catch((): PrecoFornecedor[] => [])
+      : [];
+  const preco = precoSugeridoDoItem(
+    {
+      id: d.detalhe.numeroControle,
+      objeto: d.detalhe.objeto,
+      uf: d.detalhe.uf,
+      valorEstimado: d.detalhe.valorEstimado,
+      frente: d.score?.frenteCasada ?? null,
+      cnaes: d.score?.cnaesCasados ?? [],
+    },
+    d.perfil.porte,
+    d.resumoCotacoes,
+    c.amostras,
+    precosFornecedor,
+    resumirObjeto(d.detalhe.objeto),
+  );
+  return (
+    <Colapsavel
+      id="preco-sugerido"
+      titulo="Preço sugerido"
+      aberta
+      resumo={preco.sugerido === null ? undefined : formatarMoeda(preco.sugerido)}
+      selos={<SeloVeredito veredito={preco.veredito} />}
+    >
+      <PrecoSugeridoDetalhe preco={preco} />
+    </Colapsavel>
   );
 }
 

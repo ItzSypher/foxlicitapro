@@ -1,4 +1,5 @@
 import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
+import type { PrecoSugerido } from "@/core/preco-sugerido";
 import type { MarcaJuridica } from "@/core/revisao-juridica";
 import type { OportunidadeComScore, Regiao } from "@/core/types";
 
@@ -53,6 +54,8 @@ export interface ItemPipeline {
   revisao: MarcaJuridica[];
   /** Resumo das cotações da calculadora ligadas ao item (null: nenhuma) */
   cotacoes: ResumoCotacoes | null;
+  /** Preço sugerido calculado no servidor pela página (null: ainda não calculado, ex. listagem sem perfil) */
+  preco: PrecoSugerido | null;
 }
 
 /** Pessoa que pode ser responsável por um item */

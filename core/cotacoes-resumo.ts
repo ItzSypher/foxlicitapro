@@ -9,6 +9,8 @@ export interface CotacaoParaResumo {
   precoVenda: number;
   /** Custo informado na cotação, em reais */
   custo: number;
+  /** Custo + frete + extras, em reais; sem ele vale o próprio custo */
+  custoTotal?: number;
   /** Margem alvo como fração (0,2 = 20%) */
   margem: number;
   /** ISO 8601 */
@@ -29,6 +31,8 @@ export interface ListaCotada {
   quantidade: number;
   venda: Estatistica;
   custo: Estatistica;
+  /** Custo com frete e extras: base do preço sugerido */
+  custoTotal: Estatistica;
 }
 
 export interface GrupoFrente {
@@ -36,6 +40,7 @@ export interface GrupoFrente {
   quantidade: number;
   venda: Estatistica;
   custo: Estatistica;
+  custoTotal: Estatistica;
   listas: ListaCotada[];
 }
 
@@ -67,6 +72,10 @@ export function estatistica(valores: readonly number[]): Estatistica {
   return { media: arredondar(soma / valores.length), menor, maior };
 }
 
+function custoTotalDe(c: CotacaoParaResumo): number {
+  return c.custoTotal ?? c.custo;
+}
+
 function maisRecente(a: CotacaoParaResumo, b: CotacaoParaResumo): number {
   return b.criadoEm.localeCompare(a.criadoEm);
 }
@@ -94,12 +103,14 @@ export function resumirCotacoes(cotacoes: readonly CotacaoParaResumo[]): ResumoC
       quantidade: itens.length,
       venda: estatistica(itens.map((i) => i.precoVenda)),
       custo: estatistica(itens.map((i) => i.custo)),
+      custoTotal: estatistica(itens.map(custoTotalDe)),
     }));
     frentes.push({
       frente,
       quantidade: daFrente.length,
       venda: estatistica(daFrente.map((c) => c.precoVenda)),
       custo: estatistica(daFrente.map((c) => c.custo)),
+      custoTotal: estatistica(daFrente.map(custoTotalDe)),
       listas,
     });
   }

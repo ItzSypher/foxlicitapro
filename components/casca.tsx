@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Lightbulb } from "lucide-react";
 import { SinoAvisos } from "@/components/avisos/sino-avisos";
 import { BotaoSair } from "@/components/botao-sair";
 import { Marca } from "@/components/marca";
@@ -33,6 +34,15 @@ export function Casca({ dados, empresa }: { dados: DadosNav; empresa?: string })
         </div>
 
         <div className="mt-auto flex flex-col gap-1">
+          {usuario ? (
+            <Link
+              href="/conselheiro"
+              className="mb-2 flex min-h-11 items-center gap-2 rounded-control bg-brand-fill px-3 py-2 text-left text-sm leading-tight font-semibold text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ground"
+            >
+              <Lightbulb aria-hidden="true" className="size-[18px] shrink-0" />
+              Falar com o conselheiro
+            </Link>
+          ) : null}
           {usuario ? (
             <Link
               href="/equipe/conta"

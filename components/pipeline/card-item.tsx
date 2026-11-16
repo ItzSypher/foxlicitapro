@@ -8,6 +8,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import type { ComentarioPipeline } from "@/core/types-equipe";
 import { margemEmPercentual, type Estatistica, type ResumoCotacoes } from "@/core/cotacoes-resumo";
 import { resumirObjeto } from "@/core/objeto";
+import type { PrecoSugerido } from "@/core/preco-sugerido";
+import { PrecoSugeridoDetalhe } from "@/components/preco/preco-sugerido-detalhe";
+import { SeloVeredito } from "@/components/preco/selo-veredito";
 import { PASSOS_JURIDICOS, checklistCompleto } from "@/core/revisao-juridica";
 import type { Faixa } from "@/core/types";
 import { formatarMoeda, plural, restanteMs } from "@/lib/formato";
@@ -141,8 +144,8 @@ function LinhaCotacoes({
     if (dado.etapa === "ganha" || dado.etapa === "perdida") return null;
     return (
       <Link href={cotar} className={LINHA_FOLHA}>
-        <span>Sem cotação</span>
-        <span className="flex items-center gap-1 text-[13px] font-medium text-brand">
+        <span className="min-w-0 truncate">Sem custo: cote um fornecedor</span>
+        <span className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-brand">
           Cotar
           <ChevronRight aria-hidden="true" className="size-4" />
         </span>
@@ -197,6 +200,69 @@ function LinhaCotacoes({
           className="inline-flex h-11 items-center justify-center rounded-control border border-control px-4 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
         >
           Cotar de novo
+        </Link>
+      </Folha>
+    </>
+  );
+}
+
+function pctBr(valor: number): string {
+  return `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+}
+
+/** Linha "Sugerido R$ X · margem Y%" com o selo do veredito; abre a folha com piso, alvo e teto. */
+function LinhaPreco({
+  dado,
+  preco,
+  titulo,
+  aoAbrir,
+}: {
+  dado: ItemPipeline;
+  preco: PrecoSugerido | null;
+  titulo: string;
+  aoAbrir: (aberto: boolean) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  if (preco === null || preco.sugerido === null) {
+    // Sem custo (cotação com custo zero): o atalho para cotar vem aqui; sem cotação nenhuma, vem da linha de cotações.
+    if (preco === null || dado.cotacoes === null || dado.etapa === "ganha" || dado.etapa === "perdida") return null;
+    return (
+      <Link href={`/calculadora?item=${encodeURIComponent(dado.id)}`} className={LINHA_FOLHA}>
+        <span className="min-w-0 truncate">Sem custo: cote um fornecedor</span>
+        <span className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-brand">
+          Cotar
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </span>
+      </Link>
+    );
+  }
+  function mudar(valor: boolean) {
+    setAberto(valor);
+    aoAbrir(valor);
+  }
+  return (
+    <>
+      <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
+        <span className="min-w-0 truncate">
+          Sugerido <span className="font-mono tabular-nums">{formatarReais(preco.sugerido)}</span>
+          {preco.margemSugeridaPct === null ? null : (
+            <>
+              {" "}· margem <span className="font-mono tabular-nums">{pctBr(preco.margemSugeridaPct)}</span>
+            </>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-1">
+          <SeloVeredito veredito={preco.veredito} />
+          <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
+        </span>
+      </button>
+      <Folha aberto={aberto} aoMudar={mudar} titulo="Preço sugerido" descricao={titulo}>
+        <PrecoSugeridoDetalhe preco={preco} />
+        <Link
+          href={`/licitacao/${dado.item.orgaoCnpj}/${dado.item.anoCompra}/${dado.item.sequencialCompra}#preco-sugerido`}
+          className="inline-flex h-11 items-center justify-center rounded-control border border-control px-4 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Ver na licitação
         </Link>
       </Folha>
     </>
@@ -527,10 +593,11 @@ export function CardItem({
   const [comentariosAbertos, setComentariosAbertos] = useState(false);
   const [revisaoAberta, setRevisaoAberta] = useState(false);
   const [cotacoesAbertas, setCotacoesAbertas] = useState(false);
+  const [precoAberto, setPrecoAberto] = useState(false);
   const titulo = useMemo(() => resumirObjeto(item.objeto), [item.objeto]);
   const tituloCurto = titulo.length > 90 ? `${titulo.slice(0, 89)}…` : titulo;
   const pncp = item.linkPncp;
-  const podeArrastar = arrastavel && !notasAbertas && !comentariosAbertos && !revisaoAberta && !cotacoesAbertas && !confirmando;
+  const podeArrastar = arrastavel && !notasAbertas && !comentariosAbertos && !revisaoAberta && !cotacoesAbertas && !precoAberto && !confirmando;
 
   return (
     <li
@@ -598,6 +665,8 @@ export function CardItem({
       </p>
 
       <LinhaCotacoes dado={dado} resumo={dado.cotacoes} titulo={tituloCurto} aoAbrir={setCotacoesAbertas} />
+
+      <LinhaPreco dado={dado} preco={dado.preco} titulo={tituloCurto} aoAbrir={setPrecoAberto} />
 
       <Responsavel
         dado={dado}

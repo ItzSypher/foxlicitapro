@@ -13,6 +13,7 @@ import {
   SecaoFicha,
   SecaoItens,
   SecaoNota,
+  SecaoPreco,
   SecaoResumo,
   SecaoSinais,
   SecaoTexto,
@@ -56,6 +57,9 @@ export default async function LicitacaoPage({ params }: Props) {
           </Suspense>
           <Suspense fallback={<EsqueletoSecao id="caixa" titulo="Pagamento e caixa" linhas={3} />}>
             <SecaoCaixa chave={chave} />
+          </Suspense>
+          <Suspense fallback={<EsqueletoSecao id="preco-sugerido" titulo="Preço sugerido" linhas={3} />}>
+            <SecaoPreco chave={chave} />
           </Suspense>
           <Suspense fallback={<EsqueletoSecao id="concorrentes" titulo="Concorrentes" linhas={3} />}>
             <SecaoConcorrentes chave={chave} />

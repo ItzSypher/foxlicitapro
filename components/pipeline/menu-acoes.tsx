@@ -99,6 +99,7 @@ export function MenuAcoes({
 
   if (!colunas) {
     const cotar = `/calculadora?item=${encodeURIComponent(itemId)}`;
+    const conselheiro = `/conselheiro?item=${encodeURIComponent(itemId)}`;
     return (
       <>
         {botaoGatilho}
@@ -141,6 +142,9 @@ export function MenuAcoes({
               <p className={ROTULO_SECAO}>Atalhos</p>
               <Link href={cotar} onClick={() => setAberto(false)} className={ITEM_FOLHA}>
                 Cotar
+              </Link>
+              <Link href={conselheiro} onClick={() => setAberto(false)} className={ITEM_FOLHA}>
+                Conselheiro
               </Link>
               <a
                 href={linkPncp}
@@ -191,6 +195,9 @@ export function MenuAcoes({
           ) : null}
           <Link role="menuitem" href={`/calculadora?item=${encodeURIComponent(itemId)}`} className={ITEM}>
             Cotar
+          </Link>
+          <Link role="menuitem" href={`/conselheiro?item=${encodeURIComponent(itemId)}`} className={ITEM}>
+            Conselheiro
           </Link>
           <a
             role="menuitem"

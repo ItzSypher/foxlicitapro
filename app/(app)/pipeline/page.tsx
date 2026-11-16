@@ -1,8 +1,15 @@
 import { connection } from "next/server";
+import { lerAmostrasEmCache } from "@/db/concorrentes";
+import { listarPrecosRecentes } from "@/db/fornecedores";
 import { listarPipeline } from "@/db/pipeline";
 import { listarUsuariosAtivos } from "@/db/usuarios";
 import { separarEncerrados } from "@/core/encerradas";
+import type { AmostraConcorrente } from "@/core/concorrentes";
+import type { PrecoFornecedor } from "@/core/fornecedores";
+import { resumirObjeto } from "@/core/objeto";
+import { precoSugeridoDoItem } from "@/core/preco-sugerido";
 import { temPermissao } from "@/core/permissoes";
+import { perfilAtual } from "@/lib/empresa-atual";
 import { exigirSessao } from "@/lib/sessao";
 import { PipelineView } from "@/components/pipeline/pipeline-view";
 import {
@@ -26,6 +33,43 @@ async function lerPessoas(empresaId: string): Promise<PessoaPipeline[]> {
   } catch (e) {
     console.error("[pipeline] equipe indisponível:", e instanceof Error ? e.message : e);
     return [];
+  }
+}
+
+/**
+ * Preço sugerido de cada item aberto, calculado aqui com uma leitura de cada fonte (perfil, amostras de
+ * concorrentes em cache e preços de fornecedor): nada de consulta por card nem de busca ao vivo no PNCP.
+ * Se uma fonte falhar, o item segue sem preço em vez de derrubar o Pipeline.
+ */
+async function comPrecoSugerido(empresaId: string, itens: ItemPipeline[]): Promise<ItemPipeline[]> {
+  if (itens.length === 0) return itens;
+  try {
+    const [perfil, amostras, precos] = await Promise.all([
+      perfilAtual(),
+      lerAmostrasEmCache().catch((): AmostraConcorrente[] => []),
+      listarPrecosRecentes(empresaId).catch((): PrecoFornecedor[] => []),
+    ]);
+    return itens.map((i) => ({
+      ...i,
+      preco: precoSugeridoDoItem(
+        {
+          id: i.item.id,
+          objeto: i.item.objeto,
+          uf: i.item.uf,
+          valorEstimado: i.item.valorEstimado,
+          frente: i.item.score.frenteCasada,
+          cnaes: i.item.score.cnaesCasados,
+        },
+        perfil.porte,
+        i.cotacoes,
+        amostras,
+        precos,
+        resumirObjeto(i.item.objeto),
+      ),
+    }));
+  } catch (e) {
+    console.error("[pipeline] preço sugerido indisponível:", e instanceof Error ? e.message : e);
+    return itens;
   }
 }
 
@@ -60,9 +104,11 @@ export default async function PipelinePage({
     criadoPorId: i.criadoPorId,
   }));
 
+  const abertos = separados === null ? null : await comPrecoSugerido(sessao.empresaId, separados.abertos);
+
   return (
     <PipelineView
-      itens={separados === null ? null : separados.abertos}
+      itens={abertos}
       encerradas={encerradas}
       etapaInicial={etapaInicial}
       regiaoInicial={regiaoInicial}

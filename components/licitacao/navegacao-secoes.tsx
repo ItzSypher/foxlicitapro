@@ -7,6 +7,7 @@ export const SECOES: ReadonlyArray<{ id: string; rotulo: string }> = [
   { id: "datas", rotulo: "Datas" },
   { id: "ficha", rotulo: "Ficha" },
   { id: "caixa", rotulo: "Caixa" },
+  { id: "preco-sugerido", rotulo: "Preço" },
   { id: "concorrentes", rotulo: "Concorrentes" },
   { id: "resumo", rotulo: "Resumo" },
   { id: "sinais", rotulo: "Sinais" },

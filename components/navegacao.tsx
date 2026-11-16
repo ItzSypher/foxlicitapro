@@ -13,6 +13,7 @@ import {
   Ellipsis,
   FileText,
   Radar,
+  Sparkles,
   Truck,
   ShieldCheck,
   SlidersHorizontal,
@@ -52,6 +53,8 @@ const PRINCIPAIS: ReadonlyArray<Destino> = [
 
 const ENCERRADAS: Destino = { href: "/encerradas", rotulo: "Encerradas", rotuloCurto: "Encerradas", icone: Archive };
 
+const CONSELHEIRO: Destino = { href: "/conselheiro", rotulo: "Conselheiro", rotuloCurto: "Conselheiro", icone: Sparkles };
+
 const FORNECEDORES: Destino = { href: "/fornecedores", rotulo: "Fornecedores", rotuloCurto: "Fornecedores", icone: Truck };
 
 const RESULTADOS: Destino = {
@@ -86,7 +89,7 @@ const GRUPOS: ReadonlyArray<Grupo> = [
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/encerradas", "/fornecedores", "/resultados", "/preferencias", "/equipe", "/empresa", "/admin"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/resultados", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   nome: string;
@@ -287,6 +290,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
   const ativo = AREAS_MAIS.some((base) => caminho === base || caminho.startsWith(`${base}/`)) || caminho.startsWith("/equipe");
   const { usuario } = dados;
   const itens: Destino[] = [
+    CONSELHEIRO,
     ENCERRADAS,
     FORNECEDORES,
     ...visiveis([RESULTADOS], usuario),

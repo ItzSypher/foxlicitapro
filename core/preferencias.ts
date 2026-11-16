@@ -31,6 +31,7 @@ export const PREFERENCIAS_PADRAO: Readonly<Preferencias> = {
   resumoAtivo: true,
   capitalMaximo: null,
   diasMaximosParado: null,
+  excecoesPregao: ["suporte gerenciado"],
 };
 
 export const MAX_TERMOS = 60;
@@ -78,6 +79,8 @@ export const preferenciasSchema = z
       .min(0, "Dias máximos inválido")
       .max(3650, "Dias máximos alto demais")
       .nullish(),
+    /** Ausente vale o padrão; lista vazia é escolha da empresa (nenhuma exceção) */
+    excecoesPregao: z.array(termoSchema).max(MAX_TERMOS, "Muitas exceções").optional(),
   })
   .transform(
     (p): Preferencias => ({
@@ -87,6 +90,7 @@ export const preferenciasSchema = z
       resumoAtivo: p.resumoAtivo,
       capitalMaximo: p.capitalMaximo ?? null,
       diasMaximosParado: p.diasMaximosParado ?? null,
+      excecoesPregao: p.excecoesPregao === undefined ? [...PREFERENCIAS_PADRAO.excecoesPregao] : normalizarTermos(p.excecoesPregao),
     }),
   );
 
@@ -99,5 +103,6 @@ export function preferenciasPadrao(): Preferencias {
     resumoAtivo: PREFERENCIAS_PADRAO.resumoAtivo,
     capitalMaximo: PREFERENCIAS_PADRAO.capitalMaximo,
     diasMaximosParado: PREFERENCIAS_PADRAO.diasMaximosParado,
+    excecoesPregao: [...PREFERENCIAS_PADRAO.excecoesPregao],
   };
 }

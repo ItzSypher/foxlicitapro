@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { frasePrazoEncerrado } from "@/core/encerradas";
 import { cn } from "@/lib/utils";
@@ -348,7 +348,16 @@ function Quadro({
       )}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="text-[22px] font-semibold leading-tight text-ink">Pipeline</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-[22px] font-semibold leading-tight text-ink">Pipeline</h1>
+          <Link
+            href="/conselheiro"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-control bg-brand-fill px-3 text-sm font-semibold text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ground lg:hidden"
+          >
+            <Sparkles aria-hidden="true" className="size-4" />
+            Conselheiro
+          </Link>
+        </div>
         <p className="font-mono text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
         {totalEncerradas > 0 ? (
           <p className="text-[13px] text-muted-foreground">

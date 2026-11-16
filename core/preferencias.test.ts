@@ -32,7 +32,16 @@ describe("preferenciasSchema", () => {
       resumoAtivo: false,
       capitalMaximo: null,
       diasMaximosParado: null,
+      excecoesPregao: ["suporte gerenciado"],
     });
+  });
+
+  it("normaliza as exceções de pregão e respeita a lista vazia", () => {
+    const base = { termosPrioritarios: [], termosBloqueadosParaVoce: [], emailsResumo: [], resumoAtivo: true };
+    expect(
+      preferenciasSchema.parse({ ...base, excecoesPregao: [" Suporte Gerenciado ", "Licença de Software", "suporte gerenciado"] }).excecoesPregao,
+    ).toEqual(["suporte gerenciado", "licenca de software"]);
+    expect(preferenciasSchema.parse({ ...base, excecoesPregao: [] }).excecoesPregao).toEqual([]);
   });
 
   it("aceita os limites de caixa e deixa nulo quando ausentes", () => {

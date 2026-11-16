@@ -136,6 +136,7 @@ export async function listarPipeline(empresaId: string): Promise<ItemPipeline[]>
       comentarios: d.comentarios,
       revisao: marcas.get(d.id) ?? [],
       cotacoes: cotacoes.get(d.id) ?? null,
+      preco: null,
     });
   }
   return itens;

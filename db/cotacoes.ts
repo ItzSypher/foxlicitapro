@@ -170,13 +170,7 @@ interface LinhaCotacaoDoItem {
   criado_em: Date;
 }
 
-/** Resumo por item do pipeline (chave: id do item) das cotações da empresa. Linhas inválidas são ignoradas. */
-export async function resumirCotacoesPorItem(empresaId: string): Promise<Map<string, ResumoCotacoes>> {
-  const linhas = await sql<LinhaCotacaoDoItem[]>`
-    select item_id, descricao, frente, entrada, preco_alvo, criado_em
-    from cotacoes
-    where empresa_id = ${empresaId} and item_id is not null
-  `;
+function agruparPorItem(linhas: readonly LinhaCotacaoDoItem[]): Map<string, ResumoCotacoes> {
   const porItem = new Map<string, CotacaoParaResumo[]>();
   for (const l of linhas) {
     const entrada = EntradaSchema.safeParse(l.entrada);
@@ -189,6 +183,7 @@ export async function resumirCotacoesPorItem(empresaId: string): Promise<Map<str
       frente: frente.data,
       precoVenda: venda,
       custo: entrada.data.custo,
+      custoTotal: entrada.data.custo + entrada.data.frete + entrada.data.extras,
       margem: entrada.data.margemAlvo,
       criadoEm: l.criado_em.toISOString(),
     });
@@ -200,4 +195,24 @@ export async function resumirCotacoesPorItem(empresaId: string): Promise<Map<str
     if (resumo) resumos.set(itemId, resumo);
   }
   return resumos;
+}
+
+/** Resumo por item do pipeline (chave: id do item) das cotações da empresa. Linhas inválidas são ignoradas. */
+export async function resumirCotacoesPorItem(empresaId: string): Promise<Map<string, ResumoCotacoes>> {
+  const linhas = await sql<LinhaCotacaoDoItem[]>`
+    select item_id, descricao, frente, entrada, preco_alvo, criado_em
+    from cotacoes
+    where empresa_id = ${empresaId} and item_id is not null
+  `;
+  return agruparPorItem(linhas);
+}
+
+/** Resumo das cotações de um único item; null sem cotação válida. */
+export async function resumirCotacoesDoItem(empresaId: string, itemId: string): Promise<ResumoCotacoes | null> {
+  const linhas = await sql<LinhaCotacaoDoItem[]>`
+    select item_id, descricao, frente, entrada, preco_alvo, criado_em
+    from cotacoes
+    where empresa_id = ${empresaId} and item_id = ${itemId}
+  `;
+  return agruparPorItem(linhas).get(itemId) ?? null;
 }

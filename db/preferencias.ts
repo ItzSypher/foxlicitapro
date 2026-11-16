@@ -10,6 +10,7 @@ interface LinhaPreferencias {
   resumo_ativo: boolean;
   capital_maximo: string | null;
   dias_maximos_parado: number | null;
+  excecoes_pregao: string[];
 }
 
 /** Lê as preferências da empresa (uma linha por empresa). Sem a linha ou com o banco fora do ar, devolve os padrões. */
@@ -17,7 +18,7 @@ export async function lerPreferencias(empresaId: string): Promise<Preferencias> 
   try {
     const linhas = await sql<LinhaPreferencias[]>`
       select termos_prioritarios, termos_bloqueados_para_voce, emails_resumo, resumo_ativo,
-             capital_maximo, dias_maximos_parado
+             capital_maximo, dias_maximos_parado, excecoes_pregao
       from preferencias where empresa_id = ${empresaId}`;
     const linha = linhas[0];
     if (!linha) return preferenciasPadrao();
@@ -28,6 +29,7 @@ export async function lerPreferencias(empresaId: string): Promise<Preferencias> 
       resumoAtivo: linha.resumo_ativo,
       capitalMaximo: linha.capital_maximo === null ? null : Number(linha.capital_maximo),
       diasMaximosParado: linha.dias_maximos_parado,
+      excecoesPregao: linha.excecoes_pregao,
     };
   } catch {
     return preferenciasPadrao();
@@ -39,9 +41,10 @@ export async function salvarPreferencias(empresaId: string, entrada: Preferencia
   const p = preferenciasSchema.parse(entrada);
   await sql`
     insert into preferencias (empresa_id, termos_prioritarios, termos_bloqueados_para_voce, emails_resumo, resumo_ativo,
-                              capital_maximo, dias_maximos_parado, atualizado_em)
+                              capital_maximo, dias_maximos_parado, excecoes_pregao, atualizado_em)
     values (${empresaId}, ${p.termosPrioritarios}::text[], ${p.termosBloqueadosParaVoce}::text[],
-            ${p.emailsResumo}::text[], ${p.resumoAtivo}, ${p.capitalMaximo}, ${p.diasMaximosParado}, now())
+            ${p.emailsResumo}::text[], ${p.resumoAtivo}, ${p.capitalMaximo}, ${p.diasMaximosParado},
+            ${p.excecoesPregao}::text[], now())
     on conflict (empresa_id) do update set
       termos_prioritarios = excluded.termos_prioritarios,
       termos_bloqueados_para_voce = excluded.termos_bloqueados_para_voce,
@@ -49,6 +52,7 @@ export async function salvarPreferencias(empresaId: string, entrada: Preferencia
       resumo_ativo = excluded.resumo_ativo,
       capital_maximo = excluded.capital_maximo,
       dias_maximos_parado = excluded.dias_maximos_parado,
+      excecoes_pregao = excluded.excecoes_pregao,
       atualizado_em = now()`;
   return p;
 }

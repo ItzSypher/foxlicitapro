@@ -49,6 +49,8 @@ export interface Preferencias {
   capitalMaximo: number | null;
   /** Dias máximos com o dinheiro parado; null = sem limite */
   diasMaximosParado: number | null;
+  /** Termos sem acento e em minúsculas: pregão cujo objeto casa com um deles ainda vale a pena (ex. "suporte gerenciado") */
+  excecoesPregao: string[];
 }
 
 export interface ComentarioPipeline {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, ExternalLink, FilePlus2 } from "lucide-react";
+import { Calculator, ExternalLink, FilePlus2, Sparkles } from "lucide-react";
 import { BotaoAssistente } from "@/components/licitacao/botao-assistente";
 import { BotaoSalvarPipeline } from "@/components/pipeline/botao-salvar";
 import type { OportunidadeComScore } from "@/core/types";
@@ -34,6 +34,12 @@ function Secundarias({ numeroControle, linkPncp, linkOrigem, salvo }: Pick<Props
         <Link href={`/calculadora?item=${encodeURIComponent(numeroControle)}`} className={SECUNDARIO}>
           <Calculator aria-hidden="true" className="size-4" />
           Cotar
+        </Link>
+      ) : null}
+      {salvo ? (
+        <Link href={`/conselheiro?item=${encodeURIComponent(numeroControle)}`} className={SECUNDARIO}>
+          <Sparkles aria-hidden="true" className="size-4" />
+          Perguntar ao conselheiro
         </Link>
       ) : null}
       <a href={linkPncp} target="_blank" rel="noopener noreferrer" className={SECUNDARIO}>
