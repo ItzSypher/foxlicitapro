@@ -47,9 +47,28 @@ export function assistenteDisponivel(): boolean {
   return chaveConfigurada() !== "";
 }
 
-/** Chave sem espaços nem aspas coladas por engano. */
+/**
+ * Limpa o que costuma vir colado por engano junto da chave: o nome da variável
+ * ("GEMINI_API_KEY="), aspas, espaços e quebras de linha.
+ */
+export function limparChave(bruta: string): string {
+  return bruta
+    .trim()
+    .replace(/^GEMINI_API_KEY\s*=\s*/i, "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, "");
+}
+
+/** Descreve o formato da chave sem revelar o valor (chaves do AI Studio: "AIza" + 35 caracteres). */
+export function diagnosticoChave(chave: string): string {
+  if (/^AIza[0-9A-Za-z_-]{35}$/.test(chave)) return "o formato da chave está certo; ela pode ter sido apagada ou restrita no Google";
+  const inicio = chave.startsWith("AIza") ? "começa com AIza" : "não começa com AIza";
+  return `a chave configurada tem ${chave.length} caracteres e ${inicio}; o esperado são 39 caracteres começando com AIza`;
+}
+
 function chaveConfigurada(): string {
-  return (process.env.GEMINI_API_KEY ?? "").trim().replace(/^["']|["']$/g, "").trim();
+  return limparChave(process.env.GEMINI_API_KEY ?? "");
 }
 
 const NOME_VALIDO = /^[A-Za-z0-9._-]+$/;
@@ -183,7 +202,7 @@ export function erroDoStatus(status: number, motivo = "", modelo: string = nomeD
   if (/api[ _]?key/i.test(motivo)) {
     return new ErroAssistente(
       "chave-invalida",
-      `A chave do assistente foi recusada (${motivo}). Confira GEMINI_API_KEY na Vercel e faça um novo deploy.`,
+      `A chave do assistente foi recusada (${motivo}). Diagnóstico: ${diagnosticoChave(chaveConfigurada())}. Gere uma chave nova no AI Studio, cole só ela em GEMINI_API_KEY na Vercel e faça um novo deploy.`,
       status,
     );
   }

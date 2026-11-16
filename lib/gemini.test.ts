@@ -3,7 +3,18 @@ import { z } from "zod";
 
 vi.mock("server-only", () => ({}));
 
-import { ErroAssistente, assistenteDisponivel, gerarJson, gerarTexto, montarPedido, nomeDoModelo, nomeDoModeloFicha, urlDoModelo } from "./gemini";
+import {
+  ErroAssistente,
+  assistenteDisponivel,
+  diagnosticoChave,
+  gerarJson,
+  gerarTexto,
+  limparChave,
+  montarPedido,
+  nomeDoModelo,
+  nomeDoModeloFicha,
+  urlDoModelo,
+} from "./gemini";
 
 const CHAVE = "chave-secreta-de-teste";
 const OPCOES = { esperaRetryMs: 0 };
@@ -23,6 +34,25 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.GEMINI_API_KEY;
   vi.restoreAllMocks();
+});
+
+describe("chave colada", () => {
+  const VALIDA = `AIza${"a".repeat(35)}`;
+
+  it("remove nome da variável, aspas, espaços e quebras de linha", () => {
+    expect(limparChave(` GEMINI_API_KEY=${VALIDA}\n`)).toBe(VALIDA);
+    expect(limparChave(`"${VALIDA}"`)).toBe(VALIDA);
+    expect(limparChave(`AIza${"a".repeat(20)}\n${"a".repeat(15)}`)).toBe(VALIDA);
+    expect(limparChave("   ")).toBe("");
+  });
+
+  it("descreve o formato sem mostrar o valor", () => {
+    expect(diagnosticoChave(VALIDA)).toContain("formato da chave está certo");
+    const ruim = diagnosticoChave("xyz123");
+    expect(ruim).toContain("6 caracteres");
+    expect(ruim).toContain("não começa com AIza");
+    expect(ruim).not.toContain("xyz123");
+  });
 });
 
 describe("configuração", () => {
