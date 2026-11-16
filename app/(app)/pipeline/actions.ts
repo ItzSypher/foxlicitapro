@@ -34,6 +34,7 @@ const SEM_SESSAO = "Sessão expirada. Entre de novo.";
 
 function atualizarTelas(): void {
   revalidatePath("/pipeline");
+  revalidatePath("/encerradas");
   revalidatePath("/radar");
 }
 

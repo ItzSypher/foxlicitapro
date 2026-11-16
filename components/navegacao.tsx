@@ -4,6 +4,7 @@ import { Suspense, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Archive,
   Building2,
   Calculator,
   ChartColumn,
@@ -49,6 +50,8 @@ const PRINCIPAIS: ReadonlyArray<Destino> = [
   { href: "/calculadora", rotulo: "Calculadora", rotuloCurto: "Calcular", icone: Calculator },
 ];
 
+const ENCERRADAS: Destino = { href: "/encerradas", rotulo: "Encerradas", rotuloCurto: "Encerradas", icone: Archive };
+
 const FORNECEDORES: Destino = { href: "/fornecedores", rotulo: "Fornecedores", rotuloCurto: "Fornecedores", icone: Truck };
 
 const RESULTADOS: Destino = {
@@ -77,13 +80,13 @@ const [PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
 
 /** Grupos da barra lateral, na ordem em que aparecem. */
 const GRUPOS: ReadonlyArray<Grupo> = [
-  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, PROPOSTAS, CALCULADORA, FORNECEDORES, RESULTADOS] },
+  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, ENCERRADAS, PROPOSTAS, CALCULADORA, FORNECEDORES, RESULTADOS] },
   { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, PREFERENCIAS] },
   { id: "admin", rotulo: "Admin", destinos: [EMPRESAS] },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/fornecedores", "/resultados", "/preferencias", "/equipe", "/empresa", "/admin"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/encerradas", "/fornecedores", "/resultados", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   nome: string;
@@ -284,6 +287,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
   const ativo = AREAS_MAIS.some((base) => caminho === base || caminho.startsWith(`${base}/`)) || caminho.startsWith("/equipe");
   const { usuario } = dados;
   const itens: Destino[] = [
+    ENCERRADAS,
     FORNECEDORES,
     ...visiveis([RESULTADOS], usuario),
     ...visiveis(SECUNDARIOS, usuario),

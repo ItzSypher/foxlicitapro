@@ -7,6 +7,7 @@ import {
   type AvisoNovo,
   type ItemComFichaConferida,
 } from "@/core/avisos";
+import { ehEncerrado } from "@/core/encerradas";
 import { recomendar } from "@/core/recomendacao";
 import { listarIdsEmpresasAtivas, lerEmpresa } from "@/db/empresas";
 import { listarFichasConferidas } from "@/db/fichas";
@@ -51,10 +52,13 @@ async function gerarEmpresa(empresaId: string, agora: Date): Promise<ResultadoAv
     ),
   );
 
+  // Licitação encerrada saiu do pipeline: não gera aviso de ficha.
+  const abertos = itens.filter((i) => !ehEncerrado(i.etapa, i.item.dataEncerramento, agora));
+
   try {
-    const fichas = await listarFichasConferidas(itens.map((i) => i.id));
+    const fichas = await listarFichasConferidas(abertos.map((i) => i.id));
     const comFicha: ItemComFichaConferida[] = [];
-    for (const i of itens) {
+    for (const i of abertos) {
       const ficha = fichas.get(i.id);
       if (ficha) {
         comFicha.push({ id: i.id, etapa: i.etapa, objeto: i.item.objeto, valorEstimado: i.item.valorEstimado, ficha, responsavelId: i.responsavelId });

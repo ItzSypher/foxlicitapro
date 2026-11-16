@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTr
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
+import { frasePrazoEncerrado } from "@/core/encerradas";
 import { cn } from "@/lib/utils";
 import { BlocoErro } from "./bloco-erro";
 import { Coluna } from "./coluna";
@@ -21,6 +22,7 @@ import {
   type FiltroRegiaoPipeline,
   type ItemPipeline,
   type PessoaPipeline,
+  type ResumoEncerrada,
 } from "./tipos";
 
 const OPCOES_REGIAO: ReadonlyArray<{ id: FiltroRegiaoPipeline; rotulo: string }> = [
@@ -58,8 +60,10 @@ function reduzir(estado: ItemPipeline[], acao: Acao): ItemPipeline[] {
 }
 
 interface Props {
-  /** null quando a leitura do banco falhou */
+  /** null quando a leitura do banco falhou. Já sem as licitações encerradas. */
   itens: ItemPipeline[] | null;
+  /** Licitações que passaram do prazo e saíram do quadro; só entram na linha de aviso */
+  encerradas: ResumoEncerrada[];
   etapaInicial: EtapaId;
   regiaoInicial: FiltroRegiaoPipeline;
   agoraInicial: number;
@@ -72,7 +76,7 @@ interface Props {
   podeRevisar: boolean;
 }
 
-export function PipelineView({ itens: itensServidor, etapaInicial, regiaoInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar }: Props) {
+export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, regiaoInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar }: Props) {
   if (itensServidor === null) {
     return (
       <div data-largura-total className="flex flex-col gap-4 lg:gap-6">
@@ -84,6 +88,7 @@ export function PipelineView({ itens: itensServidor, etapaInicial, regiaoInicial
   return (
     <Quadro
       itensServidor={itensServidor}
+      encerradas={encerradas}
       etapaInicial={etapaInicial}
       regiaoInicial={regiaoInicial}
       agoraInicial={agoraInicial}
@@ -97,6 +102,7 @@ export function PipelineView({ itens: itensServidor, etapaInicial, regiaoInicial
 
 function Quadro({
   itensServidor,
+  encerradas,
   etapaInicial,
   regiaoInicial,
   agoraInicial,
@@ -106,6 +112,7 @@ function Quadro({
   podeRevisar,
 }: {
   itensServidor: ItemPipeline[];
+  encerradas: ResumoEncerrada[];
   etapaInicial: EtapaId;
   regiaoInicial: FiltroRegiaoPipeline;
   agoraInicial: number;
@@ -122,6 +129,13 @@ function Quadro({
   const doUsuario = useMemo(() => (soMeus ? todos.filter((i) => ehMeu(i, usuarioId)) : todos), [todos, soMeus, usuarioId]);
   const contagemRegiao = useMemo(() => contarPorRegiao(doUsuario), [doUsuario]);
   const itens = useMemo(() => filtrarPorRegiao(doUsuario, regiao), [doUsuario, regiao]);
+  const totalEncerradas = useMemo(
+    () =>
+      encerradas.filter(
+        (e) => (!soMeus || ehMeu(e, usuarioId)) && (regiao === "todas" || e.regiao === regiao),
+      ).length,
+    [encerradas, soMeus, regiao, usuarioId],
+  );
   const [, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<EtapaId>(etapaInicial);
@@ -336,6 +350,17 @@ function Quadro({
       <div className="flex min-w-0 flex-col gap-1">
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Pipeline</h1>
         <p className="font-mono text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
+        {totalEncerradas > 0 ? (
+          <p className="text-[13px] text-muted-foreground">
+            {frasePrazoEncerrado(totalEncerradas)}{" "}
+            <Link
+              href={regiao === "todas" ? "/encerradas" : `/encerradas?regiao=${regiao}`}
+              className="font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              Ver encerradas
+            </Link>
+          </p>
+        ) : null}
       </div>
 
       {vazio ? null : (

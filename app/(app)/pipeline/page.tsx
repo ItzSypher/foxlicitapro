@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { listarPipeline } from "@/db/pipeline";
 import { listarUsuariosAtivos } from "@/db/usuarios";
+import { separarEncerrados } from "@/core/encerradas";
 import { temPermissao } from "@/core/permissoes";
 import { exigirSessao } from "@/lib/sessao";
 import { PipelineView } from "@/components/pipeline/pipeline-view";
@@ -11,6 +12,7 @@ import {
   type FiltroRegiaoPipeline,
   type ItemPipeline,
   type PessoaPipeline,
+  type ResumoEncerrada,
 } from "@/components/pipeline/tipos";
 
 /** Instante do pedido; o cliente parte dele para evitar divergência na hidratação. */
@@ -50,12 +52,21 @@ export default async function PipelinePage({
   }
   const pessoas = await lerPessoas(sessao.empresaId);
 
+  const agora = momento();
+  const separados = itens === null ? null : separarEncerrados(itens, (i) => ({ etapa: i.etapa, dataEncerramento: i.item.dataEncerramento }), agora);
+  const encerradas: ResumoEncerrada[] = (separados?.encerrados ?? []).map((i) => ({
+    regiao: i.item.regiao,
+    responsavelId: i.responsavelId,
+    criadoPorId: i.criadoPorId,
+  }));
+
   return (
     <PipelineView
-      itens={itens}
+      itens={separados === null ? null : separados.abertos}
+      encerradas={encerradas}
       etapaInicial={etapaInicial}
       regiaoInicial={regiaoInicial}
-      agoraInicial={momento()}
+      agoraInicial={agora}
       usuarioId={sessao.usuarioId}
       pessoas={pessoas}
       podeEditar={temPermissao(sessao, "mover_pipeline")}

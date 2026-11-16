@@ -62,8 +62,15 @@ export interface PessoaPipeline {
 }
 
 /** "Só os meus": sou o responsável, ou adicionei e ninguém assumiu. */
-export function ehMeu(item: ItemPipeline, usuarioId: string): boolean {
+export function ehMeu(item: Pick<ItemPipeline, "responsavelId" | "criadoPorId">, usuarioId: string): boolean {
   return item.responsavelId === usuarioId || (item.responsavelId === null && item.criadoPorId === usuarioId);
+}
+
+/** O mínimo de um item encerrado que o Pipeline precisa para contar quantos há sob os filtros ativos. */
+export interface ResumoEncerrada {
+  regiao: Regiao;
+  responsavelId: string | null;
+  criadoPorId: string | null;
 }
 
 /** Rótulo curto da região, usado na etiqueta do card e no filtro. */
