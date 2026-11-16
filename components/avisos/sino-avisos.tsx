@@ -76,7 +76,7 @@ export function SinoAvisos({ inicial, folha, className }: Props) {
         {naoLidos > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute top-1 right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-fill px-1 font-mono text-[10px] font-medium tabular-nums text-black"
+            className="absolute top-1 right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-fill px-1 text-[10px] font-medium tabular-nums text-black"
           >
             {naoLidos > 99 ? "99+" : naoLidos}
           </span>

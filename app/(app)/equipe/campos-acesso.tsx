@@ -10,6 +10,7 @@ import {
 } from "@/core/permissoes";
 import type { Papel } from "@/core/types-equipe";
 import { Interruptor } from "@/components/ui/interruptor";
+import { Seletor } from "@/components/ui/seletor";
 import { CONTROLE } from "@/components/propostas/campos";
 
 export interface ValorAcesso {
@@ -47,27 +48,14 @@ export function CamposAcesso({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={`${prefixo}-papel`} className="text-[13px] font-medium text-ink">
-          Papel
-        </label>
-        <select
-          id={`${prefixo}-papel`}
-          name={nomeados ? "papel" : undefined}
-          value={valor.papel}
-          onChange={(e) => {
-            const papel = PAPEIS.find((p) => p === e.target.value);
-            if (papel) aoMudar({ ...valor, papel, permissoes: permissoesPadrao(papel) });
-          }}
-          className={CONTROLE}
-        >
-          {PAPEIS.map((p) => (
-            <option key={p} value={p}>
-              {ROTULO_PAPEL[p]}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Seletor
+        id={`${prefixo}-papel`}
+        name={nomeados ? "papel" : undefined}
+        rotulo="Papel"
+        valor={valor.papel}
+        opcoes={PAPEIS.map((p) => ({ valor: p, rotulo: ROTULO_PAPEL[p] }))}
+        aoMudar={(papel) => aoMudar({ ...valor, papel, permissoes: permissoesPadrao(papel) })}
+      />
 
       {ehDono ? (
         <p className="text-[13px] text-muted-foreground">O dono pode tudo e não tem limite no assistente.</p>

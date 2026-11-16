@@ -2,17 +2,17 @@ import { ROTULO_VEREDITO_CONSELHEIRO, type VereditoConselheiro } from "@/lib/con
 import { cn } from "@/lib/utils";
 
 const COR: Record<VereditoConselheiro, string> = {
-  vale: "border-positive text-positive",
-  talvez: "border-brand text-brand",
-  "nao-vale": "border-negative text-negative",
+  vale: "bg-pill-pos-bg text-pill-pos-fg",
+  talvez: "bg-pill-warn-bg text-pill-warn-fg",
+  "nao-vale": "bg-pill-neg-bg text-pill-neg-fg",
 };
 
-/** Selo do veredito do conselheiro: verde vale, azul talvez, vermelho não vale. */
+/** Selo do veredito do conselheiro: verde vale, âmbar talvez, vermelho não vale. */
 export function SeloConselheiro({ veredito, className }: { veredito: VereditoConselheiro; className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-control border px-1.5 text-[11px] leading-none font-medium whitespace-nowrap",
+        "inline-flex h-5 shrink-0 items-center rounded-control px-1.5 text-[11px] leading-none font-medium whitespace-nowrap",
         COR[veredito],
         className,
       )}

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Pencil, Plus, Search, X } from "lucide-react";
 import { adicionarPalavraAction, removerPalavraAction } from "@/app/(app)/radar/palavras-actions";
+import { useFaixaRolavel } from "@/components/ui/usar-faixa-rolavel";
 import { normalizarBusca } from "@/lib/radar-filtros";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ export function BuscaPalavras({
   aoRemoverMarcada,
   aoGuardar,
 }: Props) {
+  const faixa = useFaixaRolavel<HTMLDivElement>();
   const [editando, setEditando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
@@ -124,6 +126,7 @@ export function BuscaPalavras({
       {salvas.length > 0 ? (
         <div className="flex items-center gap-2">
           <div
+            ref={faixa}
             role="group"
             aria-label="Palavras-chave"
             className="sem-barra -ml-4 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pl-4 lg:ml-0 lg:pl-0"

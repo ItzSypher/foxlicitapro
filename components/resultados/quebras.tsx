@@ -4,8 +4,8 @@ import { formatarMoedaCurta, plural } from "@/lib/formato";
 /** Barra de CSS: largura proporcional ao maior valor do grupo. */
 function Barra({ fracao }: { fracao: number }) {
   return (
-    <div aria-hidden="true" className="h-2 w-full overflow-hidden rounded-full bg-raised">
-      <div className="h-full rounded-full bg-brand-fill" style={{ width: `${Math.max(0, Math.min(1, fracao)) * 100}%` }} />
+    <div aria-hidden="true" className="h-1 w-full overflow-hidden rounded-full bg-raised">
+      <div className="h-full rounded-full bg-ink/70" style={{ width: `${Math.max(0, Math.min(1, fracao)) * 100}%` }} />
     </div>
   );
 }
@@ -14,7 +14,7 @@ function Barra({ fracao }: { fracao: number }) {
 export function BarrasQuebra({ titulo, itens }: { titulo: string; itens: ReadonlyArray<QuebraResultado> }) {
   const maximo = Math.max(...itens.map((q) => q.valorGanho), 0);
   return (
-    <section aria-label={titulo} className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4">
+    <section aria-label={titulo} className="flex min-w-0 flex-col gap-3 rounded-card bg-surface p-4">
       <h2 className="text-base font-semibold text-ink">{titulo}</h2>
       {itens.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhuma licitação decidida no período.</p>
@@ -43,7 +43,7 @@ export function BarrasQuebra({ titulo, itens }: { titulo: string; itens: Readonl
 export function BarrasMotivos({ motivos }: { motivos: ReadonlyArray<MotivoResultado> }) {
   const maximo = Math.max(...motivos.map((m) => m.quantidade), 0);
   return (
-    <section aria-label="Motivos de perda" className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4">
+    <section aria-label="Motivos de perda" className="flex min-w-0 flex-col gap-3 rounded-card bg-surface p-4">
       <h2 className="text-base font-semibold text-ink">Motivos de perda</h2>
       {motivos.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhuma licitação perdida no período.</p>

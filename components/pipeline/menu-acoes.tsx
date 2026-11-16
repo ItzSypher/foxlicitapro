@@ -60,9 +60,14 @@ export function MenuAcoes({
   useEffect(() => {
     if (!aberto || !colunas) return;
     const fechar = () => setAberto(false);
+    // A lista do Seletor flutua fora do menu: tocar nela ou rolá-la não fecha o menu.
+    const naListaDoSeletor = (alvo: EventTarget | null) => alvo instanceof Element && alvo.closest("[data-seletor-popup]") !== null;
+    const aoRolar = (e: Event) => {
+      if (!naListaDoSeletor(e.target)) setAberto(false);
+    };
     const fora = (e: PointerEvent) => {
       const alvo = e.target;
-      if (!(alvo instanceof Node)) return;
+      if (!(alvo instanceof Node) || naListaDoSeletor(alvo)) return;
       if (menu.current?.contains(alvo) || botao.current?.contains(alvo)) return;
       setAberto(false);
     };
@@ -74,12 +79,12 @@ export function MenuAcoes({
     document.addEventListener("pointerdown", fora);
     document.addEventListener("keydown", tecla);
     window.addEventListener("resize", fechar);
-    document.addEventListener("scroll", fechar, true);
+    document.addEventListener("scroll", aoRolar, true);
     return () => {
       document.removeEventListener("pointerdown", fora);
       document.removeEventListener("keydown", tecla);
       window.removeEventListener("resize", fechar);
-      document.removeEventListener("scroll", fechar, true);
+      document.removeEventListener("scroll", aoRolar, true);
     };
   }, [aberto, colunas]);
 

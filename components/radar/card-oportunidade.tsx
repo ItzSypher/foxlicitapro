@@ -26,12 +26,12 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
   return (
     <div
       style={{ "--i": indice } as React.CSSProperties}
-      className="card-entrada relative flex h-full w-full flex-col gap-3 rounded-card border border-border bg-surface p-4 text-left transition-[border-color,scale] duration-150 hover:border-control active:scale-[.99]"
+      className="card-entrada relative flex h-full w-full flex-col gap-3 rounded-card bg-surface p-4 text-left transition-[background-color,scale] duration-150 hover:bg-raised active:scale-[.99]"
     >
       <span className="flex items-start justify-between gap-3">
         <span className="flex min-w-0 items-center gap-1">
           <span className="flex shrink-0 flex-col">
-            <span className={cn("font-mono text-[28px] leading-none font-semibold tabular-nums", cor)}>
+            <span className={cn("text-[28px] leading-none font-semibold tabular-nums", cor)}>
               {item.score.total}
             </span>
             <span className={cn("mt-1 text-xs font-medium", cor)}>{nomeFaixa(item.score.faixa)}</span>
@@ -42,7 +42,7 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
           {item.valorEstimado === null ? (
             <span className="text-xl leading-tight font-medium text-muted-foreground">Sigiloso</span>
           ) : (
-            <span className="font-mono text-xl leading-tight font-medium whitespace-nowrap tabular-nums text-ink">
+            <span className="text-xl leading-tight font-medium whitespace-nowrap tabular-nums text-ink">
               {formatarMoedaCurta(item.valorEstimado)}
             </span>
           )}

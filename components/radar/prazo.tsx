@@ -32,13 +32,13 @@ export function PrazoDoCard({
   const { contagem, curto, encerrada, menosDe24h } = usePrazo(encerramentoIso, agoraInicial);
   if (menosDe24h) {
     return (
-      <Pilula tom="negativo" className="font-mono tabular-nums">
+      <Pilula tom="negativo" className="tabular-nums">
         {contagem}
       </Pilula>
     );
   }
   return (
-    <span className="text-[13px] text-muted-foreground">
+    <span className="text-[13px] tabular-nums text-muted-foreground">
       {encerrada ? "Encerrada" : `Fecha em ${curto}`}
     </span>
   );
@@ -53,5 +53,5 @@ export function ContagemTexto({
   agoraInicial: number;
 }) {
   const { contagem } = usePrazo(encerramentoIso, agoraInicial);
-  return <span className="font-mono tabular-nums">{contagem}</span>;
+  return <span className="tabular-nums">{contagem}</span>;
 }

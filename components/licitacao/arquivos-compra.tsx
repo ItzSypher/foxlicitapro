@@ -21,7 +21,7 @@ function LinhaArquivo({ arquivo }: { arquivo: ArquivoCompra }) {
             {data ? (
               <>
                 {" · "}
-                <span className="font-mono tabular-nums">{data}</span>
+                <span className="tabular-nums">{data}</span>
               </>
             ) : null}
           </span>
@@ -60,7 +60,7 @@ export function ArquivosCompra({ arquivos, aviso }: Props) {
     <Secao
       id="arquivos"
       titulo="Arquivos"
-      detalhe={arquivos.length > 0 ? <span className="font-mono tabular-nums">{arquivos.length}</span> : null}
+      detalhe={arquivos.length > 0 ? <span className="tabular-nums">{arquivos.length}</span> : null}
     >
       {aviso}
       {arquivos.length === 0 ? (

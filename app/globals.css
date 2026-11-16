@@ -88,6 +88,7 @@
   --c-border: #e4e4e2;
   --c-rule: #ececea;
   --c-control: #c9c9c6;
+  --c-control-hover: #a8a8a4;
   --c-text: #111111;
   --c-muted: #5c5c5a;
   --c-faint: #5c5c5a;
@@ -152,6 +153,7 @@
   --c-border: #232323;
   --c-rule: #181818;
   --c-control: #3a3a3a;
+  --c-control-hover: #5c5c5c;
   --c-text: #f5f5f5;
   --c-muted: #a3a3a3;
   --c-faint: #8a8a8a;
@@ -250,26 +252,102 @@
   }
 }
 
+/* Barras de rolagem: finas, trilho transparente e polegar no tom do controle (mais forte no hover).
+   Firefox usa as propriedades padrão. Onde o WebKit/Blink estiliza o pseudoelemento, elas ficam de fora,
+   porque o Chrome ignora ::-webkit-scrollbar quando scrollbar-width ou scrollbar-color estão definidos. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-control) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 6px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--c-control);
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--c-control-hover);
+}
+
+/* Faixas que rolam na horizontal (filtros, abas, quadro do Pipeline no celular): sem barra visível.
+   Quando há conteúdo escondido num dos lados, as bordas esmaecem. Os atributos data-esquerda e
+   data-direita vêm do hook useFaixaRolavel (ou do próprio componente, como no Pipeline). */
 .sem-barra {
   scrollbar-width: none;
+  --fade-esquerda: 0px;
+  --fade-direita: 0px;
 }
 .sem-barra::-webkit-scrollbar {
   display: none;
 }
+.sem-barra[data-esquerda="true"] {
+  --fade-esquerda: 28px;
+}
+.sem-barra[data-direita="true"] {
+  --fade-direita: 28px;
+}
+.sem-barra[data-esquerda="true"],
+.sem-barra[data-direita="true"] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fade-esquerda),
+    #000 calc(100% - var(--fade-direita)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fade-esquerda),
+    #000 calc(100% - var(--fade-direita)),
+    transparent 100%
+  );
+}
 
-/* Trilho do Kanban: sem barra no celular (desliza com o dedo); fina e no tom do tema no computador. */
+/* Quadro do Kanban: no celular desliza com o dedo, sem barra e com esmaecimento nas bordas;
+   no computador vale a barra fina global (e os botões de rolar). */
 @media (max-width: 767px) {
   .trilho-rolagem {
     scrollbar-width: none;
+    --fade-esquerda: 0px;
+    --fade-direita: 0px;
   }
   .trilho-rolagem::-webkit-scrollbar {
     display: none;
   }
-}
-@media (min-width: 768px) {
-  .trilho-rolagem {
-    scrollbar-width: thin;
-    scrollbar-color: var(--c-control) transparent;
+  .trilho-rolagem[data-esquerda="true"] {
+    --fade-esquerda: 24px;
+  }
+  .trilho-rolagem[data-direita="true"] {
+    --fade-direita: 24px;
+  }
+  .trilho-rolagem[data-esquerda="true"],
+  .trilho-rolagem[data-direita="true"] {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--fade-esquerda),
+      #000 calc(100% - var(--fade-direita)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--fade-esquerda),
+      #000 calc(100% - var(--fade-direita)),
+      transparent 100%
+    );
   }
 }
 

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { frasePrazoEncerrado } from "@/core/encerradas";
+import { Segmentado, TRILHO_SEGMENTADO, classeItemSegmentado } from "@/components/ui/segmentado";
+import { useFaixaRolavel } from "@/components/ui/usar-faixa-rolavel";
 import { cn } from "@/lib/utils";
 import { BlocoErro } from "./bloco-erro";
 import { Coluna } from "./coluna";
@@ -146,6 +148,14 @@ function Quadro({
   const colunas = useColunas();
   const trilho = useRef<HTMLDivElement | null>(null);
   const tablist = useRef<HTMLDivElement | null>(null);
+  const faixaDasAbas = useFaixaRolavel<HTMLDivElement>();
+  const ligarTablist = useCallback(
+    (no: HTMLDivElement | null) => {
+      tablist.current = no;
+      return faixaDasAbas(no);
+    },
+    [faixaDasAbas],
+  );
   const abaInicial = useRef(etapaInicial);
   /** Etapa para a qual um toque numa aba está rolando: a rolagem não deve trocar a aba no caminho. */
   const destino = useRef<EtapaId | null>(null);
@@ -373,7 +383,7 @@ function Quadro({
             Conselheiro
           </Link>
         </div>
-        <p className="font-mono text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
+        <p className="text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
         {totalEncerradas > 0 ? (
           <p className="text-[13px] text-muted-foreground">
             {frasePrazoEncerrado(totalEncerradas)}{" "}
@@ -389,43 +399,25 @@ function Quadro({
 
       {vazio ? null : (
         <div className="flex items-center gap-2 lg:gap-3">
-          <div
-            role="group"
-            aria-label="Região"
-            className="sem-barra flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
-          >
-            {OPCOES_REGIAO.map((o) => {
-              const ativa = regiao === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  aria-pressed={ativa}
-                  onClick={() => escolherRegiao(o.id)}
-                  className={cn(
-                    "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border px-3 text-sm whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
-                    ativa
-                      ? "border-control bg-active font-medium text-ink"
-                      : "border-border bg-surface text-muted-foreground hover:bg-raised hover:text-ink",
-                  )}
-                >
-                  {o.rotulo}
-                  <span className="font-mono text-xs tabular-nums">{contagemRegiao[o.id]}</span>
-                </button>
-              );
-            })}
+          <Segmentado
+            rotulo="Região"
+            valor={regiao}
+            aoMudar={escolherRegiao}
+            opcoes={OPCOES_REGIAO.map((o) => ({ valor: o.id, rotulo: o.rotulo, contagem: contagemRegiao[o.id] }))}
+            rolavel
+            className="min-w-0"
+          />
+          <div className="min-w-0 flex-1" aria-hidden="true" />
+          <div className={cn(TRILHO_SEGMENTADO, "shrink-0")}>
+            <button
+              type="button"
+              aria-pressed={soMeus}
+              onClick={() => setSoMeus((v) => !v)}
+              className={classeItemSegmentado(soMeus)}
+            >
+              Só os meus
+            </button>
           </div>
-          <button
-          type="button"
-            aria-pressed={soMeus}
-            onClick={() => setSoMeus((v) => !v)}
-            className={cn(
-              "inline-flex h-11 shrink-0 items-center rounded-control border px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
-              soMeus ? "border-brand bg-active font-medium text-ink" : "border-control text-muted-foreground hover:bg-active hover:text-ink",
-            )}
-          >
-            Só os meus
-          </button>
         </div>
       )}
 
@@ -453,7 +445,7 @@ function Quadro({
       ) : (
         <>
           <div
-            ref={tablist}
+            ref={ligarTablist}
             role="tablist"
             aria-label="Etapas"
             className="sem-barra relative -mx-4 flex gap-1 overflow-x-auto px-4 md:hidden"
@@ -474,7 +466,7 @@ function Quadro({
                   )}
                 >
                   {e.rotulo}
-                  <span className="font-mono text-xs tabular-nums">{resumo.porEtapa[e.id].quantidade}</span>
+                  <span className="text-xs tabular-nums">{resumo.porEtapa[e.id].quantidade}</span>
                 </button>
               );
             })}
@@ -504,6 +496,8 @@ function Quadro({
           <div
             ref={ligarTrilho}
             onScroll={aoRolar}
+            data-esquerda={bordas.esquerda}
+            data-direita={bordas.direita}
             className="trilho-rolagem relative flex min-w-0 snap-x snap-mandatory items-start gap-3 overflow-x-auto md:h-full md:snap-none md:items-stretch md:pb-2"
           >
             {ETAPAS.map((e) => (

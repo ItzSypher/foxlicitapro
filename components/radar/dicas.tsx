@@ -21,7 +21,7 @@ export function DicaNota({ score, className }: { score: Score; className?: strin
           <li key={criterio.id}>
             <span className="flex items-baseline justify-between gap-3 font-medium">
               <span>{criterio.rotulo}</span>
-              <span className="font-mono tabular-nums">
+              <span className="tabular-nums">
                 {criterio.pontos}/{criterio.maximo}
               </span>
             </span>

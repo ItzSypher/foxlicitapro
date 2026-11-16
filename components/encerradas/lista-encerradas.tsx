@@ -94,7 +94,7 @@ export function ListaEncerradas({ itens, podeEditar }: { itens: ItemEncerrado[];
                 </span>
                 <span className="min-w-0 break-words">
                   {i.municipio} ·{" "}
-                  <span className="font-mono tabular-nums">
+                  <span className="tabular-nums">
                     {i.valorEstimado === null ? "—" : formatarReais(i.valorEstimado)}
                   </span>
                 </span>

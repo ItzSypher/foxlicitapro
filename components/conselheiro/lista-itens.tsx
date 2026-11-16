@@ -8,6 +8,7 @@ import { normalizarTexto } from "@/core/texto-busca";
 import type { Regiao } from "@/core/types";
 import type { VereditoConselheiro } from "@/lib/conselheiro/esquema";
 import { formatarMoedaCurta, plural } from "@/lib/formato";
+import { Segmentado } from "@/components/ui/segmentado";
 import { cn } from "@/lib/utils";
 import { SeloConselheiro } from "./selo-conselheiro";
 
@@ -33,7 +34,7 @@ const OPCOES: ReadonlyArray<{ id: Filtro; rotulo: string }> = [
 ];
 
 const CONTROLE =
-  "h-11 w-full rounded-control border border-control bg-raised px-3 pl-9 text-base text-ink placeholder:text-faint outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40";
+  "h-11 w-full rounded-control border-0 bg-raised px-3 pl-9 text-base text-ink placeholder:text-faint outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 export function hrefDoItem(id: string): string {
   return `/conselheiro?item=${encodeURIComponent(id)}`;
@@ -81,40 +82,26 @@ export function ListaItensConselheiro({
         />
       </div>
 
-      <div role="group" aria-label="Região" className="sem-barra flex min-w-0 items-center gap-2 overflow-x-auto">
-        {OPCOES.map((o) => {
-          const ativa = regiao === o.id;
-          return (
-            <button
-              key={o.id}
-              type="button"
-              aria-pressed={ativa}
-              onClick={() => setRegiao(o.id)}
-              className={cn(
-                "inline-flex h-11 shrink-0 items-center rounded-control border px-3 text-sm whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
-                ativa
-                  ? "border-control bg-active font-medium text-ink"
-                  : "border-border bg-surface text-muted-foreground hover:bg-raised hover:text-ink",
-              )}
-            >
-              {o.rotulo}
-            </button>
-          );
-        })}
-      </div>
+      <Segmentado
+        rotulo="Região"
+        valor={regiao}
+        aoMudar={setRegiao}
+        rolavel
+        opcoes={OPCOES.map((o) => ({ valor: o.id, rotulo: o.rotulo }))}
+      />
 
       <p className="text-[13px] text-muted-foreground" aria-live="polite">
         {visiveis.length} {plural(visiveis.length, "item", "itens")}
       </p>
 
       {itens.length === 0 ? (
-        <p className="rounded-card border border-border px-4 py-5 text-sm text-muted-foreground">
+        <p className="rounded-card bg-surface px-4 py-5 text-sm text-muted-foreground">
           Nenhum item ativo no Pipeline. Salve oportunidades do Radar para pedir a opinião do conselheiro.
         </p>
       ) : visiveis.length === 0 ? (
-        <p className="rounded-card border border-border px-4 py-5 text-sm text-muted-foreground">Nenhum item para essa busca.</p>
+        <p className="rounded-card bg-surface px-4 py-5 text-sm text-muted-foreground">Nenhum item para essa busca.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-card border border-border">
+        <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-card bg-surface">
           {visiveis.map((i) => {
             const ativo = i.id === selecionado;
             return (
@@ -134,7 +121,7 @@ export function ListaItensConselheiro({
                   <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     <span>{ROTULO_ETAPA[i.etapa]}</span>
                     <span aria-hidden="true">·</span>
-                    <span className="font-mono tabular-nums">{i.valorEstimado === null ? "Sem valor" : formatarMoedaCurta(i.valorEstimado)}</span>
+                    <span className="tabular-nums">{i.valorEstimado === null ? "Sem valor" : formatarMoedaCurta(i.valorEstimado)}</span>
                     {i.veredito !== null ? <SeloConselheiro veredito={i.veredito} /> : null}
                   </span>
                 </Link>

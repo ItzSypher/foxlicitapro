@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -22,76 +22,12 @@ import {
   type Ordem,
   type Visao,
 } from "@/lib/radar-filtros";
-import { cn } from "@/lib/utils";
+import { Segmentado } from "@/components/ui/segmentado";
+import { Seletor, type OpcaoSeletor } from "@/components/ui/seletor";
 import { AlternadorVisao } from "./alternador-visao";
 
-function Chip({
-  ativo,
-  onClick,
-  children,
-  className,
-}: {
-  ativo: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={ativo}
-      onClick={onClick}
-      className={cn(
-        "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border px-3 text-sm whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
-        ativo
-          ? "border-control bg-active font-medium text-ink"
-          : "border-border bg-surface text-muted-foreground hover:bg-raised hover:text-ink",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Seletor<T extends string>({
-  rotulo,
-  prefixo,
-  valor,
-  opcoes,
-  onMudar,
-}: {
-  rotulo: string;
-  prefixo: string;
-  valor: T;
-  opcoes: ReadonlyArray<{ id: T; rotulo: string }>;
-  onMudar: (valor: T) => void;
-}) {
-  return (
-    <label className="relative inline-flex shrink-0 items-center">
-      <span className="sr-only">{rotulo}</span>
-      <select
-        value={valor}
-        onChange={(evento) => {
-          const escolhida = opcoes.find((opcao) => opcao.id === evento.target.value);
-          if (escolhida) onMudar(escolhida.id);
-        }}
-        className="h-9 cursor-pointer appearance-none rounded-control border border-border bg-surface pr-8 pl-3 text-sm text-ink outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand"
-      >
-        {opcoes.map((opcao) => (
-          <option key={opcao.id} value={opcao.id}>
-            {prefixo}
-            {opcao.rotulo}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute right-2.5 size-4 text-muted-foreground"
-        aria-hidden="true"
-      />
-    </label>
-  );
-}
+const OPCOES_MODALIDADE: ReadonlyArray<OpcaoSeletor<FiltroModalidade>> = MODALIDADES.map((m) => ({ valor: m.id, rotulo: m.rotulo }));
+const OPCOES_ORDEM: ReadonlyArray<OpcaoSeletor<Ordem>> = ORDENS.map((o) => ({ valor: o.id, rotulo: o.rotulo }));
 
 function GrupoDoPainel({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -138,19 +74,15 @@ export function BarraFiltros({
 
   return (
     <div className="flex items-center gap-2 lg:gap-3">
-      <div
-        role="group"
-        aria-label="Região"
-        className="sem-barra -ml-4 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pl-4 lg:ml-0 lg:pl-0"
-      >
-        {REGIOES.map((regiao) => (
-          <Chip key={regiao.id} ativo={filtros.regiao === regiao.id} onClick={() => onRegiao(regiao.id)}>
-            {regiao.rotulo}
-            <span className="text-xs tabular-nums">{contagens[regiao.id]}</span>
-          </Chip>
-        ))}
-        <span aria-hidden="true" className="w-2 shrink-0 lg:hidden" />
-      </div>
+      <Segmentado
+        rotulo="Região"
+        valor={filtros.regiao}
+        aoMudar={onRegiao}
+        opcoes={REGIOES.map((r) => ({ valor: r.id, rotulo: r.rotulo, contagem: contagens[r.id] }))}
+        rolavel
+        className="min-w-0"
+      />
+      <div className="min-w-0 flex-1" aria-hidden="true" />
 
       <Button
         type="button"
@@ -174,18 +106,20 @@ export function BarraFiltros({
         <span aria-hidden="true" className="h-5 w-px bg-border" />
         <Seletor
           rotulo="Modalidade"
-          prefixo="Modalidade: "
+          posicaoRotulo="lado"
           valor={filtros.modalidade}
-          opcoes={MODALIDADES}
-          onMudar={onModalidade}
+          opcoes={OPCOES_MODALIDADE}
+          aoMudar={onModalidade}
+          className="w-auto shrink-0"
         />
         {semOrdem ? null : (
           <Seletor
             rotulo="Ordenar por"
-            prefixo="Ordenar: "
+            posicaoRotulo="lado"
             valor={filtros.ordem}
-            opcoes={ORDENS}
-            onMudar={onOrdem}
+            opcoes={OPCOES_ORDEM}
+            aoMudar={onOrdem}
+            className="w-auto shrink-0"
           />
         )}
         <AlternadorVisao visao={visao} onEscolher={onVisao} />
@@ -205,33 +139,29 @@ export function BarraFiltros({
 
           <div className="flex flex-col gap-6 overflow-y-auto p-4">
             <GrupoDoPainel titulo="Modalidade">
-              <div role="group" aria-label="Modalidade" className="flex flex-wrap gap-2">
-                {MODALIDADES.map((modalidade) => (
-                  <Chip
-                    key={modalidade.id}
-                    ativo={filtros.modalidade === modalidade.id}
-                    onClick={() => onModalidade(modalidade.id)}
-                  >
-                    {modalidade.rotulo}
-                  </Chip>
-                ))}
-              </div>
+              <Segmentado
+                rotulo="Modalidade"
+                valor={filtros.modalidade}
+                aoMudar={onModalidade}
+                opcoes={OPCOES_MODALIDADE.map((o) => ({ valor: o.valor, rotulo: o.rotulo }))}
+                larguraTotal
+              />
             </GrupoDoPainel>
 
             {semOrdem ? null : (
               <GrupoDoPainel titulo="Ordenar por">
-                <div role="group" aria-label="Ordenar por" className="flex flex-wrap gap-2">
-                  {ORDENS.map((ordem) => (
-                    <Chip key={ordem.id} ativo={filtros.ordem === ordem.id} onClick={() => onOrdem(ordem.id)}>
-                      {ordem.rotulo}
-                    </Chip>
-                  ))}
-                </div>
-              </GrupoDoPainel>
+                <Seletor
+                  rotulo="Ordenar por"
+                  posicaoRotulo="oculto"
+                  valor={filtros.ordem}
+                  opcoes={OPCOES_ORDEM}
+                  aoMudar={onOrdem}
+                />
+            </GrupoDoPainel>
             )}
 
             <GrupoDoPainel titulo="Visualização">
-              <AlternadorVisao visao={visao} onEscolher={onVisao} className="w-full" />
+              <AlternadorVisao visao={visao} onEscolher={onVisao} larguraTotal />
             </GrupoDoPainel>
           </div>
 

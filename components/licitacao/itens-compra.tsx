@@ -50,13 +50,13 @@ function LinhaTelefone({ item }: { item: ItemCompra }) {
   return (
     <li className="flex flex-col gap-1 border-t border-border py-2 first:border-t-0">
       <div className="flex items-start gap-3">
-        <span className="w-8 shrink-0 pt-[11px] text-right font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="w-8 shrink-0 pt-[11px] text-right text-xs tabular-nums text-muted-foreground">
           {item.numero}
         </span>
         <Descricao texto={item.descricao || "Sem descrição"} className="min-w-0 flex-1 py-2" />
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-1 pl-11">
-        <span className="font-mono text-[13px] tabular-nums text-muted-foreground">{contaDoItem(item)}</span>
+        <span className="text-[13px] tabular-nums text-muted-foreground">{contaDoItem(item)}</span>
         {item.exclusivoMeEpp ? <Pilula tom="positivo">ME/EPP</Pilula> : null}
       </div>
     </li>
@@ -98,15 +98,15 @@ function TabelaDesktop({ itens }: { itens: readonly ItemCompra[] }) {
         <tbody>
           {itens.map((item) => (
             <tr key={item.numero} className="border-b border-border align-top last:border-b-0">
-              <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">{item.numero}</td>
+              <td className="px-3 py-2 text-xs tabular-nums text-muted-foreground">{item.numero}</td>
               <td className="px-3 py-1">
                 <Descricao texto={item.descricao || "Sem descrição"} className="py-1" />
               </td>
-              <td className="px-3 py-3 text-right font-mono tabular-nums text-ink">
+              <td className="px-3 py-3 text-right tabular-nums text-ink">
                 {item.quantidade === null ? SEM_VALOR : quantidadeBr(item.quantidade)}
               </td>
               <td className="px-3 py-3 text-[13px] text-muted-foreground">{item.unidade ?? SEM_VALOR}</td>
-              <td className="px-3 py-3 text-right font-mono tabular-nums whitespace-nowrap text-ink">
+              <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap text-ink">
                 {item.sigiloso ? (
                   <span className="font-sans text-[13px] text-muted-foreground">Sigiloso</span>
                 ) : item.valorUnitarioEstimado === null ? (
@@ -115,7 +115,7 @@ function TabelaDesktop({ itens }: { itens: readonly ItemCompra[] }) {
                   unitarioBr(item.valorUnitarioEstimado)
                 )}
               </td>
-              <td className="px-3 py-3 text-right font-mono tabular-nums whitespace-nowrap text-ink">
+              <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap text-ink">
                 {item.valorTotalEstimado === null ? SEM_VALOR : formatarMoeda(item.valorTotalEstimado)}
               </td>
               <td className="px-3 py-3">
@@ -162,11 +162,11 @@ export function ItensCompra({ itens, totalItens, linkPncp, aviso }: Props) {
   const resumo =
     totalItens > 0 ? (
       <>
-        <span className="font-mono tabular-nums">{totalItens}</span> {plural(totalItens, "item", "itens")}
+        <span className="tabular-nums">{totalItens}</span> {plural(totalItens, "item", "itens")}
         {soma !== null ? (
           <>
             {" · soma "}
-            <span className="font-mono tabular-nums">{formatarMoeda(soma)}</span>
+            <span className="tabular-nums">{formatarMoeda(soma)}</span>
           </>
         ) : null}
       </>
@@ -211,7 +211,7 @@ export function ItensCompra({ itens, totalItens, linkPncp, aviso }: Props) {
               )}
             >
               Só exclusivos ME/EPP
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">{exclusivos}</span>
+              <span className="text-xs tabular-nums text-muted-foreground">{exclusivos}</span>
             </button>
           </div>
 
@@ -242,8 +242,8 @@ export function ItensCompra({ itens, totalItens, linkPncp, aviso }: Props) {
 
       {incompleto && itens.length > 0 ? (
         <p className="text-[13px] text-muted-foreground">
-          Mostrando <span className="font-mono tabular-nums">{itens.length}</span> de{" "}
-          <span className="font-mono tabular-nums">{totalItens}</span> itens.{" "}
+          Mostrando <span className="tabular-nums">{itens.length}</span> de{" "}
+          <span className="tabular-nums">{totalItens}</span> itens.{" "}
           <a
             href={linkPncp}
             target="_blank"

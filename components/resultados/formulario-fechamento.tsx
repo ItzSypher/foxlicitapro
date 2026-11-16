@@ -4,6 +4,7 @@ import { useId, useState, useTransition } from "react";
 import { registrarFechamento } from "@/app/(app)/pipeline/actions";
 import { formatarNumeroBR, parseNumeroBR } from "@/components/calculadora/numero";
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CONTROLE } from "@/components/propostas/campos";
+import { Seletor } from "@/components/ui/seletor";
 import { MOTIVOS_PERDA, ROTULO_MOTIVO, calcularLucro, ehMotivoPerda, type MotivoPerda } from "@/core/fechamento";
 import { formatarMoeda, formatarPercentual } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -117,19 +118,13 @@ export function FormularioFechamento({ itemId, etapa, valorInicial, custoInicial
           </p>
         </>
       ) : (
-        <div className="flex min-w-0 flex-col gap-1">
-          <label htmlFor={`${id}-motivo`} className="text-[13px] text-muted-foreground">
-            Motivo (opcional)
-          </label>
-          <select id={`${id}-motivo`} value={motivo} onChange={(e) => setMotivo(e.target.value)} className={CONTROLE}>
-            <option value="">Não informar</option>
-            {MOTIVOS_PERDA.map((m) => (
-              <option key={m} value={m}>
-                {ROTULO_MOTIVO[m]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Seletor
+          id={`${id}-motivo`}
+          rotulo="Motivo (opcional)"
+          valor={motivo}
+          aoMudar={setMotivo}
+          opcoes={[{ valor: "", rotulo: "Não informar" }, ...MOTIVOS_PERDA.map((m) => ({ valor: m, rotulo: ROTULO_MOTIVO[m] }))]}
+        />
       )}
 
       {erro ? (

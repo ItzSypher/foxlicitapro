@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { comentarAction, lerComentariosAction, salvarNotas } from "@/app/(app)/pipeline/actions";
+import { Seletor } from "@/components/ui/seletor";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ComentarioPipeline } from "@/core/types-equipe";
 import { margemEmPercentual, type Estatistica, type ResumoCotacoes } from "@/core/cotacoes-resumo";
@@ -28,8 +29,23 @@ const COR_FAIXA: Record<Faixa, string> = {
   nogo: "text-negative",
 };
 
+/** Linha de texto que abre uma folha: sem caixa, só o degrau de tom ao passar o mouse. */
 const LINHA_FOLHA =
-  "flex h-11 w-full items-center justify-between gap-2 rounded-control bg-raised px-3 text-left text-[13px] text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand";
+  "-mx-1.5 flex min-h-11 w-[calc(100%+0.75rem)] items-center justify-between gap-2 rounded-control px-1.5 text-left text-[13px] text-ink outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand lg:min-h-8";
+
+/** Sem custo cadastrado: link de texto que leva à calculadora. */
+function LinkCotar({ itemId }: { itemId: string }) {
+  return (
+    <Link
+      href={`/calculadora?item=${encodeURIComponent(itemId)}`}
+      className="inline-flex min-h-11 items-center gap-1 rounded-control text-[13px] text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:min-h-8"
+    >
+      Sem custo: cote um fornecedor
+      <ChevronRight aria-hidden="true" className="size-3.5" />
+      <span className="font-medium text-ink underline underline-offset-4">Cotar</span>
+    </Link>
+  );
+}
 
 /** Folha com o conteúdo de um card: sobe de baixo no celular e abre à direita nas colunas. */
 function Folha({
@@ -81,7 +97,7 @@ function LinhaRevisao({
     <>
       <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
         <span>Revisão jurídica</span>
-        <span className="flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
           <span className={completo ? "text-positive" : ""}>
             {completo ? "Ok" : `${dado.revisao.length}/${PASSOS_JURIDICOS.length}`}
           </span>
@@ -104,9 +120,9 @@ function LinhaEstatistica({ rotulo, e }: { rotulo: string; e: Estatistica }) {
   return (
     <div className="grid grid-cols-[3.25rem_repeat(3,minmax(0,1fr))] items-baseline gap-x-2 text-xs sm:grid-cols-[4rem_repeat(3,minmax(0,1fr))] sm:text-[13px]">
       <span className="text-xs text-muted-foreground">{rotulo}</span>
-      <span className="font-mono tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.media)}</span>
-      <span className="font-mono tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.menor)}</span>
-      <span className="font-mono tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.maior)}</span>
+      <span className="tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.media)}</span>
+      <span className="tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.menor)}</span>
+      <span className="tabular-nums [overflow-wrap:anywhere] text-ink">{formatarMoeda(e.maior)}</span>
     </div>
   );
 }
@@ -142,22 +158,14 @@ function LinhaCotacoes({
   }
   if (resumo === null) {
     if (dado.etapa === "ganha" || dado.etapa === "perdida") return null;
-    return (
-      <Link href={cotar} className={LINHA_FOLHA}>
-        <span className="min-w-0 truncate">Sem custo: cote um fornecedor</span>
-        <span className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-brand">
-          Cotar
-          <ChevronRight aria-hidden="true" className="size-4" />
-        </span>
-      </Link>
-    );
+    return <LinkCotar itemId={dado.id} />;
   }
   return (
     <>
       <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
         <span className="min-w-0 truncate">
-          Cotado <span className="font-mono tabular-nums">{formatarMoeda(resumo.ultima.precoVenda)}</span> · margem{" "}
-          <span className="font-mono tabular-nums">{margemEmPercentual(resumo.ultima.margem)}%</span>
+          Cotado <span className="tabular-nums">{formatarMoeda(resumo.ultima.precoVenda)}</span> · margem{" "}
+          <span className="tabular-nums">{margemEmPercentual(resumo.ultima.margem)}%</span>
         </span>
         <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       </button>
@@ -226,15 +234,7 @@ function LinhaPreco({
   if (preco === null || preco.sugerido === null) {
     // Sem custo (cotação com custo zero): o atalho para cotar vem aqui; sem cotação nenhuma, vem da linha de cotações.
     if (preco === null || dado.cotacoes === null || dado.etapa === "ganha" || dado.etapa === "perdida") return null;
-    return (
-      <Link href={`/calculadora?item=${encodeURIComponent(dado.id)}`} className={LINHA_FOLHA}>
-        <span className="min-w-0 truncate">Sem custo: cote um fornecedor</span>
-        <span className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-brand">
-          Cotar
-          <ChevronRight aria-hidden="true" className="size-4" />
-        </span>
-      </Link>
-    );
+    return <LinkCotar itemId={dado.id} />;
   }
   function mudar(valor: boolean) {
     setAberto(valor);
@@ -244,10 +244,10 @@ function LinhaPreco({
     <>
       <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
         <span className="min-w-0 truncate">
-          Sugerido <span className="font-mono tabular-nums">{formatarReais(preco.sugerido)}</span>
+          Sugerido <span className="tabular-nums">{formatarReais(preco.sugerido)}</span>
           {preco.margemSugeridaPct === null ? null : (
             <>
-              {" "}· margem <span className="font-mono tabular-nums">{pctBr(preco.margemSugeridaPct)}</span>
+              {" "}· margem <span className="tabular-nums">{pctBr(preco.margemSugeridaPct)}</span>
             </>
           )}
         </span>
@@ -276,7 +276,7 @@ function Prazo({ encerramentoIso, agoraInicial }: { encerramentoIso: string; ago
   return (
     <span
       className={cn(
-        "font-mono text-xs tabular-nums",
+        "text-xs tabular-nums",
         texto === null ? "text-muted-foreground" : "text-ink",
       )}
     >
@@ -284,6 +284,9 @@ function Prazo({ encerramentoIso, agoraInicial }: { encerramentoIso: string; ago
     </span>
   );
 }
+
+const BOTAO_RODAPE =
+  "inline-flex min-h-11 items-center gap-1 rounded-control px-1.5 text-[13px] text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:min-h-8";
 
 function Notas({
   id,
@@ -330,28 +333,14 @@ function Notas({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={alternar}
-          aria-expanded={aberto}
-          className="inline-flex h-11 items-center gap-1 rounded-control text-[13px] text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
-        >
-          <ChevronDown
-            aria-hidden="true"
-            className={cn("size-4 transition-transform", aberto ? "rotate-180" : "")}
-          />
-          {base.trim() === "" ? "Notas" : "Notas (com texto)"}
-        </button>
-        {carimbo ? (
-          <span role="status" className="text-xs text-faint">
-            Salvo
-          </span>
-        ) : null}
-      </div>
+    <>
+      <button type="button" onClick={alternar} aria-expanded={aberto} className={BOTAO_RODAPE}>
+        Notas
+        {base.trim() === "" ? null : <span className="text-xs text-faint">com texto</span>}
+        <ChevronDown aria-hidden="true" className={cn("size-3.5 transition-transform", aberto ? "rotate-180" : "")} />
+      </button>
       {aberto ? (
-        <>
+        <div className="order-last flex basis-full flex-col gap-2 pt-1">
           <textarea
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
@@ -360,16 +349,21 @@ function Notas({
             rows={4}
             maxLength={5000}
             aria-label="Notas do item"
-            className="w-full resize-y rounded-control border border-control bg-ground p-2 font-mono text-base leading-snug text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
+            className="w-full resize-y rounded-control border-0 bg-raised p-2 text-base leading-snug text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
           />
+          {carimbo ? (
+            <span role="status" className="text-xs text-faint">
+              Salvo
+            </span>
+          ) : null}
           {erro ? (
             <p role="alert" className="text-xs text-negative">
               {erro}
             </p>
           ) : null}
-        </>
+        </div>
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -452,12 +446,9 @@ function Comentarios({
 
   return (
     <>
-      <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={LINHA_FOLHA}>
-        <span>Comentários</span>
-        <span className="flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground">
-          {quantidade}
-          <ChevronRight aria-hidden="true" className="size-4" />
-        </span>
+      <button type="button" onClick={() => mudar(true)} aria-haspopup="dialog" className={BOTAO_RODAPE}>
+        Comentários
+        <span className="text-xs tabular-nums text-ink">{quantidade}</span>
       </button>
       <Folha aberto={aberto} aoMudar={mudar} titulo="Comentários" descricao={titulo}>
         {lista === null && !erro ? <p className="text-xs text-muted-foreground">Carregando…</p> : null}
@@ -484,7 +475,7 @@ function Comentarios({
           maxLength={2000}
           aria-label="Escrever comentário"
           placeholder="Escreva um comentário"
-          className="w-full resize-y rounded-control border border-control bg-ground p-2 text-base leading-snug text-ink outline-none placeholder:text-faint focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
+          className="w-full resize-y rounded-control border-0 bg-raised p-2 text-base leading-snug text-ink outline-none placeholder:text-faint focus-visible:ring-2 focus-visible:ring-brand md:text-[13px]"
         />
         <button
           type="button"
@@ -521,38 +512,36 @@ function Responsavel({
     dado.responsavelId !== null && !pessoas.some((p) => p.id === dado.responsavelId)
       ? { id: dado.responsavelId, nome: dado.responsavelNome ?? "Pessoa removida" }
       : null;
+  const adicionadoPor = (
+    <p className="text-xs text-muted-foreground">
+      {dado.criadoPorNome ? `Adicionado por ${dado.criadoPorNome}` : "Adicionado por pessoa não registrada"}
+    </p>
+  );
   if (somenteLeitura) {
     return (
-      <div className="flex flex-col gap-1">
-        <p className="text-xs text-muted-foreground">
-          {dado.criadoPorNome ? `Adicionado por ${dado.criadoPorNome}` : "Adicionado por pessoa não registrada"}
+      <div className="flex flex-col gap-0.5">
+        <p className="text-[13px] text-muted-foreground">
+          Responsável: <span className="text-ink">{dado.responsavelNome ?? "ninguém"}</span>
         </p>
-        <p className="text-[13px] text-ink">Responsável: {dado.responsavelNome ?? "ninguém"}</p>
+        {adicionadoPor}
       </div>
     );
   }
   return (
-    <div className="flex flex-col gap-1">
-      <p className="text-xs text-muted-foreground">
-        {dado.criadoPorNome ? `Adicionado por ${dado.criadoPorNome}` : "Adicionado por pessoa não registrada"}
-      </p>
-      <label htmlFor={id} className="text-xs text-muted-foreground">
-        Responsável
-      </label>
-      <select
+    <div className="flex flex-col gap-0.5">
+      <Seletor
         id={id}
-        value={dado.responsavelId ?? ""}
-        onChange={(e) => aoMudar(e.target.value === "" ? null : e.target.value)}
-        className="h-11 w-full rounded-control border border-control bg-ground px-2 text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand lg:h-9 lg:text-[13px]"
-      >
-        <option value="">Sem responsável</option>
-        {foraDaLista ? <option value={foraDaLista.id}>{foraDaLista.nome}</option> : null}
-        {pessoas.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.nome}
-          </option>
-        ))}
-      </select>
+        rotulo="Responsável"
+        posicaoRotulo="lado"
+        valor={dado.responsavelId ?? ""}
+        aoMudar={(valor) => aoMudar(valor === "" ? null : valor)}
+        opcoes={[
+          { valor: "", rotulo: "Sem responsável" },
+          ...(foraDaLista ? [{ valor: foraDaLista.id, rotulo: foraDaLista.nome }] : []),
+          ...pessoas.map((p) => ({ valor: p.id, rotulo: p.nome })),
+        ]}
+      />
+      {adicionadoPor}
     </div>
   );
 }
@@ -609,7 +598,7 @@ export function CardItem({
       }}
       onDragEnd={aoTerminarArraste}
       className={cn(
-        "flex min-w-0 flex-col gap-2.5 rounded-card border border-border bg-surface p-3",
+        "flex min-w-0 flex-col gap-2 rounded-card bg-surface p-3",
         podeArrastar ? "cursor-grab active:cursor-grabbing" : "",
         arrastando ? "opacity-40" : "",
       )}
@@ -618,7 +607,7 @@ export function CardItem({
         <span className="flex min-w-0 items-baseline gap-2">
           <span
             className={cn(
-              "font-mono text-base font-medium tabular-nums",
+              "text-base font-semibold tabular-nums",
               COR_FAIXA[item.score.faixa],
             )}
           >
@@ -647,20 +636,13 @@ export function CardItem({
 
       <p className="line-clamp-3 text-sm font-medium leading-snug text-ink">{titulo}</p>
 
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-snug text-muted-foreground">
-        <span
-          className={cn(
-            "inline-flex h-5 shrink-0 items-center rounded-control border px-1.5 text-[11px] leading-none font-medium whitespace-nowrap",
-            item.regiao === "nova-iguacu" ? "border-brand text-ink" : "border-border",
-          )}
-        >
-          {ROTULO_REGIAO[item.regiao]}
-        </span>
-        <span className="min-w-0">
-          {item.municipio} ·{" "}
-          <span className="font-mono tabular-nums">
-            {item.valorEstimado === null ? "—" : formatarReais(item.valorEstimado)}
-          </span>
+      <p className="text-[13px] leading-snug text-muted-foreground">
+        <span className={item.regiao === "nova-iguacu" ? "font-medium text-ink" : ""}>{ROTULO_REGIAO[item.regiao]}</span>
+        {" · "}
+        {item.municipio}
+        {" · "}
+        <span className="tabular-nums text-ink">
+          {item.valorEstimado === null ? "—" : formatarReais(item.valorEstimado)}
         </span>
       </p>
 
@@ -679,12 +661,13 @@ export function CardItem({
         <LinhaRevisao dado={dado} titulo={tituloCurto} podeRevisar={podeRevisar} aoAbrir={setRevisaoAberta} />
       ) : null}
 
-      <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} somenteLeitura={!podeEditar} />
-
-      <Comentarios id={dado.id} total={dado.comentarios} titulo={tituloCurto} aoAbrir={setComentariosAbertos} />
+      <div className="-mx-1.5 -mb-1 flex flex-wrap items-center gap-x-1 border-t border-rule pt-1">
+        <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} somenteLeitura={!podeEditar} />
+        <Comentarios id={dado.id} total={dado.comentarios} titulo={tituloCurto} aoAbrir={setComentariosAbertos} />
+      </div>
 
       {confirmando && podeEditar ? (
-        <div role="group" aria-label="Confirmar remoção" className="flex flex-col gap-2 border-t border-border pt-3">
+        <div role="group" aria-label="Confirmar remoção" className="flex flex-col gap-2 border-t border-rule pt-3">
           <p className="text-[13px] leading-snug text-ink">
             Remover “{tituloCurto}” do pipeline?
           </p>

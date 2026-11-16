@@ -25,7 +25,7 @@ function Prazo({ encerramentoIso, agoraInicial }: { encerramentoIso: string; ago
     <>
       <p
         className={cn(
-          "font-mono text-xl leading-tight font-medium tabular-nums",
+          "text-xl leading-tight font-medium tabular-nums",
           encerrada ? "text-muted-foreground" : menosDe24h ? "text-negative" : "text-ink",
         )}
       >
@@ -69,7 +69,7 @@ export function CabecalhoLicitacao({
               <p className="flex items-baseline gap-2">
                 <span
                   className={cn(
-                    "font-mono text-[32px] leading-none font-semibold tabular-nums",
+                    "text-[32px] leading-none font-semibold tabular-nums",
                     TEXTO_FAIXA[score.faixa],
                   )}
                 >
@@ -89,7 +89,7 @@ export function CabecalhoLicitacao({
           {valorEstimado === null ? (
             <p className="text-[26px] leading-tight font-medium text-muted-foreground">Sigiloso</p>
           ) : (
-            <p className="font-mono text-[26px] leading-tight font-medium tabular-nums wrap-break-word text-ink">
+            <p className="text-[26px] leading-tight font-medium tabular-nums wrap-break-word text-ink">
               {formatarMoeda(valorEstimado)}
             </p>
           )}

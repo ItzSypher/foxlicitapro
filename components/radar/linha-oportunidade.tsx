@@ -7,7 +7,7 @@ import { formatarMoedaCurta } from "@/lib/formato";
 import { nomeModalidade } from "@/lib/radar-filtros";
 import { cn } from "@/lib/utils";
 import { DicaNota } from "./dicas";
-import { PASTILHA_FAIXA } from "./faixa";
+import { TEXTO_FAIXA } from "./faixa";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { usePrazo } from "./prazo";
 
@@ -59,8 +59,8 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
       <span className="flex flex-col items-center self-start md:flex-row md:self-center">
         <span
           className={cn(
-            "flex h-9 w-12 shrink-0 items-center justify-center rounded-control font-mono text-sm font-semibold tabular-nums",
-            PASTILHA_FAIXA[item.score.faixa],
+            "flex h-9 w-12 shrink-0 items-center justify-center text-lg font-semibold tabular-nums",
+            TEXTO_FAIXA[item.score.faixa],
           )}
         >
           {item.score.total}
@@ -79,7 +79,7 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
         <span className="hidden truncate text-xs text-muted-foreground md:block">
           {item.municipio} · {item.orgao}
         </span>
-        <span className="font-mono text-[13px] tabular-nums text-muted-foreground md:hidden">
+        <span className="text-[13px] tabular-nums text-muted-foreground md:hidden">
           <span className="text-ink">{valor}</span> ·{" "}
           <span className={menosDe24h ? "text-negative" : undefined}>{prazoTelefone}</span>
         </span>
@@ -92,7 +92,7 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
       </span>
       <span
         className={cn(
-          "hidden text-right font-mono text-sm whitespace-nowrap tabular-nums md:block",
+          "hidden text-right text-sm whitespace-nowrap tabular-nums md:block",
           item.valorEstimado === null ? "text-muted-foreground" : "text-ink",
         )}
       >
@@ -100,7 +100,7 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
       </span>
       <span
         className={cn(
-          "hidden text-right font-mono text-sm whitespace-nowrap tabular-nums md:block",
+          "hidden text-right text-sm whitespace-nowrap tabular-nums md:block",
           menosDe24h ? "text-negative" : "text-muted-foreground",
         )}
       >

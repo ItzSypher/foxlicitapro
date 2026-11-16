@@ -16,7 +16,7 @@ function Fato({
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <dt className="text-xs text-muted-foreground">{rotulo}</dt>
-      <dd className={cn("text-sm leading-snug wrap-break-word text-ink", mono ? "font-mono tabular-nums" : "")}>
+      <dd className={cn("text-sm leading-snug wrap-break-word text-ink", mono ? "tabular-nums" : "")}>
         {children}
       </dd>
     </div>

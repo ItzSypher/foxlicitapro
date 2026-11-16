@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Seletor } from "@/components/ui/seletor";
 import { itensPaginacao } from "@/lib/radar-filtros";
 import { POR_PAGINA_OPCOES } from "@/lib/radar-pagina";
 import { cn } from "@/lib/utils";
@@ -42,20 +43,14 @@ export function Paginacao({ pagina, totalPaginas, inicio, fim, total, porPagina,
           {ocupado ? <span className="ml-2 text-faint">Carregando…</span> : null}
         </p>
         {porPagina !== undefined && onPorPagina ? (
-        <label className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground md:text-sm">
-          Por página
-          <select
-            value={porPagina}
-            onChange={(evento) => onPorPagina(Number(evento.target.value))}
-            className="h-11 cursor-pointer rounded-control border border-border bg-surface px-2 text-sm tabular-nums text-ink outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand md:h-9"
-          >
-            {POR_PAGINA_OPCOES.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Seletor
+            rotulo="Por página"
+            posicaoRotulo="lado"
+            valor={String(porPagina)}
+            opcoes={POR_PAGINA_OPCOES.map((n) => ({ valor: String(n), rotulo: String(n) }))}
+            aoMudar={(v) => onPorPagina(Number(v))}
+            className="w-auto shrink-0"
+          />
         ) : null}
       </div>
 

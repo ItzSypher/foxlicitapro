@@ -1,5 +1,4 @@
 import { connection } from "next/server";
-import Link from "next/link";
 import { listarPipeline } from "@/db/pipeline";
 import { maisRecentesPrimeiro, separarEncerrados, textoEncerrou } from "@/core/encerradas";
 import { resumirObjeto } from "@/core/objeto";
@@ -16,7 +15,7 @@ import {
   type FiltroRegiaoPipeline,
   type ItemPipeline,
 } from "@/components/pipeline/tipos";
-import { cn } from "@/lib/utils";
+import { Segmentado } from "@/components/ui/segmentado";
 
 const OPCOES_REGIAO: ReadonlyArray<{ id: FiltroRegiaoPipeline; rotulo: string }> = [
   { id: "todas", rotulo: "Todas" },
@@ -89,27 +88,17 @@ export default async function EncerradasPage({
       ) : (
         <>
           {encerradas.length === 0 ? null : (
-            <nav aria-label="Região" className="sem-barra flex min-w-0 items-center gap-2 overflow-x-auto">
-              {OPCOES_REGIAO.map((o) => {
-                const ativa = regiao === o.id;
-                return (
-                  <Link
-                    key={o.id}
-                    href={o.id === "todas" ? "/encerradas" : `/encerradas?regiao=${o.id}`}
-                    aria-current={ativa ? "true" : undefined}
-                    className={cn(
-                      "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border px-3 text-sm whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
-                      ativa
-                        ? "border-control bg-active font-medium text-ink"
-                        : "border-border bg-surface text-muted-foreground hover:bg-raised hover:text-ink",
-                    )}
-                  >
-                    {o.rotulo}
-                    <span className="font-mono text-xs tabular-nums">{contagem[o.id]}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+            <Segmentado
+              rotulo="Região"
+              valor={regiao}
+              opcoes={OPCOES_REGIAO.map((o) => ({
+                valor: o.id,
+                rotulo: o.rotulo,
+                contagem: contagem[o.id],
+                href: o.id === "todas" ? "/encerradas" : `/encerradas?regiao=${o.id}`,
+              }))}
+              rolavel
+            />
           )}
           <ListaEncerradas itens={lista} podeEditar={temPermissao(sessao, "mover_pipeline")} />
         </>

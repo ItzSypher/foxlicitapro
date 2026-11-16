@@ -1,13 +1,17 @@
 "use client";
 
 import { Interruptor } from "@/components/ui/interruptor";
+import { Seletor, type OpcaoSeletor } from "@/components/ui/seletor";
 import { REGIOES, ROTULO_REGIAO, type CnaePerfil } from "@/core/perfil";
 import type { Frente, Regiao } from "@/core/types";
 
 export const CLASSE_CAMPO =
   "h-11 w-full rounded-control border border-control bg-raised px-3 text-base text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60";
 
-const ROTULO_FRENTE: Record<Frente, string> = { servicos: "Serviços", produtos: "Produtos" };
+const OPCOES_FRENTE: ReadonlyArray<OpcaoSeletor<Frente>> = [
+  { valor: "servicos", rotulo: "Serviços" },
+  { valor: "produtos", rotulo: "Produtos" },
+];
 
 interface PropsCnaes {
   cnaes: CnaePerfil[];
@@ -31,24 +35,15 @@ export function EditorCnaes({ cnaes, onChange, desabilitado = false }: PropsCnae
             </p>
             <p className="text-[13px] break-words text-muted-foreground">{c.descricao}</p>
           </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground max-sm:w-full">
-            <span>Frente</span>
-            <select
-              value={c.frente}
-              disabled={desabilitado}
-              onChange={(e) => {
-                const frente: Frente = e.target.value === "produtos" ? "produtos" : "servicos";
-                onChange(cnaes.map((x, j) => (j === i ? { ...x, frente } : x)));
-              }}
-              className="h-11 min-w-0 flex-1 rounded-control border border-control bg-raised px-2 text-base sm:flex-none text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
-            >
-              {(Object.keys(ROTULO_FRENTE) as Frente[]).map((f) => (
-                <option key={f} value={f}>
-                  {ROTULO_FRENTE[f]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Seletor
+            rotulo="Frente"
+            posicaoRotulo="lado"
+            valor={c.frente}
+            desabilitado={desabilitado}
+            opcoes={OPCOES_FRENTE}
+            aoMudar={(frente) => onChange(cnaes.map((x, j) => (j === i ? { ...x, frente } : x)))}
+            className="shrink-0 max-sm:w-full sm:w-auto"
+          />
         </li>
       ))}
     </ul>

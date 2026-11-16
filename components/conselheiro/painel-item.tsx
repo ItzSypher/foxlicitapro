@@ -96,7 +96,7 @@ export function PainelItemConselheiro({
         </div>
       </header>
 
-      <section aria-label="Preço sugerido" className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4">
+      <section aria-label="Preço sugerido" className="flex min-w-0 flex-col gap-3 rounded-card bg-surface p-4">
         <h3 className="text-sm font-semibold text-ink">Preço sugerido</h3>
         {preco !== null ? (
           <PrecoSugeridoDetalhe preco={preco} />
@@ -119,7 +119,7 @@ export function PainelItemConselheiro({
         </div>
 
         {!disponivel ? (
-          <p role="status" className="rounded-card border border-border bg-raised p-3 text-[13px] text-ink">
+          <p role="status" className="rounded-card bg-raised p-3 text-[13px] text-ink">
             {MENSAGEM_INDISPONIVEL}
           </p>
         ) : podeAnalisar ? (
@@ -141,7 +141,7 @@ export function PainelItemConselheiro({
         <div aria-live="polite" className="min-w-0">
           {analisando ? <p className="text-[13px] text-muted-foreground">O conselheiro está lendo o item. Pode levar até um minuto.</p> : null}
           {erro ? (
-            <p role="alert" className="rounded-control border border-border bg-pill-neg-bg px-3 py-2 text-sm text-pill-neg-fg">
+            <p role="alert" className="rounded-control bg-pill-neg-bg px-3 py-2 text-sm text-pill-neg-fg">
               {erro}
             </p>
           ) : null}

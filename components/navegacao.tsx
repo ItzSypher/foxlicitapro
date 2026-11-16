@@ -133,7 +133,7 @@ function Selo({ quantidade, className }: { quantidade: number; className?: strin
   return (
     <span
       className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-fill px-1.5 font-mono text-[11px] font-medium tabular-nums text-black",
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-fill px-1.5 text-[11px] font-medium tabular-nums text-black",
         className,
       )}
     >

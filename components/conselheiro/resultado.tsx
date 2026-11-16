@@ -1,12 +1,17 @@
 import { TriangleAlert } from "lucide-react";
-import type { SaidaConselheiro } from "@/lib/conselheiro/esquema";
+import { ROTULO_VEREDITO_CONSELHEIRO, type SaidaConselheiro, type VereditoConselheiro } from "@/lib/conselheiro/esquema";
 import { cn } from "@/lib/utils";
-import { SeloConselheiro } from "./selo-conselheiro";
 
-function Bloco({ titulo, children, className }: { titulo: string; children: React.ReactNode; className?: string }) {
+const COR_VEREDITO: Record<VereditoConselheiro, string> = {
+  vale: "text-positive",
+  talvez: "text-warning",
+  "nao-vale": "text-negative",
+};
+
+function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <section aria-label={titulo} className={cn("flex min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-4", className)}>
-      <h3 className="text-sm font-semibold text-ink">{titulo}</h3>
+    <section aria-label={titulo} className="flex min-w-0 flex-col gap-2 border-t border-rule pt-5">
+      <h3 className="text-base font-semibold text-ink">{titulo}</h3>
       {children}
     </section>
   );
@@ -14,7 +19,7 @@ function Bloco({ titulo, children, className }: { titulo: string; children: Reac
 
 function Lista({ itens }: { itens: readonly string[] }) {
   return (
-    <ul className="flex list-disc flex-col gap-1.5 pl-4 text-[13px] leading-snug text-ink marker:text-muted-foreground">
+    <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm leading-relaxed text-ink marker:text-muted-foreground">
       {itens.map((t, i) => (
         <li key={`${i}-${t}`} className="wrap-break-word">
           {t}
@@ -24,22 +29,44 @@ function Lista({ itens }: { itens: readonly string[] }) {
   );
 }
 
-/** O parecer do conselheiro em blocos: veredito, resumo, por quê, como conseguir, preço, riscos e próximos passos. */
+function Passos({ passos }: { passos: readonly string[] }) {
+  return (
+    <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm leading-relaxed text-ink marker:text-muted-foreground marker:tabular-nums">
+      {passos.map((p, i) => (
+        <li key={`${i}-${p}`} className="wrap-break-word">
+          {p}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** O parecer do conselheiro como um documento: veredito no topo, depois seções com título e texto. */
 export function ResultadoConselheiro({ saida }: { saida: SaidaConselheiro }) {
   const { modalidade } = saida;
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <article className="flex min-w-0 flex-col gap-5 rounded-card bg-surface p-5 md:p-6">
+      <header className="flex min-w-0 flex-col gap-2">
+        <p className="text-xs text-muted-foreground">Veredito</p>
+        <p className={cn("text-3xl leading-tight font-semibold", COR_VEREDITO[saida.veredito])}>
+          {ROTULO_VEREDITO_CONSELHEIRO[saida.veredito]}
+        </p>
+        <p className="text-base leading-relaxed text-ink wrap-break-word">{saida.resumo}</p>
+      </header>
+
       {modalidade.ehPregao ? (
         <div
           role="note"
           className={cn(
-            "flex items-start gap-2 rounded-card border p-3 text-[13px] leading-snug text-ink",
-            modalidade.foraDoFoco ? "border-negative bg-pill-neg-bg" : "border-positive bg-pill-pos-bg",
+            "flex items-start gap-2 rounded-control p-3 text-[13px] leading-snug",
+            modalidade.foraDoFoco ? "bg-pill-neg-bg text-pill-neg-fg" : "bg-pill-pos-bg text-pill-pos-fg",
           )}
         >
           <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           <p className="min-w-0 wrap-break-word">
-            <span className="font-semibold">{modalidade.foraDoFoco ? "Pregão: fora do foco atual. " : "Pregão com exceção: vale a pena. "}</span>
+            <span className="font-semibold">
+              {modalidade.foraDoFoco ? "Pregão: fora do foco atual. " : "Pregão com exceção: vale a pena. "}
+            </span>
             {modalidade.observacao}
           </p>
         </div>
@@ -47,63 +74,44 @@ export function ResultadoConselheiro({ saida }: { saida: SaidaConselheiro }) {
         <p className="text-[13px] text-muted-foreground">{modalidade.observacao}</p>
       )}
 
-      <Bloco titulo="Veredito">
-        <div className="flex flex-wrap items-center gap-2">
-          <SeloConselheiro veredito={saida.veredito} className="h-6 px-2 text-xs" />
-        </div>
-        <p className="text-sm leading-snug text-ink wrap-break-word">{saida.resumo}</p>
-      </Bloco>
-
-      <Bloco titulo="Por quê">
+      <Secao titulo="Por quê">
         <Lista itens={saida.porQue} />
-      </Bloco>
+      </Secao>
 
-      <Bloco titulo="Como conseguir">
-        <div className="flex flex-col gap-3">
+      <Secao titulo="Como conseguir">
+        <div className="flex flex-col gap-5">
           {saida.comoConseguir.map((c, i) => (
-            <article key={`${i}-${c.canal}`} className="flex min-w-0 flex-col gap-2 rounded-control bg-raised p-3">
-              <h4 className="text-[13px] font-semibold text-ink wrap-break-word">{c.canal}</h4>
-              <ol className="flex list-decimal flex-col gap-1.5 pl-4 text-[13px] leading-snug text-ink marker:text-muted-foreground">
-                {c.passos.map((p, k) => (
-                  <li key={`${k}-${p}`} className="wrap-break-word">
-                    {p}
-                  </li>
-                ))}
-              </ol>
-              <p className="text-[13px] text-muted-foreground">
+            <article key={`${i}-${c.canal}`} className="flex min-w-0 flex-col gap-2">
+              <h4 className="text-sm font-semibold text-ink wrap-break-word">{c.canal}</h4>
+              <Passos passos={c.passos} />
+              <p className="text-sm text-muted-foreground">
                 <span className="font-medium text-ink">Prazo típico: </span>
                 {c.prazoTipico}
               </p>
               {c.cuidados.length > 0 ? (
                 <div className="flex flex-col gap-1">
-                  <p className="text-xs font-semibold text-muted-foreground">Cuidados</p>
+                  <p className="text-sm font-medium text-ink">Cuidados</p>
                   <Lista itens={c.cuidados} />
                 </div>
               ) : null}
             </article>
           ))}
         </div>
-      </Bloco>
+      </Secao>
 
-      <Bloco titulo="Sobre o preço">
-        <p className="text-[13px] leading-snug text-ink wrap-break-word">{saida.precoComentario}</p>
-      </Bloco>
+      <Secao titulo="Sobre o preço">
+        <p className="text-sm leading-relaxed text-ink wrap-break-word">{saida.precoComentario}</p>
+      </Secao>
 
       {saida.riscos.length > 0 ? (
-        <Bloco titulo="Riscos">
+        <Secao titulo="Riscos">
           <Lista itens={saida.riscos} />
-        </Bloco>
+        </Secao>
       ) : null}
 
-      <Bloco titulo="Próximos passos">
-        <ol className="flex list-decimal flex-col gap-1.5 pl-4 text-[13px] leading-snug text-ink marker:text-muted-foreground">
-          {saida.proximosPassos.map((p, i) => (
-            <li key={`${i}-${p}`} className="wrap-break-word">
-              {p}
-            </li>
-          ))}
-        </ol>
-      </Bloco>
-    </div>
+      <Secao titulo="Próximos passos">
+        <Passos passos={saida.proximosPassos} />
+      </Secao>
+    </article>
   );
 }

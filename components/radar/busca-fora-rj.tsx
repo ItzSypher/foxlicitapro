@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Interruptor } from "@/components/ui/interruptor";
+import { Seletor } from "@/components/ui/seletor";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { normalizarTexto } from "@/core/texto-busca";
 import {
@@ -18,7 +19,6 @@ import {
   type BuscaForaRj,
 } from "@/lib/fora-rj-busca";
 import type { MunicipioIbge } from "@/lib/ibge";
-import { cn } from "@/lib/utils";
 
 const CAMINHO_RESULTADO = "/radar/fora-rj";
 
@@ -180,17 +180,16 @@ export function BuscaForaRjSheet({ inicial = null, variante = "discreto", rotulo
           <form onSubmit={enviar} noValidate className="flex min-h-0 flex-1 flex-col">
             <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain p-4">
               <Campo id={idUf} rotulo="Estado">
-                <select id={idUf} value={uf} onChange={(e) => escolherUf(e.target.value)} className={cn(CAMPO, "cursor-pointer")}>
-                  <option value="" disabled>
-                    Escolha o estado
-                  </option>
-                  <option value={UF_BRASIL_TODO}>Brasil todo (exige palavra-chave)</option>
-                  {UFS_FORA_RJ.map((u) => (
-                    <option key={u.sigla} value={u.sigla}>
-                      {u.nome} ({u.sigla})
-                    </option>
-                  ))}
-                </select>
+                <Seletor
+                  id={idUf}
+                  valor={uf}
+                  aoMudar={escolherUf}
+                  placeholder="Escolha o estado"
+                  opcoes={[
+                    { valor: UF_BRASIL_TODO, rotulo: "Brasil todo (exige palavra-chave)" },
+                    ...UFS_FORA_RJ.map((u) => ({ valor: u.sigla, rotulo: `${u.nome} (${u.sigla})` })),
+                  ]}
+                />
               </Campo>
 
               {estado ? (
@@ -215,23 +214,21 @@ export function BuscaForaRjSheet({ inicial = null, variante = "discreto", rotulo
                       className={CAMPO}
                     />
                   </Campo>
-                  <select
+                  <Seletor
                     id={idMunicipio}
-                    aria-label="Município"
-                    value={municipio}
-                    onChange={(e) => setMunicipio(e.target.value)}
-                    disabled={estadoMunicipios !== "pronto"}
-                    className={cn(CAMPO, "cursor-pointer")}
-                  >
-                    <option value="">
-                      {estadoMunicipios === "carregando" ? "Carregando municípios…" : `Todos os municípios de ${estado.nome}`}
-                    </option>
-                    {opcoesMunicipio.map((m) => (
-                      <option key={m.codigo} value={m.codigo}>
-                        {m.nome}
-                      </option>
-                    ))}
-                  </select>
+                    rotulo="Município"
+                    posicaoRotulo="oculto"
+                    valor={municipio}
+                    aoMudar={setMunicipio}
+                    desabilitado={estadoMunicipios !== "pronto"}
+                    opcoes={[
+                      {
+                        valor: "",
+                        rotulo: estadoMunicipios === "carregando" ? "Carregando municípios…" : `Todos os municípios de ${estado.nome}`,
+                      },
+                      ...opcoesMunicipio.map((m) => ({ valor: m.codigo, rotulo: m.nome })),
+                    ]}
+                  />
                 </div>
               ) : null}
 

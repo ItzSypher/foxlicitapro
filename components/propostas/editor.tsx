@@ -28,6 +28,7 @@ import { podeEditar, type AcaoRevisao } from "@/core/revisao";
 import type { DadosProposta } from "@/core/types-detalhe";
 import type { AnaliseAssistente, AutorProposta, StatusPropostaEquipe } from "@/core/types-equipe";
 import { formatarMoeda } from "@/lib/formato";
+import { TRILHO_SEGMENTADO, classeItemSegmentado } from "@/components/ui/segmentado";
 import { cn } from "@/lib/utils";
 
 export interface PropostaParaEditor {
@@ -224,8 +225,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
 
   const abaixoDoMinimo = cotacao !== null && totalCentavos > 0 && total < cotacao.precoMinimo;
   const editavel = visao === "editar" && !somenteLeitura;
-  const opcao =
-    "inline-flex min-h-11 items-center justify-center rounded-control px-3 text-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand aria-pressed:bg-raised aria-pressed:font-semibold aria-pressed:text-ink";
+  const opcao = (ativa: boolean) => classeItemSegmentado(ativa);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -287,9 +287,9 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
         <div className="flex min-w-0 flex-col gap-3">
           <div className="nao-imprimir flex flex-wrap items-center gap-2">
-            <div role="group" aria-label="Modo do documento" className="inline-flex rounded-control border border-control bg-ground p-0.5">
+            <div role="group" aria-label="Modo do documento" className={TRILHO_SEGMENTADO}>
               {!somenteLeitura && (
-                <button type="button" aria-pressed={visao === "editar"} onClick={() => setVisao("editar")} className={opcao}>
+                <button type="button" aria-pressed={visao === "editar"} onClick={() => setVisao("editar")} className={opcao(visao === "editar")}>
                   Editar
                 </button>
               )}
@@ -297,7 +297,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
                 type="button"
                 aria-pressed={visao === "leitura" || (somenteLeitura && visao === "editar")}
                 onClick={() => setVisao("leitura")}
-                className={opcao}
+                className={opcao(visao === "leitura" || (somenteLeitura && visao === "editar"))}
               >
                 Ver como ficará
               </button>
@@ -305,7 +305,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
                 type="button"
                 aria-pressed={visao === "pdf"}
                 onClick={() => setVisao("pdf")}
-                className={cn(opcao, "hidden xl:inline-flex")}
+                className={cn(opcao(visao === "pdf"), "hidden xl:inline-flex")}
               >
                 Visualizar como PDF
               </button>

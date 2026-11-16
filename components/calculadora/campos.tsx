@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { Seletor } from "@/components/ui/seletor";
 import { cn } from "@/lib/utils";
 
 /** 16px no texto: abaixo disso o iOS dá zoom ao focar. */
@@ -123,24 +123,14 @@ export function CampoSelect({ id, rotulo, erro, dica, valor, onMudar, opcoes, va
       <label htmlFor={id} className="text-[13px] font-medium text-ink">
         {rotulo}
       </label>
-      <div className="relative">
-        <select
-          id={id}
-          value={valor}
-          aria-invalid={erro ? true : undefined}
-          aria-describedby={descricaoDe({ id, erro, dica })}
-          onChange={(e) => onMudar(e.target.value)}
-          className={cn(CONTROLE, "appearance-none pr-10")}
-        >
-          <option value="">{vazio}</option>
-          {opcoes.map((o) => (
-            <option key={o.valor} value={o.valor}>
-              {o.rotulo}
-            </option>
-          ))}
-        </select>
-        <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
-      </div>
+      <Seletor
+        id={id}
+        valor={valor}
+        aoMudar={onMudar}
+        invalido={Boolean(erro)}
+        descritoPor={descricaoDe({ id, erro, dica })}
+        opcoes={[{ valor: "", rotulo: vazio }, ...opcoes]}
+      />
       <Rodape id={id} erro={erro} dica={dica} />
     </div>
   );
@@ -158,7 +148,7 @@ export function Segmentado<T extends string>({ nome, rotulo, valor, opcoes, onMu
   return (
     <fieldset className="flex flex-col gap-1.5">
       <legend className="mb-1.5 text-[13px] font-medium text-ink">{rotulo}</legend>
-      <div className="flex gap-1 rounded-control border border-control bg-raised p-0.5">
+      <div className="flex gap-1 rounded-control bg-raised p-0.5 ring-1 ring-inset ring-border">
         {opcoes.map((o) => (
           <label
             key={o.valor}

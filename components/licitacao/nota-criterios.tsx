@@ -26,7 +26,7 @@ export function NotaCriterios({ score }: { score: Score | null }) {
                       </Pilula>
                     ) : null}
                   </th>
-                  <td className="py-3 text-right font-mono whitespace-nowrap tabular-nums text-ink">
+                  <td className="py-3 text-right whitespace-nowrap tabular-nums text-ink">
                     {criterio.pontos}/{criterio.maximo}
                   </td>
                 </tr>
@@ -37,7 +37,7 @@ export function NotaCriterios({ score }: { score: Score | null }) {
                 <th scope="row" className="py-3 pr-3 text-left font-semibold text-ink">
                   Total · {nomeFaixa(score.faixa)}
                 </th>
-                <td className="py-3 text-right font-mono font-medium whitespace-nowrap tabular-nums text-ink">
+                <td className="py-3 text-right font-medium whitespace-nowrap tabular-nums text-ink">
                   {score.total}/100
                 </td>
               </tr>
@@ -47,7 +47,7 @@ export function NotaCriterios({ score }: { score: Score | null }) {
             <ul aria-label="CNAEs que casaram" className="flex flex-wrap gap-2 border-t border-border py-3">
               {score.cnaesCasados.map((cnae) => (
                 <li key={cnae}>
-                  <Pilula tom="neutro" className="font-mono tabular-nums">
+                  <Pilula tom="neutro" className="tabular-nums">
                     {cnae}
                   </Pilula>
                 </li>

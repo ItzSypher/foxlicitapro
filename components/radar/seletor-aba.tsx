@@ -32,7 +32,7 @@ export function SeletorAba({
             )}
           >
             {opcao.rotulo}
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">{contagens[opcao.id]}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">{contagens[opcao.id]}</span>
           </button>
         );
       })}

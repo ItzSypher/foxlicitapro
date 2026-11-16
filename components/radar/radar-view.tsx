@@ -335,7 +335,7 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
           <div className="order-2 ml-auto flex items-center gap-2 md:order-4 md:ml-0">
             <span className="hidden text-xs text-muted-foreground lg:inline">
               Atualizado às{" "}
-              <span className="font-mono tabular-nums">{formatarHora(dados.atualizadoEm)}</span>
+              <span className="tabular-nums">{formatarHora(dados.atualizadoEm)}</span>
             </span>
             <Button
               type="button"

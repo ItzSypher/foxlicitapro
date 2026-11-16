@@ -103,7 +103,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                   {item.valorEstimado === null ? (
                     <p className="text-2xl font-medium text-muted-foreground">Sigiloso</p>
                   ) : (
-                    <p className="font-mono text-2xl font-medium tabular-nums wrap-break-word text-ink">
+                    <p className="text-2xl font-medium tabular-nums wrap-break-word text-ink">
                       {formatarMoeda(item.valorEstimado)}
                     </p>
                   )}
@@ -161,7 +161,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                             </Pilula>
                           ) : null}
                         </th>
-                        <td className="whitespace-nowrap py-3 text-right font-mono tabular-nums text-ink">
+                        <td className="whitespace-nowrap py-3 text-right tabular-nums text-ink">
                           {criterio.pontos}/{criterio.maximo}
                         </td>
                       </tr>
@@ -172,7 +172,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                       <th scope="row" className="py-3 pr-3 text-left font-semibold text-ink">
                         Total · {nomeFaixa(item.score.faixa)}
                       </th>
-                      <td className="whitespace-nowrap py-3 text-right font-mono font-medium tabular-nums text-ink">
+                      <td className="whitespace-nowrap py-3 text-right font-medium tabular-nums text-ink">
                         {item.score.total}/100
                       </td>
                     </tr>
@@ -185,7 +185,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                   <ul className="flex flex-wrap gap-2">
                     {item.score.cnaesCasados.map((cnae) => (
                       <li key={cnae}>
-                        <Pilula tom="neutro" className="font-mono tabular-nums">
+                        <Pilula tom="neutro" className="tabular-nums">
                           {cnae}
                         </Pilula>
                       </li>

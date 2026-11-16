@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { AlarmClock, ChevronDown, ChevronUp, Coins, MapPin, Sparkles, SquareKanban, Target } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { FiltroRegiao } from "@/lib/radar-filtros";
 import { formatarValorCompacto, type PainelDia } from "@/lib/radar-painel";
 import { cn } from "@/lib/utils";
@@ -94,65 +94,51 @@ function Numero({ valor, formatar }: { valor: number; formatar?: (n: number) => 
   return <span className="tabular-nums">{formatar ? formatar(n) : n.toLocaleString("pt-BR")}</span>;
 }
 
-type Tom = "novas" | "encerrando" | "sinal" | "valor" | "regiao" | "pipeline";
+const CELULA = "flex min-w-0 flex-col gap-1 bg-surface p-4 text-left outline-none";
+const CELULA_CLICAVEL =
+  "transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand active:bg-raised";
 
-/** Círculo do ícone: fundo da cor a 15% e ícone na cor do texto, legível nos dois temas. */
-const CIRCULO: Record<Tom, string> = {
-  novas: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  encerrando: "bg-brand-fill/15 text-brand",
-  sinal: "bg-go/15 text-positive",
-  valor: "bg-atencao/15 text-warning",
-  regiao: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
-  pipeline: "bg-control text-ink",
-};
-
-const CARTAO_BASE =
-  "card-entrada flex min-h-[116px] min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-3.5 text-left outline-none md:p-4";
-const CARTAO_CLICAVEL =
-  "transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand active:bg-raised";
-
-function Cabecalho({ tom, icone, rotulo, pulsar = false }: { tom: Tom; icone: React.ReactNode; rotulo: string; pulsar?: boolean }) {
+/** Indicador: legenda curta, número grande tabular e contexto. Só "Fecham em 48 h" leva o laranja. */
+function Indicador({
+  rotulo,
+  numero,
+  contexto,
+  destaque = false,
+  discreto = false,
+}: {
+  rotulo: string;
+  numero: React.ReactNode;
+  contexto: string;
+  destaque?: boolean;
+  discreto?: boolean;
+}) {
   return (
-    <span className="flex min-w-0 items-center gap-2.5">
+    <>
+      <span className="truncate text-sm text-muted-foreground">{rotulo}</span>
       <span
-        aria-hidden="true"
-        className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", CIRCULO[tom], pulsar && "painel-pulso")}
+        className={cn(
+          "truncate text-3xl leading-tight font-semibold tabular-nums",
+          destaque ? "text-brand" : discreto ? "text-muted-foreground" : "text-ink",
+        )}
       >
-        {icone}
+        {numero}
       </span>
-      <span className="min-w-0 text-xs leading-tight font-medium text-muted-foreground">{rotulo}</span>
-    </span>
+      <span className="truncate text-xs text-muted-foreground">{contexto}</span>
+    </>
   );
 }
 
-function Corpo({ numero, sub }: { numero: React.ReactNode; sub: string }) {
-  return (
-    <span className="mt-auto flex min-w-0 flex-col gap-0.5">
-      <span className="truncate text-2xl leading-none font-semibold tabular-nums text-ink">{numero}</span>
-      <span className="truncate text-xs text-muted-foreground">{sub}</span>
-    </span>
-  );
-}
-
-function CartaoBotao({
-  indice,
+function CelulaBotao({
   aoClicar,
   rotuloAria,
   children,
 }: {
-  indice: number;
   aoClicar: () => void;
   rotuloAria: string;
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={aoClicar}
-      aria-label={rotuloAria}
-      style={{ "--i": indice } as React.CSSProperties}
-      className={cn(CARTAO_BASE, CARTAO_CLICAVEL)}
-    >
+    <button type="button" onClick={aoClicar} aria-label={rotuloAria} className={cn(CELULA, CELULA_CLICAVEL)}>
       {children}
     </button>
   );
@@ -165,31 +151,24 @@ const BARRAS_REGIAO: ReadonlyArray<{ id: FiltroRegiao; rotulo: string }> = [
   { id: "interior", rotulo: "Interior RJ" },
 ];
 
-function CartaoRegiao({
-  indice,
+function CelulaRegiao({
   contagens,
   ativa,
   aoEscolher,
 }: {
-  indice: number;
   contagens: Record<FiltroRegiao, number>;
   ativa: FiltroRegiao;
   aoEscolher: (regiao: FiltroRegiao) => void;
 }) {
   const maior = Math.max(1, ...BARRAS_REGIAO.map((b) => contagens[b.id]));
   return (
-    <div
-      role="group"
-      aria-label="Oportunidades por região"
-      style={{ "--i": indice } as React.CSSProperties}
-      className={cn(CARTAO_BASE, "gap-1.5", COLUNAS_REGIAO)}
-    >
-      <Cabecalho tom="regiao" icone={<MapPin className="size-4" />} rotulo="Por região" />
-      <ul className="mt-auto flex flex-col">
+    <div role="group" aria-label="Oportunidades por região" className={cn(CELULA, "gap-2", COLUNAS_REGIAO)}>
+      <span className="truncate text-sm text-muted-foreground">Por região</span>
+      <ul className="-mx-2 flex flex-col">
         {BARRAS_REGIAO.map((barra) => {
           const quantidade = contagens[barra.id];
           const selecionada = ativa === barra.id;
-          const largura = quantidade === 0 ? 0 : Math.max(6, Math.round((quantidade / maior) * 100));
+          const largura = quantidade === 0 ? 0 : Math.max(4, Math.round((quantidade / maior) * 100));
           return (
             <li key={barra.id}>
               <button
@@ -197,21 +176,23 @@ function CartaoRegiao({
                 onClick={() => aoEscolher(barra.id)}
                 aria-pressed={selecionada}
                 aria-label={`${barra.rotulo}: ${quantidade} ${quantidade === 1 ? "oportunidade" : "oportunidades"}`}
-                className="group grid h-8 w-full grid-cols-[5.25rem_minmax(0,1fr)_2.25rem] items-center gap-2 rounded-control px-1 text-xs outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand"
+                className="group grid min-h-8 w-full grid-cols-[5.5rem_minmax(0,1fr)_2.25rem] items-center gap-2 rounded-control px-2 text-xs outline-none transition-colors hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <span className={cn("truncate text-left", selecionada ? "font-semibold text-ink" : "text-muted-foreground")}>
                   {barra.rotulo}
                 </span>
-                <span aria-hidden="true" className="h-1.5 min-w-0 overflow-hidden rounded-full bg-control">
+                <span aria-hidden="true" className="h-1 min-w-0 overflow-hidden rounded-full bg-raised">
                   <span
                     className={cn(
                       "block h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none",
-                      selecionada ? "bg-brand-fill" : "bg-brand-fill/45 group-hover:bg-brand-fill/70",
+                      selecionada ? "bg-ink" : "bg-ink/35 group-hover:bg-ink/60",
                     )}
                     style={{ width: `${largura}%` }}
                   />
                 </span>
-                <span className="text-right font-medium tabular-nums text-ink">{quantidade.toLocaleString("pt-BR")}</span>
+                <span className={cn("text-right tabular-nums", selecionada ? "font-semibold text-ink" : "text-ink")}>
+                  {quantidade.toLocaleString("pt-BR")}
+                </span>
               </button>
             </li>
           );
@@ -234,7 +215,7 @@ interface Props {
   aoEscolherRegiao: (regiao: FiltroRegiao) => void;
 }
 
-/** Resumo do dia que abre o Radar: cartões clicáveis que aplicam o filtro ou a ordem correspondente na lista. */
+/** Resumo do dia que abre o Radar: faixa de indicadores clicáveis que aplicam o filtro ou a ordem correspondente na lista. */
 export function PainelDiaView({
   painel,
   contagensRegiao,
@@ -271,8 +252,7 @@ export function PainelDiaView({
         </p>
       ) : (
         <div className={cn(GRADE_PAINEL, "transition-opacity duration-200", ocupado && "opacity-60")}>
-          <CartaoBotao
-            indice={0}
+          <CelulaBotao
             aoClicar={aoVerNovas}
             rotuloAria={
               novasDisponiveis
@@ -280,10 +260,11 @@ export function PainelDiaView({
                 : "Novas: data de publicação indisponível. Ver as mais recentes"
             }
           >
-            <Cabecalho tom="novas" icone={<Sparkles className="size-4" />} rotulo="Novas em 24 h" />
-            <Corpo
+            <Indicador
+              rotulo="Novas em 24 h"
               numero={novasDisponiveis ? <Numero valor={painel.novas24h} /> : "—"}
-              sub={
+              discreto={!novasDisponiveis}
+              contexto={
                 !novasDisponiveis
                   ? "Sem data de publicação"
                   : semNovidade
@@ -291,54 +272,40 @@ export function PainelDiaView({
                     : `${painel.novasHoje} hoje · ${painel.novasOntem} ontem`
               }
             />
-          </CartaoBotao>
+          </CelulaBotao>
 
-          <CartaoBotao
-            indice={1}
-            aoClicar={aoVerEncerrando}
-            rotuloAria={`Fecham em até 48 horas: ${painel.encerram48h}. Ver por prazo`}
-          >
-            <Cabecalho
-              tom="encerrando"
-              icone={<AlarmClock className="size-4" />}
+          <CelulaBotao aoClicar={aoVerEncerrando} rotuloAria={`Fecham em até 48 horas: ${painel.encerram48h}. Ver por prazo`}>
+            <Indicador
               rotulo="Fecham em 48 h"
-              pulsar={painel.encerram48h > 0}
+              numero={<Numero valor={painel.encerram48h} />}
+              destaque={painel.encerram48h > 0}
+              contexto={`${painel.encerramSemana} na semana`}
             />
-            <Corpo numero={<Numero valor={painel.encerram48h} />} sub={`${painel.encerramSemana} na semana`} />
-          </CartaoBotao>
+          </CelulaBotao>
 
-          <CartaoBotao
-            indice={2}
-            aoClicar={aoVerSinalAlto}
-            rotuloAria={`Para você, com sinal alto: ${painel.sinalAlto}. Ver por nota`}
-          >
-            <Cabecalho tom="sinal" icone={<Target className="size-4" />} rotulo="Para você" />
-            <Corpo numero={<Numero valor={painel.sinalAlto} />} sub="com sinal alto" />
-          </CartaoBotao>
+          <CelulaBotao aoClicar={aoVerSinalAlto} rotuloAria={`Para você, com sinal alto: ${painel.sinalAlto}. Ver por nota`}>
+            <Indicador rotulo="Para você" numero={<Numero valor={painel.sinalAlto} />} contexto="com sinal alto" />
+          </CelulaBotao>
 
-          <CartaoBotao
-            indice={3}
+          <CelulaBotao
             aoClicar={aoVerValor}
             rotuloAria={`Valor em jogo: ${formatarValorCompacto(painel.valorTotal)}. Ver por maior valor`}
           >
-            <Cabecalho tom="valor" icone={<Coins className="size-4" />} rotulo="Valor em jogo" />
-            <Corpo
+            <Indicador
+              rotulo="Valor em jogo"
               numero={<Numero valor={painel.valorTotal} formatar={formatarValorCompacto} />}
-              sub={`em ${painel.abertas.toLocaleString("pt-BR")} ${painel.abertas === 1 ? "aberta" : "abertas"}`}
+              contexto={`em ${painel.abertas.toLocaleString("pt-BR")} ${painel.abertas === 1 ? "aberta" : "abertas"}`}
             />
-          </CartaoBotao>
+          </CelulaBotao>
 
-          <CartaoRegiao indice={4} contagens={contagensRegiao} ativa={regiaoAtiva} aoEscolher={aoEscolherRegiao} />
+          <CelulaRegiao contagens={contagensRegiao} ativa={regiaoAtiva} aoEscolher={aoEscolherRegiao} />
 
-          <Link
-            href="/pipeline"
-            style={{ "--i": 5 } as React.CSSProperties}
-            className={cn(CARTAO_BASE, CARTAO_CLICAVEL, COLUNAS_PIPELINE)}
-          >
-            <Cabecalho tom="pipeline" icone={<SquareKanban className="size-4" />} rotulo="Pipeline" />
-            <Corpo
+          <Link href="/pipeline" className={cn(CELULA, CELULA_CLICAVEL, COLUNAS_PIPELINE)}>
+            <Indicador
+              rotulo="Pipeline"
               numero={painel.pipeline ? <Numero valor={painel.pipeline.ativas} /> : "—"}
-              sub={
+              discreto={!painel.pipeline}
+              contexto={
                 painel.pipeline
                   ? painel.pipeline.emDisputa > 0
                     ? `${painel.pipeline.emDisputa} em disputa`
