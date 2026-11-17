@@ -84,6 +84,7 @@ export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, c
   }
 
   const mostrar = (valor: string): boolean => editavel || valor.trim() !== "";
+  const mostrarAssinatura = emitente.assinatura !== "" && form.assinar;
   const colunas = editavel ? COLUNAS_EDICAO : COLUNAS_LEITURA;
 
   return (
@@ -410,12 +411,23 @@ export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, c
               <CampoData rotulo="Data da proposta" valor={form.data} aoMudar={campo("data")} />
             </p>
           )}
-          {emitente.assinatura !== "" && (
+          {editavel && emitente.assinatura !== "" && (
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[13px] text-black/60 print:hidden">
+              <input
+                type="checkbox"
+                checked={form.assinar}
+                onChange={(e) => campo("assinar")(e.target.checked)}
+                className="size-4 cursor-pointer accent-[#f57e11]"
+              />
+              Incluir assinatura
+            </label>
+          )}
+          {mostrarAssinatura && (
             // data URL salva no perfil: next/image não se aplica a esse tipo de origem
             // eslint-disable-next-line @next/next/no-img-element
             <img src={emitente.assinatura} alt="Assinatura" className="mt-4 block h-[16mm] w-full max-w-[90mm] object-contain object-left" />
           )}
-          <div className={`${emitente.assinatura !== "" ? "mt-0" : "mt-8"} w-full max-w-[90mm] border-t border-black pt-1 text-[15px] leading-snug`}>
+          <div className={`${mostrarAssinatura ? "mt-0" : "mt-8"} w-full max-w-[90mm] border-t border-black pt-1 text-[15px] leading-snug`}>
             {emitente.responsavel !== "" && <p className="font-bold">{emitente.responsavel}</p>}
             <p>{emitente.razaoSocial}</p>
             <p>CNPJ {emitente.cnpj}</p>

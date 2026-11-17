@@ -29,6 +29,7 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
   const modelo = obterModelo(modeloId);
   const totalCentavos = totalProposta(dados);
   const total = totalCentavos / 100;
+  const mostrarAssinatura = emitente.assinatura !== "" && dados.assinar !== false;
   const referencia: Array<[string, string]> = [
     ["Compra", dados.numeroCompra],
     ["Processo", dados.processo],
@@ -147,12 +148,12 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
         <p>
           {emitente.cidade}, {dataPorExtenso(dados.data)}.
         </p>
-        {emitente.assinatura !== "" && (
+        {mostrarAssinatura && (
           // data URL salva no perfil: next/image não se aplica a esse tipo de origem
           // eslint-disable-next-line @next/next/no-img-element
           <img src={emitente.assinatura} alt="Assinatura" className="mt-6 block h-[16mm] w-[90mm] object-contain object-left" />
         )}
-        <div className={`${emitente.assinatura !== "" ? "mt-1" : "mt-14"} w-[90mm] border-t border-black pt-1 text-[9.5pt] leading-snug`}>
+        <div className={`${mostrarAssinatura ? "mt-1" : "mt-14"} w-[90mm] border-t border-black pt-1 text-[9.5pt] leading-snug`}>
           {emitente.responsavel !== "" && <p className="font-bold">{emitente.responsavel}</p>}
           <p>{emitente.razaoSocial}</p>
           <p>CNPJ {emitente.cnpj}</p>

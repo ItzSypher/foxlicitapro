@@ -1,11 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { CLASSE_CAMPO } from "@/components/empresa/editor-perfil";
 import { salvarDadosPropostaAction } from "./actions";
-
-const LIMITE_ASSINATURA_BYTES = 200 * 1024;
-const TIPOS_ASSINATURA = ["image/png", "image/jpeg"];
+import { AssinaturaCampo } from "./assinatura-campo";
 
 interface Props {
   responsavel: string | null;
@@ -23,31 +21,6 @@ export function DadosProposta(inicial: Props) {
   const [assinatura, setAssinatura] = useState<string | null>(inicial.assinatura);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [salvando, iniciar] = useTransition();
-  const entradaArquivo = useRef<HTMLInputElement>(null);
-
-  function escolherArquivo(arquivo: File | undefined) {
-    setAviso(null);
-    if (!arquivo) return;
-    if (!TIPOS_ASSINATURA.includes(arquivo.type)) {
-      setAviso({ ok: false, texto: "Use uma imagem PNG ou JPEG." });
-      return;
-    }
-    if (arquivo.size > LIMITE_ASSINATURA_BYTES) {
-      setAviso({ ok: false, texto: "A imagem da assinatura passa de 200 KB. Use uma menor." });
-      return;
-    }
-    const leitor = new FileReader();
-    leitor.onload = () => {
-      if (typeof leitor.result === "string") setAssinatura(leitor.result);
-    };
-    leitor.onerror = () => setAviso({ ok: false, texto: "Não foi possível ler a imagem." });
-    leitor.readAsDataURL(arquivo);
-  }
-
-  function remover() {
-    setAssinatura(null);
-    if (entradaArquivo.current) entradaArquivo.current.value = "";
-  }
 
   function salvar() {
     setAviso(null);
@@ -109,33 +82,7 @@ export function DadosProposta(inicial: Props) {
         />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <label htmlFor="assinatura-arquivo" className="text-sm font-medium text-ink">
-          Assinatura (PNG ou JPEG, até 200 KB)
-        </label>
-        <input
-          ref={entradaArquivo}
-          id="assinatura-arquivo"
-          type="file"
-          accept="image/png,image/jpeg"
-          onChange={(e) => escolherArquivo(e.target.files?.[0])}
-          className="text-sm text-ink file:mr-3 file:h-9 file:cursor-pointer file:rounded-control file:border file:border-border file:bg-surface file:px-3 file:text-sm"
-        />
-        {assinatura ? (
-          <div className="flex flex-wrap items-end gap-3">
-            {/* data URL escolhida pelo usuário: next/image não se aplica a esse tipo de origem */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={assinatura} alt="Prévia da assinatura" className="h-16 max-w-[240px] rounded-control border border-border bg-white object-contain p-1" />
-            <button
-              type="button"
-              onClick={remover}
-              className="h-9 cursor-pointer rounded-control border border-border px-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            >
-              Remover
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <AssinaturaCampo valor={assinatura} aoMudar={setAssinatura} />
 
       {aviso ? (
         <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-positive" : "text-sm text-negative"}>

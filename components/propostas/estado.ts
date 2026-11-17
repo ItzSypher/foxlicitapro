@@ -31,6 +31,8 @@ export interface Formulario {
   garantia: string;
   observacoes: string;
   data: string;
+  /** Incluir a imagem da assinatura da empresa no documento */
+  assinar: boolean;
 }
 
 function numeroOuZero(texto: string): number {
@@ -65,6 +67,7 @@ export function formularioParaDados(f: Formulario): DadosProposta {
     garantia: f.garantia,
     observacoes: f.observacoes,
     data: f.data,
+    assinar: f.assinar,
   };
 }
 
@@ -98,6 +101,7 @@ export function dadosParaFormulario(
     garantia: dados.garantia,
     observacoes: dados.observacoes,
     data: dados.data,
+    assinar: dados.assinar !== false,
   };
 }
 

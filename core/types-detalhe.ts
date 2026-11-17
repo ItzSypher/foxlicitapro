@@ -98,6 +98,8 @@ export interface DadosProposta {
   observacoes: string;
   /** Data da proposta, ISO (yyyy-mm-dd) */
   data: string;
+  /** Incluir a imagem da assinatura da empresa; ausente conta como true (propostas antigas) */
+  assinar?: boolean;
 }
 
 export type StatusProposta = "rascunho" | "pronta" | "enviada";

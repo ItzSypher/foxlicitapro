@@ -58,7 +58,7 @@ export async function salvarDadosPropostaAction(entrada: unknown): Promise<Resul
     return { ok: false, erro: "Só o dono pode fazer isso." };
   }
   const lido = DadosPropostaSchema.safeParse(entrada);
-  if (!lido.success) return { ok: false, erro: "Confira os dados e tente de novo. A assinatura deve ser PNG ou JPEG de até 200 KB." };
+  if (!lido.success) return { ok: false, erro: "Confira os dados e tente de novo. A imagem da assinatura ficou pesada demais; refaça a assinatura." };
   try {
     const gravou = await atualizarDadosProposta(empresaId, lido.data);
     if (!gravou) return { ok: false, erro: "Empresa não encontrada." };

@@ -26,6 +26,7 @@ export const DadosPropostaSchema: z.ZodType<DadosProposta> = z.object({
   garantia: z.string(),
   observacoes: z.string(),
   data: z.string(),
+  assinar: z.boolean().optional(),
 });
 
 const FUSO = "America/Sao_Paulo";
