@@ -1,1 +1,2 @@
 - 2026-11-17: alertas de WhatsApp pelo Zernio (conversa individual, janela de 24 h, fila, agente, botões); agendamento de hora em hora pelo pg_cron do Supabase (scripts/agendar-alertas.mjs); template pago desligado (WA_TEMPLATE_ATIVO).
+- 2026-11-16: migration 016 (dados padrão da proposta e empresa de teste). A assinatura fica fora do select geral do perfil e é lida só nas telas de proposta e empresa.

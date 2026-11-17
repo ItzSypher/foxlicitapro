@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { Pilula } from "@/components/radar/pilula";
 import { CLASSE_CAMPO, EditorCnaes, SeletorRegioes } from "@/components/empresa/editor-perfil";
 import type { EmpresaConsultada } from "@/core/brasilapi";
-import { ROTULO_PORTE, type CnaePerfil, type Porte } from "@/core/perfil";
+import { PORTES, ROTULO_PORTE, type CnaePerfil, type Porte } from "@/core/perfil";
 import type { Regiao } from "@/core/types";
-import { consultarCnpjAction, criarEmpresaAction, definirEmpresaAtivaAction } from "./actions";
+import { consultarCnpjAction, criarEmpresaAction, criarEmpresaTesteAction, definirEmpresaAtivaAction } from "./actions";
 
 export interface LinhaEmpresa {
   id: string;
@@ -16,6 +16,7 @@ export interface LinhaEmpresa {
   porte: Porte;
   local: string;
   ativa: boolean;
+  teste: boolean;
   usuarios: number;
 }
 
@@ -52,6 +53,7 @@ export function PainelEmpresas({ empresas, empresaAtualId }: { empresas: LinhaEm
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-medium break-words text-ink">
                   {e.nome}
+                  {e.teste ? <Pilula tom="neutro">Teste</Pilula> : null}
                   {!e.ativa ? <Pilula tom="negativo">Desativada</Pilula> : null}
                 </p>
                 <p className="text-[13px] tabular-nums break-words text-muted-foreground">
@@ -75,7 +77,90 @@ export function PainelEmpresas({ empresas, empresaAtualId }: { empresas: LinhaEm
         ))}
       </ul>
       <NovaEmpresa aoCriar={() => roteador.refresh()} />
+      <NovaEmpresaTeste aoCriar={() => roteador.refresh()} />
     </div>
+  );
+}
+
+function NovaEmpresaTeste({ aoCriar }: { aoCriar: () => void }) {
+  const [cnpj, setCnpj] = useState("");
+  const [razaoSocial, setRazaoSocial] = useState("");
+  const [uf, setUf] = useState("RJ");
+  const [municipio, setMunicipio] = useState("");
+  const [porte, setPorte] = useState<Porte>("me");
+  const [regioes, setRegioes] = useState<Regiao[]>(["nova-iguacu"]);
+  const [nomeDono, setNomeDono] = useState("");
+  const [emailDono, setEmailDono] = useState("");
+  const [senha, setSenha] = useState("");
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [ocupado, iniciar] = useTransition();
+
+  function criar() {
+    setAviso(null);
+    iniciar(async () => {
+      const r = await criarEmpresaTesteAction({ cnpj, razaoSocial, uf, municipio, porte, regioes, nomeDono, emailDono, senha });
+      if (!r.ok) {
+        setAviso({ ok: false, texto: r.erro });
+        return;
+      }
+      setAviso({ ok: true, texto: "Empresa de teste criada. O dono já pode entrar com o e-mail e a senha informados." });
+      setCnpj("");
+      setRazaoSocial("");
+      setMunicipio("");
+      setNomeDono("");
+      setEmailDono("");
+      setSenha("");
+      aoCriar();
+    });
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4" aria-labelledby="titulo-teste">
+      <h2 id="titulo-teste" className="text-base font-semibold text-ink">
+        Empresa de teste (sem consulta à Receita)
+      </h2>
+      <div className="flex flex-col gap-2">
+        <input aria-label="CNPJ de teste" inputMode="numeric" placeholder="CNPJ (14 dígitos quaisquer)" value={cnpj} onChange={(e) => setCnpj(e.target.value)} className={CLASSE_CAMPO} />
+        <input aria-label="Razão social" placeholder="Razão social" value={razaoSocial} maxLength={150} onChange={(e) => setRazaoSocial(e.target.value)} className={CLASSE_CAMPO} />
+        <div className="grid gap-2 sm:grid-cols-[6rem_1fr_1fr]">
+          <input aria-label="UF" placeholder="UF" value={uf} maxLength={2} onChange={(e) => setUf(e.target.value)} className={CLASSE_CAMPO} />
+          <input aria-label="Município" placeholder="Município" value={municipio} maxLength={100} onChange={(e) => setMunicipio(e.target.value)} className={CLASSE_CAMPO} />
+          <select aria-label="Porte" value={porte} onChange={(e) => setPorte(e.target.value as Porte)} className={CLASSE_CAMPO}>
+            {PORTES.map((p) => (
+              <option key={p} value={p}>
+                {ROTULO_PORTE[p]}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-semibold text-ink">Regiões de atendimento</h3>
+        <SeletorRegioes regioes={regioes} onChange={setRegioes} desabilitado={ocupado} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <h3 className="text-sm font-semibold text-ink">Primeiro dono</h3>
+        <input aria-label="Nome do dono de teste" placeholder="Nome" value={nomeDono} onChange={(e) => setNomeDono(e.target.value)} className={CLASSE_CAMPO} />
+        <input aria-label="E-mail do dono de teste" type="email" placeholder="E-mail" value={emailDono} onChange={(e) => setEmailDono(e.target.value)} className={CLASSE_CAMPO} />
+        <input
+          aria-label="Senha do dono de teste"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Senha (mínimo 8 caracteres)"
+          value={senha}
+          onChange={(e) => setSenha(e.target.value)}
+          className={CLASSE_CAMPO}
+        />
+      </div>
+      <button type="button" disabled={ocupado} onClick={criar} className={`${BOTAO} w-full sm:w-fit`}>
+        {ocupado ? "Criando…" : "Criar empresa de teste"}
+      </button>
+      {aviso ? (
+        <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-positive" : "text-sm text-negative"}>
+          {aviso.texto}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

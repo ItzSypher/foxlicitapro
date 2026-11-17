@@ -7,7 +7,7 @@ import { CampoData, CampoInline } from "@/components/propostas/campo-inline";
 import { quantidadeTexto } from "@/components/propostas/documento";
 import { itemVazio, type Formulario, type ItemFormulario } from "@/components/propostas/estado";
 import { dataPorExtenso, totalItemCentavos, totalProposta, valorPorExtenso } from "@/core/proposta";
-import { enderecoCompleto, type Emitente } from "@/core/proposta-emitente";
+import { enderecoCompleto, textoRepresentante, type Emitente } from "@/core/proposta-emitente";
 import { acrescentarItem, alterarItem, moverItem, removerItem } from "@/core/proposta-itens";
 import { obterModelo } from "@/core/proposta-modelos";
 import type { DadosProposta } from "@/core/types-detalhe";
@@ -376,6 +376,16 @@ export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, c
                 <CampoInline rotulo="Observações" valor={form.observacoes} aoMudar={campo("observacoes")} editavel={editavel} />
               </Linha>
             )}
+            {emitente.dadosBancarios !== "" && (
+              <Linha rotulo="Dados bancários">
+                <span className="whitespace-pre-line">{emitente.dadosBancarios}</span>
+              </Linha>
+            )}
+            {textoRepresentante(emitente) !== "" && (
+              <Linha rotulo="Representante legal">
+                <span>{textoRepresentante(emitente)}</span>
+              </Linha>
+            )}
           </dl>
         </section>
 
@@ -400,7 +410,12 @@ export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, c
               <CampoData rotulo="Data da proposta" valor={form.data} aoMudar={campo("data")} />
             </p>
           )}
-          <div className="mt-8 w-full max-w-[90mm] border-t border-black pt-1 text-[15px] leading-snug">
+          {emitente.assinatura !== "" && (
+            // data URL salva no perfil: next/image não se aplica a esse tipo de origem
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={emitente.assinatura} alt="Assinatura" className="mt-4 block h-[16mm] w-full max-w-[90mm] object-contain object-left" />
+          )}
+          <div className={`${emitente.assinatura !== "" ? "mt-0" : "mt-8"} w-full max-w-[90mm] border-t border-black pt-1 text-[15px] leading-snug`}>
             {emitente.responsavel !== "" && <p className="font-bold">{emitente.responsavel}</p>}
             <p>{emitente.razaoSocial}</p>
             <p>CNPJ {emitente.cnpj}</p>

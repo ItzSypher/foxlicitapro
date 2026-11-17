@@ -29,6 +29,7 @@ export default async function AdminEmpresasPage() {
           porte: e.porte,
           local: `${e.municipio}/${e.uf}`,
           ativa: e.ativa,
+          teste: e.teste,
           usuarios: e.usuarios,
         }))}
       />

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { enderecoCompleto, type Emitente } from "@/core/proposta-emitente";
+import { enderecoCompleto, textoRepresentante, type Emitente } from "@/core/proposta-emitente";
 import { obterModelo, type ModeloId } from "@/core/proposta-modelos";
 import { dataPorExtenso, totalItemCentavos, totalProposta, valorPorExtenso } from "@/core/proposta";
 import type { DadosProposta } from "@/core/types-detalhe";
@@ -125,6 +125,8 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
           <Condicao rotulo="Pagamento" valor={dados.pagamento} />
           <Condicao rotulo="Garantia" valor={dados.garantia} />
           <Condicao rotulo="Observações" valor={dados.observacoes} />
+          <Condicao rotulo="Dados bancários" valor={emitente.dadosBancarios} />
+          <Condicao rotulo="Representante legal" valor={textoRepresentante(emitente)} />
         </dl>
       </section>
 
@@ -145,7 +147,12 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
         <p>
           {emitente.cidade}, {dataPorExtenso(dados.data)}.
         </p>
-        <div className="mt-14 w-[90mm] border-t border-black pt-1 text-[9.5pt] leading-snug">
+        {emitente.assinatura !== "" && (
+          // data URL salva no perfil: next/image não se aplica a esse tipo de origem
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={emitente.assinatura} alt="Assinatura" className="mt-6 block h-[16mm] w-[90mm] object-contain object-left" />
+        )}
+        <div className={`${emitente.assinatura !== "" ? "mt-1" : "mt-14"} w-[90mm] border-t border-black pt-1 text-[9.5pt] leading-snug`}>
           {emitente.responsavel !== "" && <p className="font-bold">{emitente.responsavel}</p>}
           <p>{emitente.razaoSocial}</p>
           <p>CNPJ {emitente.cnpj}</p>

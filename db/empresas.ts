@@ -44,10 +44,15 @@ interface LinhaEmpresa {
   telefone: string | null;
   email_contato: string | null;
   responsavel: string | null;
+  representante_cpf: string | null;
+  representante_rg: string | null;
+  dados_bancarios: string | null;
+  teste: boolean;
 }
 
 const colunas = () => sql`id, cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, ativa, criada_em,
-  to_char(data_abertura, 'YYYY-MM-DD') as data_abertura, endereco, cep, telefone, email_contato, responsavel`;
+  to_char(data_abertura, 'YYYY-MM-DD') as data_abertura, endereco, cep, telefone, email_contato, responsavel,
+  representante_cpf, representante_rg, dados_bancarios, teste`;
 
 export interface Empresa extends PerfilEmpresa {
   ativa: boolean;
@@ -76,6 +81,12 @@ function converter(l: LinhaEmpresa): Empresa {
     telefone: l.telefone,
     email: l.email_contato,
     responsavel: l.responsavel,
+    representanteCpf: l.representante_cpf,
+    representanteRg: l.representante_rg,
+    dadosBancarios: l.dados_bancarios,
+    // Pesada (imagem): fora do select geral. Quem precisa lê com lerAssinatura.
+    assinatura: null,
+    teste: l.teste === true,
     ativa: l.ativa,
     criadaEm: l.criada_em.toISOString(),
   };
@@ -110,6 +121,7 @@ export interface NovaEmpresa extends Omit<EmpresaConsultada, "cnpj"> {
 export async function criarEmpresaComDono(
   nova: NovaEmpresa,
   dono: { nome: string; email: string; senhaHash: string },
+  teste = false,
 ): Promise<{ empresa: Empresa; dono: Usuario }> {
   const cnaes = cnaesSchema.parse(nova.cnaes);
   const cnaesJson = JSON.parse(JSON.stringify(cnaes)) as postgres.JSONValue;
@@ -119,10 +131,10 @@ export async function criarEmpresaComDono(
     return await sql.begin(async (tx) => {
       const linhas = await tx<LinhaEmpresa[]>`
         insert into empresas (cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, data_abertura,
-                              endereco, cep, telefone, email_contato)
+                              endereco, cep, telefone, email_contato, teste)
         values (${digitos}, ${nova.razaoSocial}, ${nova.nomeFantasia}, ${nova.porte}, ${nova.uf}, ${nova.municipio},
                 ${tx.json(cnaesJson)}, ${tx.json(regioesJson)}, ${nova.dataAbertura}, ${nova.endereco}, ${nova.cep},
-                ${nova.telefone}, ${nova.email})
+                ${nova.telefone}, ${nova.email}, ${teste})
         returning ${colunas()}
       `;
       const empresa = linhas[0] ? converter(linhas[0]) : null;
@@ -169,9 +181,52 @@ export async function atualizarPerfilEmpresa(empresaId: string, dados: EdicaoEmp
   return r.count > 0;
 }
 
+export interface DadosProposta {
+  responsavel: string | null;
+  representanteCpf: string | null;
+  representanteRg: string | null;
+  dadosBancarios: string | null;
+  /** Data URL PNG/JPEG */
+  assinatura: string | null;
+}
+
+const FORMATO_ASSINATURA = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/;
+const LIMITE_ASSINATURA = 280000;
+
+function textoOuNulo(valor: string | null, limite: number): string | null {
+  const t = valor?.trim() ?? "";
+  return t === "" ? null : t.slice(0, limite);
+}
+
+/** Dados padrão da proposta (representante, banco, assinatura). O id é o da sessão. */
+export async function atualizarDadosProposta(empresaId: string, dados: DadosProposta): Promise<boolean> {
+  if (!FORMATO_ID.test(empresaId)) return false;
+  const assinatura = dados.assinatura?.trim() ?? "";
+  if (assinatura !== "" && (assinatura.length > LIMITE_ASSINATURA || !FORMATO_ASSINATURA.test(assinatura))) {
+    throw new Error("Imagem de assinatura inválida");
+  }
+  const r = await sql`
+    update empresas
+       set responsavel = ${textoOuNulo(dados.responsavel, 120)},
+           representante_cpf = ${textoOuNulo(dados.representanteCpf, 30)},
+           representante_rg = ${textoOuNulo(dados.representanteRg, 30)},
+           dados_bancarios = ${textoOuNulo(dados.dadosBancarios, 500)},
+           assinatura = ${assinatura === "" ? null : assinatura}
+     where id = ${empresaId}
+  `;
+  return r.count > 0;
+}
+
 /** Remove uma empresa sem dados (uso de limpeza de testes). Falha se ainda houver dados ligados a ela. */
 export async function excluirEmpresaVazia(id: string): Promise<boolean> {
   if (!FORMATO_ID.test(id)) return false;
   const r = await sql`delete from empresas where id = ${id}`;
   return r.count > 0;
+}
+
+/** Imagem da assinatura (data URL) ou null. Separada do perfil para não pesar em toda leitura. */
+export async function lerAssinatura(empresaId: string): Promise<string | null> {
+  if (!FORMATO_ID.test(empresaId)) return null;
+  const linhas = await sql<{ assinatura: string | null }[]>`select assinatura from empresas where id = ${empresaId}`;
+  return linhas[0]?.assinatura ?? null;
 }

@@ -45,6 +45,11 @@ const PERFIL: PerfilEmpresa = {
   telefone: null,
   email: null,
   responsavel: null,
+  representanteCpf: null,
+  representanteRg: null,
+  dadosBancarios: null,
+  assinatura: null,
+  teste: false,
 };
 
 const PRECO: PrecoSugerido = {

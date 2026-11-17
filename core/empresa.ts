@@ -86,4 +86,9 @@ export const PERFIL_ORIGEM: PerfilEmpresa = {
   telefone: "(21) 9942-9781",
   email: "arthurfoxinfo@gmail.com",
   responsavel: "Arthur Silva Moura",
+  representanteCpf: null,
+  representanteRg: null,
+  dadosBancarios: null,
+  assinatura: null,
+  teste: false,
 };

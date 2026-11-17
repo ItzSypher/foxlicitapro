@@ -1,8 +1,10 @@
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { ROTULO_PORTE } from "@/core/perfil";
+import { lerAssinatura } from "@/db/empresas";
 import { perfilDaEmpresa } from "@/lib/empresa-atual";
 import { exigirSessao } from "@/lib/sessao";
+import { DadosProposta } from "./dados-proposta";
 import { FormularioEmpresa } from "./formulario";
 
 export const metadata = { title: "Empresa · FoxLicita Pro" };
@@ -22,6 +24,13 @@ export default async function EmpresaPage() {
         </p>
       </header>
       <FormularioEmpresa nomeFantasia={perfil.nomeFantasia} cnaes={perfil.cnaes} regioes={perfil.regioes} />
+      <DadosProposta
+        responsavel={perfil.responsavel}
+        representanteCpf={perfil.representanteCpf}
+        representanteRg={perfil.representanteRg}
+        dadosBancarios={perfil.dadosBancarios}
+        assinatura={await lerAssinatura(sessao.empresaId)}
+      />
     </div>
   );
 }

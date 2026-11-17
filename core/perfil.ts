@@ -49,6 +49,14 @@ export interface PerfilEmpresa {
   telefone: string | null;
   email: string | null;
   responsavel: string | null;
+  representanteCpf: string | null;
+  representanteRg: string | null;
+  /** Texto livre: banco, agência, conta, titular */
+  dadosBancarios: string | null;
+  /** Imagem da assinatura como data URL (PNG/JPEG); não substitui a assinatura digital */
+  assinatura: string | null;
+  /** Empresa criada pelo Admin sem consulta à Receita */
+  teste: boolean;
 }
 
 export function ehPorte(valor: unknown): valor is Porte {

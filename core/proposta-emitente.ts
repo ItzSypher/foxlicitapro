@@ -13,6 +13,11 @@ export interface Emitente {
   telefone: string;
   email: string;
   responsavel: string;
+  representanteCpf: string;
+  representanteRg: string;
+  dadosBancarios: string;
+  /** Data URL da imagem da assinatura; "" quando não há */
+  assinatura: string;
 }
 
 export function emitenteDoPerfil(perfil: PerfilEmpresa): Emitente {
@@ -27,7 +32,22 @@ export function emitenteDoPerfil(perfil: PerfilEmpresa): Emitente {
     telefone: perfil.telefone ?? "",
     email: perfil.email ?? "",
     responsavel: perfil.responsavel ?? "",
+    representanteCpf: perfil.representanteCpf ?? "",
+    representanteRg: perfil.representanteRg ?? "",
+    dadosBancarios: perfil.dadosBancarios ?? "",
+    assinatura: perfil.assinatura ?? "",
   };
+}
+
+/** "Nome | CPF x | RG y"; partes vazias são omitidas. Vazio quando não há nenhuma. */
+export function textoRepresentante(e: Pick<Emitente, "responsavel" | "representanteCpf" | "representanteRg">): string {
+  return [
+    e.responsavel,
+    e.representanteCpf !== "" ? `CPF ${e.representanteCpf}` : "",
+    e.representanteRg !== "" ? `RG ${e.representanteRg}` : "",
+  ]
+    .filter((p) => p !== "")
+    .join(" | ");
 }
 
 /** "Rua X, 70, Nova Iguaçu - RJ, CEP 26260-340"; partes que faltam são omitidas. */

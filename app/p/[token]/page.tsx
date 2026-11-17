@@ -4,7 +4,7 @@ import { BotaoBaixar } from "@/components/propostas/botao-baixar";
 import { DocumentoProposta } from "@/components/propostas/documento";
 import { PreviaEscalada } from "@/components/propostas/previa-escalada";
 import { emitenteDoPerfil, type Emitente } from "@/core/proposta-emitente";
-import { lerEmpresa } from "@/db/empresas";
+import { lerAssinatura, lerEmpresa } from "@/db/empresas";
 import { lerPorToken, type PropostaPublica } from "@/db/propostas";
 
 export const metadata: Metadata = {
@@ -22,7 +22,7 @@ export default async function PropostaPublicaPage({ params }: { params: Promise<
     proposta = await lerPorToken(token);
     // O cabeçalho vem da empresa dona da proposta, não de quem abre o link.
     const empresa = proposta ? await lerEmpresa(proposta.empresaId) : null;
-    emitente = empresa ? emitenteDoPerfil(empresa) : null;
+    emitente = empresa ? emitenteDoPerfil({ ...empresa, assinatura: await lerAssinatura(empresa.id) }) : null;
   } catch {
     proposta = null;
   }
