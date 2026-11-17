@@ -107,7 +107,7 @@ export function Assistente() {
           type="button"
           onClick={() => setAberto(true)}
           aria-label="Abrir o assistente"
-          className={`fixed right-4 z-40 flex size-14 items-center justify-center rounded-full border border-border bg-surface shadow-sm outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand lg:right-6 ${posicaoBotao(rota.tipo, caminho)}`}
+          className={`fixed right-4 z-40 flex size-14 print:hidden items-center justify-center rounded-full border border-border bg-surface shadow-sm outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand lg:right-6 ${posicaoBotao(rota.tipo, caminho)}`}
         >
           <Raposa classe="h-8 w-auto" />
         </button>
@@ -117,7 +117,7 @@ export function Assistente() {
         <section
           role="dialog"
           aria-label="Assistente"
-          className="fixed inset-0 z-50 flex h-dvh flex-col bg-ground animate-in fade-in slide-in-from-bottom-4 duration-200 motion-reduce:animate-none lg:inset-auto lg:right-6 lg:bottom-6 lg:h-[560px] lg:w-[380px] lg:rounded-card lg:border lg:border-border lg:shadow-lg"
+          className="fixed inset-0 z-50 flex h-dvh flex-col bg-ground print:hidden animate-in fade-in slide-in-from-bottom-4 duration-200 motion-reduce:animate-none lg:inset-auto lg:right-6 lg:bottom-6 lg:h-[560px] lg:w-[380px] lg:rounded-card lg:border lg:border-border lg:shadow-lg"
         >
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-border pr-1 pl-4">
             <div className="flex items-center gap-2">
