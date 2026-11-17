@@ -457,6 +457,8 @@ export function lerEventoRecebido(corpo: unknown, eventoIdCabecalho: string | nu
   if (eventoId === null || conversationId === null || remetente === null) return null;
 
   const payloadBotao = primeiro(
+    // Formato confirmado no Zernio: toque em botão de resposta chega em metadata.interactiveId (interactiveType "button_reply").
+    campo(metadata, "interactiveId"),
     campo(metadata, "buttonPayload"),
     campo(sub(metadata, "button"), "payload"),
     campo(sub(sub(metadata, "interactive"), "button_reply"), "id"),

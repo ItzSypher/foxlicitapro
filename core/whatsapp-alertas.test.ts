@@ -290,6 +290,22 @@ describe("ativação", () => {
 });
 
 describe("lerEventoRecebido", () => {
+  it("lê o toque em botão do formato real do Zernio (metadata.interactiveId)", () => {
+    const corpo = {
+      id: "evt-botao",
+      event: "message.received",
+      account: { accountId: "acc" },
+      message: {
+        conversationId: "conv",
+        direction: "incoming",
+        text: "Vou participar",
+        sender: { id: "5521994297816" },
+        metadata: { interactiveId: "part:33287806000161-1-000038/2026", interactiveType: "button_reply" },
+      },
+    };
+    expect(lerEventoRecebido(corpo, null)?.payloadBotao).toBe("part:33287806000161-1-000038/2026");
+  });
+
   const corpo = {
     id: "evt-1",
     event: "message.received",
