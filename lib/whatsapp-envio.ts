@@ -28,10 +28,22 @@ import { enviarTemplate, enviarTexto, zernioConfigurado, type BotaoZernio } from
  * Nunca lança: falha vira log curto (sem chave, sem número).
  */
 
-/** Mensagens livres por mês antes de segurar o que não é crítico (a Meta não cobra as primeiras 1.000 por número). */
+function limiteDaVariavel(nome: string, padrao: number): number {
+  const valor = Number(process.env[nome] ?? String(padrao));
+  return Number.isFinite(valor) && valor > 0 ? valor : padrao;
+}
+
+/**
+ * Teto duro de mensagens livres por mês, contando tudo (alertas e respostas): passou, nada mais sai.
+ * Fica abaixo das 1.000 que a Meta não cobra por número, com folga para o atendimento.
+ */
 function limiteMensal(): number {
-  const valor = Number(process.env.WA_LIMITE_MENSAL ?? "900");
-  return Number.isFinite(valor) && valor > 0 ? valor : 900;
+  return limiteDaVariavel("WA_LIMITE_MENSAL", 900);
+}
+
+/** Teto de alertas por mês (prazos, Radar, etapa, avisos e resumos). Respostas a quem escreveu não entram aqui. */
+function limiteAlertas(): number {
+  return limiteDaVariavel("WA_LIMITE_ALERTAS", 300);
 }
 
 const CRITICOS: ReadonlySet<TipoAlertaWa> = new Set(["prazo2", "prazo24"]);
@@ -42,7 +54,15 @@ function chaveContador(agora: Date): string {
   return `envios:${mesDeSaoPaulo(agora)}`;
 }
 
-/** Envia uma mensagem livre se a janela estiver aberta e o limite do mês permitir. Conta o envio. */
+function chaveAlertas(agora: Date): string {
+  return `alertas:${mesDeSaoPaulo(agora)}`;
+}
+
+/**
+ * Envia uma mensagem livre se a janela estiver aberta e os tetos do mês permitirem. Conta o envio.
+ * `resposta`: resposta a quem acabou de escrever (só o teto duro vale). Sem ela, é alerta e conta nos dois tetos.
+ * `critico` não fura teto nenhum: com o teto batido, o alerta fica na fila.
+ */
 export async function enviarParaPessoa(
   v: VinculoWa,
   texto: string,
@@ -51,17 +71,16 @@ export async function enviarParaPessoa(
 ): Promise<boolean> {
   if (!zernioConfigurado() || v.conversaId === null || !janelaAberta(v.ultimaEntrada, agora)) return false;
   try {
-    // Resposta a quem acabou de escrever passa sempre; alerta não crítico respeita o limite do mês.
-    if (!opcoes.resposta && !opcoes.critico) {
-      const usados = await somarContador(chaveContador(agora), 0);
-      if (usados >= limiteMensal()) return false;
-    }
+    const ehAlerta = !opcoes.resposta;
+    if ((await somarContador(chaveContador(agora), 0)) >= limiteMensal()) return false;
+    if (ehAlerta && (await somarContador(chaveAlertas(agora), 0)) >= limiteAlertas()) return false;
     const r = await enviarTexto(v.conversaId, texto, opcoes.botoes);
     if (!r.ok) {
       console.error("[whatsapp] envio:", r.erro ?? "falha");
       return false;
     }
     await somarContador(chaveContador(agora), 1);
+    if (ehAlerta) await somarContador(chaveAlertas(agora), 1);
     return true;
   } catch (e) {
     console.error("[whatsapp] envio:", e instanceof Error ? e.message : "falha");
@@ -150,7 +169,8 @@ export async function enviarFila(v: VinculoWa, agora: Date = new Date()): Promis
     await descartarVencidos(agora);
     const pendentes = await listarPendentes(v.usuarioId, agora);
     if (pendentes.length === 0) return false;
-    const enviado = await enviarParaPessoa(v, textoDoResumo(pendentes), agora, { resposta: true });
+    // O resumo é feito de alertas: conta no teto de alertas, não só no teto duro.
+    const enviado = await enviarParaPessoa(v, textoDoResumo(pendentes), agora);
     if (enviado) await marcarEnviados(pendentes.map((p) => p.id), agora);
     return enviado;
   } catch (e) {
