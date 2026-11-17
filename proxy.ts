@@ -11,6 +11,9 @@ export async function proxy(request: NextRequest) {
   // Coleta agendada: a própria rota confere o CRON_SECRET.
   if (pathname.startsWith("/api/cron/")) return NextResponse.next();
 
+  // Webhook do WhatsApp (Zernio): a própria rota confere a assinatura.
+  if (pathname === "/api/whatsapp/webhook") return NextResponse.next();
+
   // Limpa o cookie de uma sessão que o servidor não aceita mais (pessoa desativada).
   if (pathname === "/login/sair") return NextResponse.next();
 

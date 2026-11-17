@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Archive,
+  BellRing,
   Building2,
   Calculator,
   ChartColumn,
@@ -68,6 +69,7 @@ const RESULTADOS: Destino = {
 };
 
 const SECUNDARIOS: ReadonlyArray<Destino> = [
+  { href: "/alertas", rotulo: "Alertas", rotuloCurto: "Alertas", icone: BellRing },
   { href: "/preferencias", rotulo: "Preferências", rotuloCurto: "Preferências", icone: SlidersHorizontal },
   { href: "/equipe", rotulo: "Equipe", rotuloCurto: "Equipe", icone: Users, somentePara: "dono" },
   { href: "/empresa", rotulo: "Empresa", rotuloCurto: "Empresa", icone: Building2, somentePara: "dono" },
@@ -81,17 +83,17 @@ interface Grupo {
 }
 
 const [RADAR, PIPELINE, PROPOSTAS, CALCULADORA] = PRINCIPAIS;
-const [PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
+const [ALERTAS, PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
 
 /** Grupos da barra lateral, na ordem em que aparecem. */
 const GRUPOS: ReadonlyArray<Grupo> = [
   { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, ENCERRADAS, PROPOSTAS, CALCULADORA, FORNECEDORES, RESULTADOS] },
-  { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, PREFERENCIAS] },
+  { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, ALERTAS, PREFERENCIAS] },
   { id: "admin", rotulo: "Admin", destinos: [EMPRESAS] },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/resultados", "/preferencias", "/equipe", "/empresa", "/admin"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/resultados", "/alertas", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   /** Identifica a pessoa para lembrar, neste aparelho, o que ela já viu */

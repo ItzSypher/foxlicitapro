@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { normalizarWhatsapp } from "@/core/whatsapp";
-import { salvarCanais } from "@/db/avisos";
+import { lerCanais, salvarCanais } from "@/db/avisos";
 import { gerarSenhaInicial, hashSenha, verificarSenha } from "@/lib/auth";
 import { exigirDono, lerSessao } from "@/lib/sessao";
 import { PAPEIS, normalizarPermissoes, ehPermissao } from "@/core/permissoes";
@@ -200,21 +199,14 @@ export interface EstadoCanais {
   ok: boolean;
 }
 
-/** Cada pessoa escolhe por onde recebe os avisos. O painel é sempre; o WhatsApp só vale com um número válido. */
+/** O e-mail é escolha da pessoa. O WhatsApp (número e recebimento) fica na tela Alertas e aqui não muda. */
 export async function salvarCanaisAction(_anterior: EstadoCanais, dados: FormData): Promise<EstadoCanais> {
   const sessao = await lerSessao();
   if (!sessao) return { ok: false, erro: "Sessão expirada. Entre de novo." };
-  const bruto = textoDe(dados.get("whatsapp")).trim().slice(0, 40);
-  const quer = dados.get("avisoWhatsapp") === "on";
   const email = dados.get("avisoEmail") === "on";
-  let numero: string | null = null;
-  if (bruto !== "") {
-    numero = normalizarWhatsapp(bruto);
-    if (numero === null) return { ok: false, erro: "Número de WhatsApp inválido. Use o DDD e o número, por exemplo (21) 99999-0000." };
-  }
-  if (quer && numero === null) return { ok: false, erro: "Informe o número de WhatsApp para receber os avisos por lá." };
   try {
-    await salvarCanais(sessao.empresaId, sessao.usuarioId, { whatsapp: numero, email, avisoWhatsapp: quer });
+    const atuais = await lerCanais(sessao.empresaId, sessao.usuarioId);
+    await salvarCanais(sessao.empresaId, sessao.usuarioId, { ...atuais, email });
     revalidatePath("/equipe/conta");
     return { ok: true, erro: null };
   } catch (e) {

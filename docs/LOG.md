@@ -1,0 +1,1 @@
+- 2026-11-17: alertas de WhatsApp pelo Zernio (conversa individual, janela de 24 h, fila, agente, botões); agendamento de hora em hora pelo pg_cron do Supabase (scripts/agendar-alertas.mjs); template pago desligado (WA_TEMPLATE_ATIVO).

@@ -3,6 +3,9 @@ import { planejarEntregas, textoDoAviso, type AvisoNovo } from "@/core/avisos";
 import { gravarAviso, listarAvisosRecentes, listarPessoasDeAviso } from "@/db/avisos";
 import { enviarEmail, linkAbsoluto, montarEmail } from "@/lib/email";
 import { enviarWhatsapp, whatsappConfigurado } from "@/lib/whatsapp";
+import { entregarAlertasWa } from "@/lib/whatsapp-envio";
+import { zernioConfigurado } from "@/lib/zernio";
+import type { AlertaWa } from "@/core/whatsapp-alertas";
 
 /**
  * Entrega de avisos: painel (sempre), e-mail e WhatsApp conforme a escolha de cada pessoa.
@@ -41,6 +44,9 @@ async function porWhatsapp(aviso: AvisoNovo, numero: string): Promise<"ok" | "fa
   return "falha";
 }
 
+/** Estes tipos já saem pelos alertas de hora em hora do WhatsApp (Zernio). */
+const TIPOS_FORA_DO_AVISO_WA: ReadonlySet<AvisoNovo["tipo"]> = new Set(["disputa_48h", "oportunidade"]);
+
 /** Grava no painel os avisos novos (sem repetir os já existentes) e envia pelos canais escolhidos. */
 export async function entregarAvisos(empresaId: string, candidatos: ReadonlyArray<AvisoNovo>, agora: Date = new Date()): Promise<ResultadoEntrega> {
   const resultado: ResultadoEntrega = { ...ENTREGA_VAZIA };
@@ -48,7 +54,9 @@ export async function entregarAvisos(empresaId: string, candidatos: ReadonlyArra
   try {
     const [pessoas, existentes] = await Promise.all([listarPessoasDeAviso(empresaId), listarAvisosRecentes(empresaId, agora)]);
     const entregas = planejarEntregas(candidatos, existentes, pessoas);
-    const comWhatsapp = whatsappConfigurado();
+    const viaZernio = zernioConfigurado();
+    const comWhatsapp = !viaZernio && whatsappConfigurado();
+    const alertasWa: AlertaWa[] = [];
     for (const { aviso, paineis, pessoas: alcance } of entregas) {
       try {
         const gravados: Array<string | null> = [];
@@ -69,11 +77,25 @@ export async function entregarAvisos(empresaId: string, candidatos: ReadonlyArra
             if (r === "ok") resultado.whatsapp += 1;
             else resultado.falhas += 1;
           }
+          if (viaZernio && p.avisoWhatsapp && !TIPOS_FORA_DO_AVISO_WA.has(aviso.tipo)) {
+            alertasWa.push({
+              usuarioId: p.id,
+              tipo: "aviso",
+              chave: `aviso:${aviso.chave}`,
+              texto: aviso.link ? `${textoDoAviso(aviso)}\n${linkAbsoluto(aviso.link)}` : textoDoAviso(aviso),
+              itemId: null,
+              validade: null,
+            });
+          }
         }
       } catch (e) {
         resultado.falhas += 1;
         console.error("[aviso]", e instanceof Error ? e.message : e);
       }
+    }
+    if (alertasWa.length > 0) {
+      const entrega = await entregarAlertasWa(empresaId, alertasWa, agora);
+      resultado.whatsapp += entrega.enviados;
     }
   } catch (e) {
     console.error("[aviso]", e instanceof Error ? e.message : e);

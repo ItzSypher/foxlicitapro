@@ -1,9 +1,7 @@
 import { connection } from "next/server";
-import { formatarWhatsapp } from "@/core/whatsapp";
 import { lerCanais } from "@/db/avisos";
 import { rotuloPapel } from "@/lib/papel";
 import { exigirSessao } from "@/lib/sessao";
-import { whatsappConfigurado } from "@/lib/whatsapp";
 import { FormCanais } from "./form-canais";
 import { FormSenha } from "./form-senha";
 
@@ -21,12 +19,7 @@ export default async function ContaPage() {
           {sessao.nome} · {rotuloPapel(sessao.papel)}
         </p>
       </header>
-      <FormCanais
-        whatsapp={canais.whatsapp === null ? "" : formatarWhatsapp(canais.whatsapp)}
-        email={canais.email}
-        avisoWhatsapp={canais.avisoWhatsapp}
-        whatsappDisponivel={whatsappConfigurado()}
-      />
+      <FormCanais email={canais.email} />
       <FormSenha />
     </div>
   );
