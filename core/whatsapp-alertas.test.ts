@@ -290,6 +290,17 @@ describe("ativação", () => {
 });
 
 describe("lerEventoRecebido", () => {
+  it("lê o toque em botão com o metadata na raiz do evento (formato real do webhook)", () => {
+    const corpo = {
+      id: "evt-webhook",
+      event: "message.received",
+      message: { conversationId: "conv", direction: "incoming", text: "Vou participar", sender: { id: "5521994297816" } },
+      account: { id: "acc", accountId: "acc" },
+      metadata: { interactiveType: "button_reply", interactiveId: "part:33287806000161-1-000038/2026" },
+    };
+    expect(lerEventoRecebido(corpo, null)?.payloadBotao).toBe("part:33287806000161-1-000038/2026");
+  });
+
   it("lê o toque em botão do formato real do Zernio (metadata.interactiveId)", () => {
     const corpo = {
       id: "evt-botao",

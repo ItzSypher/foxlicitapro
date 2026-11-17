@@ -456,8 +456,12 @@ export function lerEventoRecebido(corpo: unknown, eventoIdCabecalho: string | nu
   const remetente = soDigitos(primeiro(campo(remetenteObj, "id"), campo(remetenteObj, "phoneNumber"), campo(remetenteObj, "username")));
   if (eventoId === null || conversationId === null || remetente === null) return null;
 
+  // No webhook o Zernio põe o metadata na raiz do evento; na caixa de entrada, dentro da mensagem.
+  const metadataRaiz = sub(r, "metadata");
+
   const payloadBotao = primeiro(
     // Formato confirmado no Zernio: toque em botão de resposta chega em metadata.interactiveId (interactiveType "button_reply").
+    campo(metadataRaiz, "interactiveId"),
     campo(metadata, "interactiveId"),
     campo(metadata, "buttonPayload"),
     campo(sub(metadata, "button"), "payload"),
