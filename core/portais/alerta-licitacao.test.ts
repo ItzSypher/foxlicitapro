@@ -231,3 +231,24 @@ describe("termosDosCnaes", () => {
     expect(new Set(termos).size).toBe(termos.length);
   });
 });
+
+describe("lerResposta com formatos variados", () => {
+  const lic = { id_licitacao: "ES123", titulo: "Toner", uf: "ES" };
+
+  it("aceita números como texto e lista indexada", () => {
+    const r = lerResposta({ totalLicitacoes: "2", paginas: "1", licitacoes: { "0": lic, "1": { ...lic, id_licitacao: "ES124" } } });
+    expect(r.ok && r.resposta.licitacoes.length).toBe(2);
+    expect(r.ok && r.resposta.totalLicitacoes).toBe(2);
+  });
+
+  it("aceita a lista sem envelope", () => {
+    const r = lerResposta([lic]);
+    expect(r.ok && r.resposta.licitacoes.length).toBe(1);
+  });
+
+  it("explica a forma quando não entende", () => {
+    const r = lerResposta("texto");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erro).toContain("string");
+  });
+});

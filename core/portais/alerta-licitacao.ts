@@ -49,15 +49,33 @@ export type LicitacaoAlerta = z.infer<typeof licitacaoSchema>;
 const erroSchema = z.object({ codigo: texto.nullish(), descricao: texto.nullish() });
 
 /** Corpo da resposta: ou as licitações, ou `totalErros`/`erros`. Cada licitação é validada à parte. */
+/** Número que pode vir como texto ("12"). */
+const numero = z.union([z.number(), z.string()]).transform((v) => Number(v)).pipe(z.number().finite());
+
+/** Lista que pode vir como objeto indexado ({"0": {...}, "1": {...}}). */
+const listaFlexivel = z
+  .union([z.array(z.unknown()), z.record(z.string(), z.unknown())])
+  .transform((v) => (Array.isArray(v) ? v : Object.values(v)));
+
 const respostaSchema = z.object({
-  totalLicitacoes: z.number().optional(),
-  paginas: z.number().optional(),
-  licitacoesPorPagina: z.number().optional(),
-  licitacoesNestaPagina: z.number().optional(),
-  licitacoes: z.array(z.unknown()).optional(),
-  totalErros: z.number().optional(),
-  erros: z.array(erroSchema).optional(),
+  totalLicitacoes: numero.optional().catch(undefined),
+  paginas: numero.optional().catch(undefined),
+  licitacoesPorPagina: numero.optional().catch(undefined),
+  licitacoesNestaPagina: numero.optional().catch(undefined),
+  licitacoes: listaFlexivel.nullish(),
+  totalErros: numero.optional().catch(undefined),
+  erros: z.array(erroSchema.catch({ codigo: null, descricao: null })).nullish().catch(undefined),
 });
+
+/** Forma da resposta (chaves e tipos, sem valores), para o log quando ela não for entendida. */
+export function formaDaResposta(corpo: unknown): string {
+  if (corpo === null || typeof corpo !== "object") return typeof corpo;
+  if (Array.isArray(corpo)) return `array(${corpo.length})`;
+  return Object.entries(corpo)
+    .slice(0, 12)
+    .map(([k, v]) => `${k}:${Array.isArray(v) ? "array" : v === null ? "null" : typeof v}`)
+    .join(",");
+}
 
 export interface RespostaAlerta {
   totalLicitacoes: number;
@@ -70,8 +88,9 @@ export type LeituraResposta = { ok: true; resposta: RespostaAlerta } | { ok: fal
 
 /** Valida o JSON da API. Licitação fora do formato é descartada; resposta com `erros` vira falha com a descrição. */
 export function lerResposta(corpo: unknown): LeituraResposta {
-  const r = respostaSchema.safeParse(corpo);
-  if (!r.success) return { ok: false, erro: "resposta fora do formato esperado" };
+  // Algumas respostas vêm só com a lista, sem o envelope.
+  const r = respostaSchema.safeParse(Array.isArray(corpo) ? { licitacoes: corpo } : corpo);
+  if (!r.success) return { ok: false, erro: `resposta fora do formato esperado (${formaDaResposta(corpo)})` };
   const { data } = r;
   if ((data.totalErros ?? 0) > 0 || (data.erros?.length ?? 0) > 0) {
     const descricoes = (data.erros ?? []).map((e) => `${e.codigo ?? "?"}: ${e.descricao ?? ""}`.trim()).join("; ");
