@@ -103,18 +103,18 @@ describe("adicionarPeloLink", () => {
     expect(m.buscarDetalheCompra).not.toHaveBeenCalled();
   });
 
-  it("contratação inexistente, modalidade fora de 6/8 e sem prazo viram erro claro", async () => {
+  it("contratação inexistente e sem prazo viram erro claro; outra modalidade entra", async () => {
     m.buscarDetalheCompra.mockResolvedValueOnce(null);
     expect(await adicionarPeloLink("emp1", "u1", LINK)).toEqual({ ok: false, erro: "Não achei essa contratação no PNCP." });
 
     m.buscarDetalheCompra.mockResolvedValueOnce(detalhe({ modalidadeId: 4, modalidadeNome: "Concorrência" }));
     const r = await adicionarPeloLink("emp1", "u1", LINK);
-    expect(r).toMatchObject({ ok: false });
-    expect(r.ok ? "" : r.erro).toContain("Concorrência");
+    expect(r).toMatchObject({ ok: true, jaEstava: false });
 
     m.buscarDetalheCompra.mockResolvedValueOnce(detalhe({ dataEncerramento: null }));
     expect(await adicionarPeloLink("emp1", "u1", LINK)).toMatchObject({ ok: false });
-    expect(m.salvarItem).not.toHaveBeenCalled();
+    // Só a concorrência foi salva; a sem prazo não.
+    expect(m.salvarItem).toHaveBeenCalledTimes(1);
   });
 
   it("falha do PNCP ou do banco não lança", async () => {
