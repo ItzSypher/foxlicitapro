@@ -10,6 +10,7 @@ import { DicaNota } from "./dicas";
 import { TEXTO_FAIXA } from "./faixa";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { usePrazo } from "./prazo";
+import { SeloFonte } from "./selo-fonte";
 
 /** Colunas da lista no desktop: nota | objeto | modalidade | valor | prazo. */
 const COLUNAS = "md:grid-cols-[96px_minmax(0,1fr)_88px_128px_112px]";
@@ -76,11 +77,17 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
         >
           <span className="line-clamp-2 md:line-clamp-1">{resumirObjeto(item.objeto)}</span>
         </button>
-        <span className="hidden truncate text-xs text-muted-foreground md:block">
-          {item.municipio}/{item.uf}
+        <span className="hidden items-center gap-2 text-xs text-muted-foreground md:flex">
+          <span className="truncate">
+            {item.municipio}/{item.uf}
+          </span>
+          <SeloFonte linkOrigem={item.linkOrigem} className="shrink-0" />
         </span>
-        <span className="truncate text-xs text-muted-foreground md:hidden">
-          {item.municipio}/{item.uf} · {nomeModalidade(item.modalidadeId)}
+        <span className="flex items-center gap-2 text-xs text-muted-foreground md:hidden">
+          <span className="truncate">
+            {item.municipio}/{item.uf} · {nomeModalidade(item.modalidadeId)}
+          </span>
+          <SeloFonte linkOrigem={item.linkOrigem} className="shrink-0" />
         </span>
         <span className="text-[13px] tabular-nums text-muted-foreground md:hidden">
           <span className="text-ink">{valor}</span> ·{" "}

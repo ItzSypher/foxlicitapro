@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { normalizarAreas, ufsDeColeta } from "@/core/areas";
+import { ufDoCodigoIbge } from "@/core/ufs";
 import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema } from "@/db/empresas";
 import { exigirDono } from "@/lib/sessao";
 
@@ -11,11 +12,21 @@ export type ResultadoEmpresa = { ok: true } | { ok: false; erro: string };
 const EdicaoSchema = z.object({
   nomeFantasia: z.string().trim().max(120).nullable(),
   cnaes: cnaesSchema,
-  areas: z.object({
-    ufs: z.array(z.string()).max(27),
-    municipiosIbge: z.array(z.string()).max(600),
-    base: z.object({ uf: z.string(), municipioIbge: z.string().nullable() }),
-  }),
+  areas: z
+    .object({
+      ufs: z.array(z.string()).max(27),
+      municipiosIbge: z.array(z.string().regex(/^[0-9]{7}$/)).max(600),
+      base: z.object({ uf: z.string(), municipioIbge: z.string().regex(/^[0-9]{7}$/).nullable() }),
+    })
+    .refine(
+      (a) => {
+        const base = a.base.municipioIbge;
+        if (base === null) return true;
+        const uf = ufDoCodigoIbge(base);
+        return a.municipiosIbge.includes(base) || (uf !== null && a.ufs.includes(uf.sigla));
+      },
+      { message: "O município-base precisa estar entre os municípios ou estados marcados." },
+    ),
   radarTudoDoRamo: z.boolean(),
 });
 
