@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { comentarAction, lerComentariosAction, salvarNotas } from "@/app/(app)/pipeline/actions";
+import { Entrada, LIMITE_ESCALONADO, PASSO_ESCALONADO } from "@/components/ui/movimento";
 import { Seletor } from "@/components/ui/seletor";
 import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -619,6 +620,8 @@ interface Props {
   podeEditar: boolean;
   /** Tem a permissão de revisão jurídica: pode marcar o checklist */
   podeRevisar: boolean;
+  /** Posição na coluna: só os primeiros itens entram em sequência */
+  indice?: number;
   arrastavel: boolean;
   arrastando: boolean;
   aoIniciarArraste: (id: string) => void;
@@ -634,6 +637,7 @@ export function CardItem({
   agoraInicial,
   podeEditar,
   podeRevisar,
+  indice = 0,
   arrastavel,
   arrastando,
   aoIniciarArraste,
@@ -663,11 +667,15 @@ export function CardItem({
       }}
       onDragEnd={aoTerminarArraste}
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-card bg-surface p-3",
+        "min-w-0",
         podeArrastar ? "cursor-grab active:cursor-grabbing" : "",
         arrastando ? "opacity-40" : "",
       )}
     >
+      <Entrada
+        className="flex min-w-0 flex-col gap-2 rounded-card bg-surface p-3"
+        atraso={Math.min(indice, LIMITE_ESCALONADO - 1) * PASSO_ESCALONADO}
+      >
       <div className="-mt-1 -mr-2 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-2">
           <span
@@ -765,6 +773,7 @@ export function CardItem({
           </div>
         </div>
       ) : null}
+      </Entrada>
     </li>
   );
 }

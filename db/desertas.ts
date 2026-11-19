@@ -63,6 +63,17 @@ export async function listarDesertas(ufs: ReadonlyArray<string>): Promise<Desert
   });
 }
 
+/** Desertas das UFs pedidas que a coleta trouxe desde o instante dado (a coleta é incremental por dia). */
+export async function contarDesertasNovas(ufs: ReadonlyArray<string>, desde: Date): Promise<number> {
+  if (ufs.length === 0) return 0;
+  const [linha] = await sql<{ total: number }[]>`
+    select count(*)::int as total
+    from radar_desertas
+    where uf in ${sql([...ufs])} and coletada_em >= ${desde}
+      and deserta_em > now() - make_interval(days => ${DIAS_DESERTA_VALIDA}::int)`;
+  return linha?.total ?? 0;
+}
+
 /** Grava (ou atualiza) as desertas coletadas. */
 export async function gravarDesertas(desertas: ReadonlyArray<Deserta>, em: Date): Promise<void> {
   for (const d of desertas) {

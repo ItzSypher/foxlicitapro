@@ -29,7 +29,9 @@ export type TipoAviso =
   | "proposta_revisada"
   | "item_atribuido"
   | "juridico_pendente"
-  | "proposta_resultado";
+  | "proposta_resultado"
+  | "novas_ramo"
+  | "desertas_novas";
 
 /** Quem deve receber o aviso. */
 export type AlvoAviso =
@@ -143,6 +145,48 @@ export function avisosDeOportunidade(
     });
   }
   return avisos;
+}
+
+/**
+ * "N novas do seu ramo hoje": publicadas nas últimas 24 h, ainda abertas e fora do pipeline.
+ * Um por empresa e por dia (o dia entra na chave). Sem nenhuma nova, não há aviso.
+ */
+export function avisoNovasDoRamo(
+  recomendadas: ReadonlyArray<OportunidadeComScore>,
+  jaNoPipeline: ReadonlySet<string>,
+  agora: Date,
+): AvisoNovo | null {
+  const vistos = new Set<string>();
+  for (const o of recomendadas) {
+    if (vistos.has(o.id) || jaNoPipeline.has(o.id)) continue;
+    if (Date.parse(o.dataEncerramento) <= agora.getTime()) continue;
+    const idade = agora.getTime() - Date.parse(o.dataPublicacao ?? "");
+    if (Number.isNaN(idade) || idade < -MS_HORA || idade >= 24 * MS_HORA) continue;
+    vistos.add(o.id);
+  }
+  const total = vistos.size;
+  if (total === 0) return null;
+  return {
+    alvo: { tipo: "todos" },
+    tipo: "novas_ramo",
+    titulo: total === 1 ? "1 licitação nova do seu ramo" : `${total} licitações novas do seu ramo`,
+    corpo: "Publicadas nas últimas 24 horas e ainda abertas para proposta.",
+    link: "/radar",
+    chave: `novas_ramo:${diaDeSaoPaulo(agora)}`,
+  };
+}
+
+/** "N dispensas desertas novas" nos estados da empresa. Um por empresa e por dia. */
+export function avisoDesertasNovas(total: number, agora: Date): AvisoNovo | null {
+  if (total <= 0) return null;
+  return {
+    alvo: { tipo: "todos" },
+    tipo: "desertas_novas",
+    titulo: total === 1 ? "1 dispensa deserta nova" : `${total} dispensas desertas novas`,
+    corpo: "Compras que ficaram sem vencedor e o órgão costuma reabrir.",
+    link: "/radar?aba=desertas",
+    chave: `desertas_novas:${diaDeSaoPaulo(agora)}`,
+  };
 }
 
 export interface ItemComFichaConferida {

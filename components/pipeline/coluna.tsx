@@ -134,7 +134,7 @@ export function Coluna({
             Nada aqui ainda.
           </li>
         ) : (
-          itens.map((dado) => (
+          itens.map((dado, indice) => (
             <CardItem
               key={dado.id}
               dado={dado}
@@ -143,6 +143,7 @@ export function Coluna({
               aoResponsavel={aoResponsavel}
               podeEditar={podeEditar}
               podeRevisar={podeRevisar}
+              indice={indice}
               arrastavel={colunas && podeEditar}
               arrastando={arrastandoId === dado.id}
               aoIniciarArraste={aoIniciarArraste}

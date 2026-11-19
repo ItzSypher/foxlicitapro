@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { MetaSemana } from "@/components/meta/meta-semana";
+import { Entrada, NumeroAnimado } from "@/components/ui/movimento";
 import type { PainelMeta } from "@/core/meta";
 import { formatarValorCompacto, type PainelDia } from "@/lib/radar-painel";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import { COLUNAS_PIPELINE, COLUNAS_REGIAO, GRADE_PAINEL } from "./painel-esquele
 
 const CHAVE_OCULTO = "foxlicita:radar-resumo-oculto";
 const EVENTO_OCULTO = "foxlicita:radar-resumo";
-const DURACAO_CONTAGEM_MS = 700;
+const DURACAO_CONTAGEM_MS = 600;
 
 function lerOcultoBruto(): string {
   try {
@@ -45,54 +46,8 @@ function useResumoOculto(): { oculto: boolean; alternar: () => void } {
   return { oculto, alternar };
 }
 
-const CONSULTA_MOVIMENTO = "(prefers-reduced-motion: reduce)";
-
-function assinarMovimento(aviso: () => void): () => void {
-  const consulta = window.matchMedia(CONSULTA_MOVIMENTO);
-  consulta.addEventListener("change", aviso);
-  return () => consulta.removeEventListener("change", aviso);
-}
-
-function usaMovimentoReduzido(): boolean {
-  return window.matchMedia(CONSULTA_MOVIMENTO).matches;
-}
-
-/** Número que sobe até o valor ao entrar e acompanha as mudanças. Sem animação, vale o valor na hora. */
-function useContagem(alvo: number): number {
-  const reduzir = useSyncExternalStore(assinarMovimento, usaMovimentoReduzido, () => false);
-  const [exibido, definirExibido] = useState(alvo);
-  const ultimo = useRef(alvo);
-  const primeira = useRef(true);
-
-  useEffect(() => {
-    if (reduzir) {
-      ultimo.current = alvo;
-      primeira.current = false;
-      return;
-    }
-    const de = primeira.current ? 0 : ultimo.current;
-    primeira.current = false;
-    if (de === alvo) return;
-    const inicio = performance.now();
-    let quadro = 0;
-    const passo = (agora: number) => {
-      const t = Math.min((agora - inicio) / DURACAO_CONTAGEM_MS, 1);
-      const suave = 1 - Math.pow(1 - t, 3);
-      const valor = t >= 1 ? alvo : de + (alvo - de) * suave;
-      ultimo.current = valor;
-      definirExibido(valor);
-      if (t < 1) quadro = window.requestAnimationFrame(passo);
-    };
-    quadro = window.requestAnimationFrame(passo);
-    return () => window.cancelAnimationFrame(quadro);
-  }, [alvo, reduzir]);
-
-  return reduzir ? alvo : exibido;
-}
-
 function Numero({ valor, formatar }: { valor: number; formatar?: (n: number) => string }) {
-  const n = Math.round(useContagem(valor));
-  return <span className="tabular-nums">{formatar ? formatar(n) : n.toLocaleString("pt-BR")}</span>;
+  return <NumeroAnimado valor={valor} formatar={formatar} duracaoMs={DURACAO_CONTAGEM_MS} />;
 }
 
 const CELULA = "flex min-w-0 flex-col gap-1 bg-surface p-4 text-left outline-none";
@@ -256,7 +211,7 @@ export function PainelDiaView({
           Nada novo hoje. Quando entrar alguma oportunidade, o resumo aparece aqui.
         </p>
       ) : (
-        <div className={cn(GRADE_PAINEL, "transition-opacity duration-200", ocupado && "opacity-60")}>
+        <Entrada className={cn(GRADE_PAINEL, "transition-opacity duration-200", ocupado && "opacity-60")}>
           <CelulaBotao
             aoClicar={aoVerNovas}
             rotuloAria={
@@ -319,7 +274,7 @@ export function PainelDiaView({
               }
             />
           </Link>
-        </div>
+        </Entrada>
       )}
     </section>
   );

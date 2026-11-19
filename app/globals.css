@@ -219,19 +219,35 @@
 
 .card-entrada {
   animation: card-entrada 420ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
-  animation-delay: calc(min(var(--i, 0), 11) * 40ms);
+  animation-delay: calc(min(var(--i, 0), 11) * 30ms);
 }
 
 .termo-enche {
   transform: scaleX(var(--r));
   transform-origin: left center;
   animation: termo-enche 500ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
-  animation-delay: calc(min(var(--i, 0), 11) * 40ms + 420ms + var(--s, 0) * 70ms);
+  animation-delay: calc(min(var(--i, 0), 11) * 30ms + 420ms + var(--s, 0) * 70ms);
+}
+
+/* Brilho suave do selo "Proposta pronta": só sombra, lento, sem piscar. */
+@keyframes selo-brilho {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 10px 1px color-mix(in srgb, var(--color-brand) 32%, transparent);
+  }
+}
+
+.selo-brilho {
+  animation: selo-brilho 3.2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .card-entrada,
-  .termo-enche {
+  .termo-enche,
+  .selo-brilho {
     animation: none;
   }
 }

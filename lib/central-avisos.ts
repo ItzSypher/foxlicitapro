@@ -47,6 +47,9 @@ async function porWhatsapp(aviso: AvisoNovo, numero: string): Promise<"ok" | "fa
 /** Estes tipos já saem pelos alertas de hora em hora do WhatsApp (Zernio). */
 const TIPOS_FORA_DO_AVISO_WA: ReadonlySet<AvisoNovo["tipo"]> = new Set(["disputa_48h", "oportunidade"]);
 
+/** Só no painel (e na central de novidades): o resumo diário por e-mail e os alertas do WhatsApp já cobrem o assunto. */
+const TIPOS_SO_PAINEL: ReadonlySet<AvisoNovo["tipo"]> = new Set(["novas_ramo", "desertas_novas"]);
+
 /** Grava no painel os avisos novos (sem repetir os já existentes) e envia pelos canais escolhidos. */
 export async function entregarAvisos(empresaId: string, candidatos: ReadonlyArray<AvisoNovo>, agora: Date = new Date()): Promise<ResultadoEntrega> {
   const resultado: ResultadoEntrega = { ...ENTREGA_VAZIA };
@@ -65,6 +68,7 @@ export async function entregarAvisos(empresaId: string, candidatos: ReadonlyArra
         }
         if (gravados.length === 0) continue;
         resultado.painel += gravados.length;
+        if (TIPOS_SO_PAINEL.has(aviso.tipo)) continue;
         const recebem = gravados.includes(null) ? alcance : alcance.filter((p) => gravados.includes(p.id));
         for (const p of recebem) {
           if (p.avisoEmail && p.email !== "") {

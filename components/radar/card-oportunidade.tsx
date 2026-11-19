@@ -13,6 +13,7 @@ import { DicaNota } from "./dicas";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { PrazoDoCard } from "./prazo";
 import { SeloFonte } from "./selo-fonte";
+import { SelosVivos } from "./selos-vivos";
 
 interface Props {
   item: OportunidadeComScore;
@@ -54,6 +55,12 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaPro
         </span>
       </span>
 
+      <SelosVivos
+        dataPublicacao={item.dataPublicacao}
+        dataEncerramento={item.dataEncerramento}
+        agoraInicial={agoraInicial}
+      />
+
       <button
         type="button"
         onClick={() => onAbrir(item)}
@@ -73,7 +80,7 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaPro
         <Link
           href={`/propostas/${propostaProntaId}`}
           prefetch={false}
-          className="relative z-10 inline-flex min-h-11 w-fit max-w-full items-center gap-1.5 rounded-full border border-border bg-raised px-3 text-xs font-medium text-brand outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
+          className="relative z-10 inline-flex min-h-11 w-fit max-w-full items-center gap-1.5 rounded-full selo-brilho border border-border bg-raised px-3 text-xs font-medium text-brand outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
         >
           <FileCheck aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="truncate">Proposta pronta</span>

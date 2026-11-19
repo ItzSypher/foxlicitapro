@@ -32,8 +32,8 @@ export function urlModoSessao(url: string): string {
 function criar(url: string): postgres.Sql {
   return postgres(urlModoSessao(url), {
     prepare: false,
-    max: 3,
-    idle_timeout: 5,
+    max: 2,
+    idle_timeout: 2,
     max_lifetime: 60 * 5,
     connect_timeout: 8,
     ssl: "require",

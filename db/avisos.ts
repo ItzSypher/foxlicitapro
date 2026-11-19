@@ -35,7 +35,7 @@ const linhaSchema = z.object({
 });
 
 /** Avisos da pessoa (os dela e os de "todos"), do mais novo ao mais antigo. */
-export async function listarAvisos(empresaId: string, usuarioId: string): Promise<ListaAvisos> {
+export async function listarAvisos(empresaId: string, usuarioId: string, limite: number = LIMITE_LISTA): Promise<ListaAvisos> {
   if (!FORMATO_ID.test(usuarioId)) return { itens: [], naoLidos: 0 };
   const linhas = await sql`
     select a.id, a.tipo, a.titulo, a.corpo, a.link, a.criado_em,
@@ -44,7 +44,7 @@ export async function listarAvisos(empresaId: string, usuarioId: string): Promis
     left join avisos_leituras l on l.aviso_id = a.id and l.usuario_id = ${usuarioId}
     where a.empresa_id = ${empresaId} and (a.usuario_id = ${usuarioId} or a.usuario_id is null)
     order by a.criado_em desc
-    limit ${LIMITE_LISTA}
+    limit ${limite}
   `;
   const itens: AvisoPainel[] = [];
   for (const linha of linhas) {

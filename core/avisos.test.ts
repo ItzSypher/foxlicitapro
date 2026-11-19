@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  avisoDesertasNovas,
   avisoItemAtribuido,
+  avisoNovasDoRamo,
   avisoPropostaRevisada,
   avisosDeDisputa,
   avisosDeFicha,
@@ -197,5 +199,36 @@ describe("diaDeSaoPaulo", () => {
   it("usa o dia civil de São Paulo", () => {
     expect(diaDeSaoPaulo(new Date("2026-11-12T02:00:00.000Z"))).toBe("2026-11-11");
     expect(diaDeSaoPaulo(new Date("2026-11-12T10:00:00.000Z"))).toBe("2026-11-12");
+  });
+});
+
+describe("avisos de novas do ramo e desertas", () => {
+  const publicada = (id: string, horasAtras: number, horasAteFechar = 100): OportunidadeComScore => ({
+    ...oport(id, 70, horasAteFechar),
+    dataPublicacao: em(-horasAtras),
+  });
+
+  it("conta só as publicadas nas últimas 24 h, abertas e fora do pipeline", () => {
+    const aviso = avisoNovasDoRamo(
+      [publicada("a", 2), publicada("b", 30), publicada("c", 5), publicada("c", 5), publicada("d", 3, -1), publicada("e", 1)],
+      new Set(["e"]),
+      AGORA,
+    );
+    expect(aviso?.titulo).toBe("2 licitações novas do seu ramo");
+    expect(aviso?.tipo).toBe("novas_ramo");
+    expect(aviso?.chave).toBe(`novas_ramo:${diaDeSaoPaulo(AGORA)}`);
+  });
+
+  it("usa o singular e não avisa quando não há nova", () => {
+    expect(avisoNovasDoRamo([publicada("a", 2)], new Set(), AGORA)?.titulo).toBe("1 licitação nova do seu ramo");
+    expect(avisoNovasDoRamo([publicada("a", 40)], new Set(), AGORA)).toBeNull();
+  });
+
+  it("desertas: um aviso por dia e nada quando o total é zero", () => {
+    expect(avisoDesertasNovas(0, AGORA)).toBeNull();
+    expect(avisoDesertasNovas(1, AGORA)?.titulo).toBe("1 dispensa deserta nova");
+    const aviso = avisoDesertasNovas(4, AGORA);
+    expect(aviso?.titulo).toBe("4 dispensas desertas novas");
+    expect(aviso?.chave).toBe(`desertas_novas:${diaDeSaoPaulo(AGORA)}`);
   });
 });

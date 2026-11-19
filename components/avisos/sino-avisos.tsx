@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { z } from "zod";
 import { listarAvisosAction, marcarAvisoLidoAction, marcarTodosLidosAction, type RespostaAvisos } from "@/app/(app)/avisos-actions";
+import { ListaEscalonada } from "@/components/ui/movimento";
+import { Toast, type DadosToast } from "@/components/ui/toast";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { AvisoPainel } from "@/db/avisos";
 import { cn } from "@/lib/utils";
+import { IconeAviso } from "./icone-aviso";
 
 const formatoData = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
@@ -29,12 +34,71 @@ interface Props {
   className?: string;
 }
 
+const INTERVALO_MS = 120_000;
+
+const respostaSchema = z.object({
+  naoLidos: z.number().int().min(0),
+  itens: z.array(z.object({ id: z.string(), titulo: z.string(), link: z.string().nullable() })),
+});
+
 export function SinoAvisos({ inicial, folha, className }: Props) {
   const [aberto, setAberto] = useState(false);
   const [naoLidos, setNaoLidos] = useState(inicial);
   const [itens, setItens] = useState<AvisoPainel[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
+  const [pop, setPop] = useState(0);
+  const [toast, setToast] = useState<DadosToast | null>(null);
+  const reduzir = useReducedMotion();
+  const botao = useRef<HTMLButtonElement>(null);
+  const atual = useRef(inicial);
+  const ultimaConsulta = useRef(0);
+  const fecharToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    atual.current = naoLidos;
+  }, [naoLidos]);
+
+  // Consulta leve a cada 2 min, só com a aba visível e só na instância que aparece na tela (há uma na lateral e outra no topo).
+  useEffect(() => {
+    let ativo = true;
+    async function consultar() {
+      if (document.visibilityState !== "visible" || botao.current?.offsetParent == null) return;
+      ultimaConsulta.current = Date.now();
+      try {
+        const resposta = await fetch("/api/novidades", { cache: "no-store" });
+        if (!resposta.ok) return;
+        const dados = respostaSchema.safeParse(await resposta.json());
+        if (!ativo || !dados.success) return;
+        const novo = dados.data.naoLidos;
+        const antes = atual.current;
+        atual.current = novo;
+        setNaoLidos(novo);
+        if (novo > antes) {
+          setPop((p) => p + 1);
+          const diferenca = novo - antes;
+          const recente = dados.data.itens[0];
+          setToast({
+            id: `${Date.now()}`,
+            texto: diferenca === 1 && recente ? recente.titulo : `${diferenca} avisos novos`,
+            link: diferenca === 1 && recente ? recente.link : null,
+          });
+        }
+      } catch {
+        // Sem rede por um momento: a próxima consulta tenta de novo.
+      }
+    }
+    const timer = window.setInterval(consultar, INTERVALO_MS);
+    function aoVoltar() {
+      if (document.visibilityState === "visible" && Date.now() - ultimaConsulta.current >= INTERVALO_MS) void consultar();
+    }
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      ativo = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, []);
 
   function aplicar(r: RespostaAvisos) {
     if (r.ok) {
@@ -62,6 +126,7 @@ export function SinoAvisos({ inicial, folha, className }: Props) {
   return (
     <>
       <button
+        ref={botao}
         type="button"
         onClick={() => abrir(true)}
         aria-haspopup="dialog"
@@ -74,14 +139,20 @@ export function SinoAvisos({ inicial, folha, className }: Props) {
       >
         <Bell className="size-[18px]" aria-hidden="true" />
         {naoLidos > 0 ? (
-          <span
+          <motion.span
+            key={pop}
             aria-hidden="true"
+            initial={pop === 0 || reduzir ? false : { scale: 1.6 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 420, damping: 14 }}
             className="absolute top-1 right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-fill px-1 text-[10px] font-medium tabular-nums text-black"
           >
             {naoLidos > 99 ? "99+" : naoLidos}
-          </span>
+          </motion.span>
         ) : null}
       </button>
+
+      <Toast toast={toast} aoFechar={fecharToast} />
 
       <Sheet open={aberto} onOpenChange={abrir}>
         <SheetContent
@@ -114,10 +185,12 @@ export function SinoAvisos({ inicial, folha, className }: Props) {
             {itens === null && erro === null ? <p className="py-6 text-sm text-muted-foreground">Carregando…</p> : null}
             {itens !== null && itens.length === 0 ? <p className="py-6 text-sm text-muted-foreground">Nenhum aviso por enquanto.</p> : null}
             {itens !== null && itens.length > 0 ? (
-              <ul className="flex flex-col divide-y divide-border">
+              <ListaEscalonada as="ul" className="flex flex-col divide-y divide-border" classeItem="flex items-start gap-3 py-3">
                 {itens.map((a) => (
-                  <li key={a.id} className="flex items-start gap-3 py-3">
-                    <span aria-hidden="true" className={cn("mt-1.5 size-2 shrink-0 rounded-full", a.lido ? "bg-transparent" : "bg-brand-fill")} />
+                  <Fragment key={a.id}>
+                    <span className={cn("flex shrink-0", a.lido ? "opacity-50" : "")}>
+                      <IconeAviso tipo={a.tipo} />
+                    </span>
                     <div className="min-w-0 flex-1">
                       {a.link ? (
                         <Link
@@ -146,9 +219,9 @@ export function SinoAvisos({ inicial, folha, className }: Props) {
                         <CheckCheck className="size-4" aria-hidden="true" />
                       </button>
                     )}
-                  </li>
+                  </Fragment>
                 ))}
-              </ul>
+              </ListaEscalonada>
             ) : null}
           </div>
         </SheetContent>

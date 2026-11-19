@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { atualizarRadar } from "@/lib/radar-dados";
-import { gerarAvisosDiarios } from "@/lib/avisos-diarios";
+import { gerarAvisosDesertas, gerarAvisosDiarios } from "@/lib/avisos-diarios";
 import { coletarDesertas } from "@/lib/desertas-coleta";
 import { montarPropostasProntas } from "@/lib/propostas-prontas";
 import { propostaProntaLigada } from "@/core/propostas-prontas";
@@ -46,5 +46,12 @@ export async function GET(request: Request) {
   const desertas =
     soResumo || !propostaProntaLigada(process.env.DESERTAS_ATIVA) || Date.now() - inicio > LIMITE_PARA_DESERTAS_MS
       ? null : await coletarDesertas({ prazoMs: inicio + FIM_DESERTAS_MS });
-  return NextResponse.json({ coleta, resumo, avisos, resultados, desertas });
+  // Depois da coleta: só então há desertas novas para contar.
+  const avisosDesertas = desertas
+    ? await gerarAvisosDesertas().catch((e: unknown) => {
+        console.error("[cron] avisos de desertas:", e instanceof Error ? e.message : e);
+        return null;
+      })
+    : null;
+  return NextResponse.json({ coleta, resumo, avisos, resultados, desertas, avisosDesertas });
 }
