@@ -208,11 +208,68 @@ function montarDetalhe(
   };
 }
 
-async function buscarGeral(base: string, config: Config): Promise<CompraPncp | null> {
+const URL_BUSCA = "https://pncp.gov.br/api/search/";
+
+/** Número de controle do PNCP: `{cnpj}-1-{sequencial com 6 dígitos}/{ano}`. */
+export function numeroControleDaChave(chave: ChaveCompra): string {
+  return `${chave.cnpj}-1-${String(chave.sequencial).padStart(6, "0")}/${chave.ano}`;
+}
+
+/**
+ * A consulta do PNCP só traz a contratação horas depois de publicada (e o endereço antigo foi desligado).
+ * Enquanto isso, monta os dados gerais a partir da busca do site, que já tem a contratação recém-publicada.
+ */
+export function compraDaBusca(cru: unknown, numeroControle: string): CompraPncp | null {
+  if (cru === null || typeof cru !== "object" || !("items" in cru) || !Array.isArray(cru.items)) return null;
+  for (const bruto of cru.items as unknown[]) {
+    if (bruto === null || typeof bruto !== "object") continue;
+    const i = bruto as Record<string, unknown>;
+    if (i.numero_controle_pncp !== numeroControle) continue;
+    const txt = (v: unknown): string | null => (typeof v === "string" ? v : typeof v === "number" ? String(v) : null);
+    const num = (v: unknown): number | null => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v)) ? Number(v) : null);
+    const lido = compraSchema.safeParse({
+      numeroControlePNCP: numeroControle,
+      numeroCompra: txt(i.numero),
+      processo: null,
+      objetoCompra: txt(i.description),
+      informacaoComplementar: null,
+      modalidadeId: num(i.modalidade_licitacao_id) ?? 0,
+      modalidadeNome: txt(i.modalidade_licitacao_nome),
+      modoDisputaNome: null,
+      amparoLegal: null,
+      situacaoCompraNome: txt(i.situacao_nome),
+      srp: null,
+      orgaoEntidade: { cnpj: txt(i.orgao_cnpj) ?? "", razaoSocial: txt(i.orgao_nome) },
+      unidadeOrgao: { ufSigla: txt(i.uf), municipioNome: txt(i.municipio_nome), codigoIbge: txt(i.codigo_ibge), nomeUnidade: txt(i.unidade_nome) },
+      valorTotalEstimado: num(i.valor_global),
+      valorTotalHomologado: null,
+      orcamentoSigilosoCodigo: null,
+      dataInclusao: txt(i.createdAt),
+      dataPublicacaoPncp: txt(i.data_publicacao_pncp),
+      dataAberturaProposta: txt(i.data_inicio_vigencia),
+      dataEncerramentoProposta: txt(i.data_fim_vigencia),
+      dataAtualizacao: txt(i.data_atualizacao_pncp),
+      dataAtualizacaoGlobal: txt(i.data_atualizacao_pncp),
+      linkSistemaOrigem: null,
+      linkProcessoEletronico: null,
+    });
+    return lido.success ? lido.data : null;
+  }
+  return null;
+}
+
+async function buscarPelaBusca(chave: ChaveCompra, config: Config): Promise<CompraPncp | null> {
+  const numero = numeroControleDaChave(chave);
+  const params = new URLSearchParams({ q: numero, tipos_documento: "edital", pagina: "1", tam_pagina: "5" });
+  const r = await lerJson(`${URL_BUSCA}?${params.toString()}`, config);
+  return r.ok ? compraDaBusca(r.valor, numero) : null;
+}
+
+async function buscarGeral(base: string, config: Config, chave: ChaveCompra): Promise<CompraPncp | null> {
   let resposta = await lerJson(`${URL_CONSULTA}/${base}`, config);
   if (!resposta.ok && resposta.status === 404) {
     resposta = await lerJson(`${URL_PNCP}/${base}`, config);
-    if (!resposta.ok && (resposta.status === 404 || resposta.status === 301)) return null;
+    if (!resposta.ok && (resposta.status === 404 || resposta.status === 301)) return buscarPelaBusca(chave, config);
   }
   if (!resposta.ok) {
     throw new ErroPncp("O PNCP não respondeu os dados da contratação", resposta.status ?? undefined);
@@ -273,7 +330,7 @@ export async function buscarDetalheCompra(
   };
   const base = `${chave.cnpj}/compras/${chave.ano}/${chave.sequencial}`;
 
-  const geral = await buscarGeral(base, config);
+  const geral = await buscarGeral(base, config, chave);
   if (geral === null) return null;
 
   // No máximo 2 chamadas ao mesmo tempo: itens (em série) e arquivos.

@@ -68,16 +68,21 @@ export function somaItens(itens: readonly ItemCompra[]): number | null {
   return achou ? Math.round(soma * 100) / 100 : null;
 }
 
-function ehModalidadeValida(id: number): id is ModalidadeId {
-  return id === 6 || id === 8;
+/**
+ * O Radar e o Pipeline trabalham com dois grupos: contratação direta (8) e disputa (6).
+ * Outras modalidades do PNCP entram pelo grupo mais próximo; o nome real segue em `modalidadeNome`.
+ * Dispensa (8), inexigibilidade (9) e credenciamento (12) contam como contratação direta; o resto, como disputa.
+ */
+export function grupoDaModalidade(id: number): ModalidadeId {
+  return id === 8 || id === 9 || id === 12 ? 8 : 6;
 }
 
 /**
  * Monta a Oportunidade do Radar a partir do detalhe, para recalcular a nota e salvar no pipeline.
- * Devolve null quando faltam dados que o contrato exige (modalidade 6/8 e prazo de encerramento).
+ * Devolve null quando o PNCP não informa o prazo de encerramento.
  */
 export function montarOportunidade(d: DetalheCompra): Oportunidade | null {
-  if (!ehModalidadeValida(d.modalidadeId) || d.dataEncerramento === null) return null;
+  if (d.dataEncerramento === null) return null;
   return {
     id: d.numeroControle,
     objeto: d.objeto,
@@ -89,7 +94,7 @@ export function montarOportunidade(d: DetalheCompra): Oportunidade | null {
     codigoIbge: d.codigoIbge,
     uf: d.uf,
     regiao: regiaoDe(d.codigoIbge, d.uf),
-    modalidadeId: d.modalidadeId,
+    modalidadeId: grupoDaModalidade(d.modalidadeId),
     modalidadeNome: d.modalidadeNome,
     dataAbertura: d.dataAbertura,
     dataEncerramento: d.dataEncerramento,

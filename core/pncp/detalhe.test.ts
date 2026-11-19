@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buscarDetalheCompra, normalizarArquivos, normalizarItens } from "./detalhe";
+import { buscarDetalheCompra, compraDaBusca, normalizarArquivos, normalizarItens, numeroControleDaChave } from "./detalhe";
 
 /** Amostras reais do PNCP (IFF Campos, dispensa 235/2026; Campos dos Goytacazes, pregão 34/2026), descrições abreviadas. */
 const COMPRA_REAL = {
@@ -242,11 +242,11 @@ describe("buscarDetalheCompra", () => {
     expect(d?.arquivos).toHaveLength(2);
   });
 
-  it("devolve null quando a contratação não existe (404 nas duas rotas)", async () => {
+  it("devolve null quando a contratação não existe (404 nas duas rotas e fora da busca)", async () => {
     const fetchImpl = vi.fn(async () => json({ status: "404" }, 404));
     const d = await buscarDetalheCompra(CHAVE, { fetchImpl, esperaRetryMs: 0 });
     expect(d).toBeNull();
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
   it("lança erro quando os dados gerais falham", async () => {
@@ -314,5 +314,33 @@ describe("buscarDetalheCompra", () => {
     });
     const d = await buscarDetalheCompra(CHAVE, { fetchImpl, esperaRetryMs: 0 });
     expect(d?.valorEstimado).toBeNull();
+  });
+});
+
+describe("compraDaBusca", () => {
+  const item = {
+    numero_controle_pncp: "00394502000144-1-017077/2026",
+    numero: "90",
+    description: "Aquisição de switches",
+    modalidade_licitacao_id: "8",
+    modalidade_licitacao_nome: "Dispensa",
+    orgao_cnpj: "00394502000144",
+    orgao_nome: "COMANDO DA MARINHA",
+    uf: "PR",
+    municipio_nome: "Guaíra",
+    codigo_ibge: "4108809",
+    data_fim_vigencia: "2026-11-25T08:00",
+    valor_global: null,
+  };
+
+  it("monta a contratação recém-publicada a partir da busca", () => {
+    const c = compraDaBusca({ items: [item] }, numeroControleDaChave({ cnpj: "00394502000144", ano: 2026, sequencial: 17077 }));
+    expect(c?.modalidadeId).toBe(8);
+    expect(c?.objetoCompra).toBe("Aquisição de switches");
+    expect(c?.unidadeOrgao.municipioNome).toBe("Guaíra");
+  });
+
+  it("ignora resultado de outra contratação", () => {
+    expect(compraDaBusca({ items: [item] }, "00394502000144-1-000001/2026")).toBeNull();
   });
 });
