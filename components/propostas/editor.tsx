@@ -11,6 +11,7 @@ import {
   salvarPropostaAction,
 } from "@/app/(app)/propostas/actions";
 import { BarraProposta, type EstadoSalvo } from "@/components/propostas/barra-proposta";
+import { BlocoRecolhivel } from "@/components/propostas/bloco-recolhivel";
 import { BOTAO_SECUNDARIO, CONTROLE, Secao } from "@/components/propostas/campos";
 import { DocumentoEditavel } from "@/components/propostas/documento-editavel";
 import { DocumentoProposta } from "@/components/propostas/documento";
@@ -22,6 +23,7 @@ import { FaixaRevisao } from "@/components/propostas/faixa-revisao";
 import { LinhaDoTempo, QuadroResultado, type ResumoResultado } from "@/components/propostas/linha-do-tempo";
 import type { EventoProposta } from "@/core/proposta-eventos";
 import { PainelRevisao } from "@/components/propostas/painel-revisao";
+import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { totalProposta, validarProposta } from "@/core/proposta";
 import type { Emitente } from "@/core/proposta-emitente";
@@ -233,6 +235,16 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
   const abaixoDoMinimo = cotacao !== null && totalCentavos > 0 && total < cotacao.precoMinimo;
   const editavel = visao === "editar" && !somenteLeitura;
   const opcao = (ativa: boolean) => classeItemSegmentado(ativa);
+  const campoTitulo = (
+    <input
+      value={form.titulo}
+      disabled={somenteLeitura}
+      onChange={(e) => campo("titulo")(e.target.value)}
+      aria-label="Título da proposta"
+      maxLength={160}
+      className={cn(CONTROLE, "h-12 text-lg font-semibold")}
+    />
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -245,6 +257,18 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
           Propostas
         </Link>
 
+        <div className="flex flex-col gap-1 lg:hidden">
+          <TextoRecolhivel
+            texto={titulo}
+            como="h1"
+            linhas={2}
+            className="text-[22px] leading-tight font-semibold break-words text-ink"
+          />
+          <p className={cn("text-2xl font-semibold tabular-nums", abaixoDoMinimo ? "text-negative" : "text-ink")}>
+            {formatarMoeda(total)}
+          </p>
+        </div>
+
         <FaixaRevisao
           dados={{
             status,
@@ -256,14 +280,13 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
           }}
         />
 
-        <input
-          value={form.titulo}
-          disabled={somenteLeitura}
-          onChange={(e) => campo("titulo")(e.target.value)}
-          aria-label="Título da proposta"
-          maxLength={160}
-          className={cn(CONTROLE, "h-12 text-lg font-semibold")}
-        />
+        {somenteLeitura ? (
+          <div className="max-lg:hidden">{campoTitulo}</div>
+        ) : (
+          <BlocoRecolhivel titulo="Editar título" classeConteudo="gap-0">
+            {campoTitulo}
+          </BlocoRecolhivel>
+        )}
 
         {mensagem && (
           <p role="alert" className="text-[13px] text-negative">
@@ -317,7 +340,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
                 Visualizar como PDF
               </button>
             </div>
-            <p className="text-[13px] text-muted-foreground">No diálogo de impressão, escolha Salvar como PDF.</p>
+            <p className="text-[13px] text-muted-foreground max-lg:hidden">No diálogo de impressão, escolha Salvar como PDF.</p>
           </div>
 
           <DocumentoEditavel
@@ -359,7 +382,9 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
 
           <Secao id="secao-linha-do-tempo" titulo="Linha do tempo">
             <QuadroResultado dados={{ status: status === "enviada" ? "enviada" : "outro", ...proposta.resultado }} />
-            <LinhaDoTempo propostaId={id} eventos={eventos} />
+            <BlocoRecolhivel titulo={`Ver linha do tempo (${eventos.length})`} classeConteudo="gap-0">
+              <LinhaDoTempo propostaId={id} eventos={eventos} />
+            </BlocoRecolhivel>
           </Secao>
 
           <Secao id="secao-pendencias" titulo={`Pendências (${pendencias.length})`}>
@@ -386,24 +411,26 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
 
           <Secao id="secao-modelo" titulo="Modelo">
             <p className="text-[13px] text-muted-foreground">Trocar o modelo muda os textos do documento e mantém os itens.</p>
-            <div className="flex flex-col gap-2" role="group" aria-label="Modelo da proposta">
-              {MODELOS.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  disabled={somenteLeitura}
-                  aria-pressed={form.modelo === m.id}
-                  onClick={() => setForm((f) => aplicarPadroes(f, m.id))}
-                  className={cn(
-                    "flex min-h-11 flex-col items-start gap-0.5 rounded-control border px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-60",
-                    form.modelo === m.id ? "border-brand bg-active" : "border-control bg-raised hover:bg-active",
-                  )}
-                >
-                  <span className="text-sm font-medium text-ink">{m.nome}</span>
-                  <span className="text-[13px] text-muted-foreground">{m.quandoUsar}</span>
-                </button>
-              ))}
-            </div>
+            <BlocoRecolhivel titulo={`Modelo atual: ${obterModelo(form.modelo).nome}`}>
+              <div className="flex flex-col gap-2" role="group" aria-label="Modelo da proposta">
+                {MODELOS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    disabled={somenteLeitura}
+                    aria-pressed={form.modelo === m.id}
+                    onClick={() => setForm((f) => aplicarPadroes(f, m.id))}
+                    className={cn(
+                      "flex min-h-11 flex-col items-start gap-0.5 rounded-control border px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-60",
+                      form.modelo === m.id ? "border-brand bg-active" : "border-control bg-raised hover:bg-active",
+                    )}
+                  >
+                    <span className="text-sm font-medium text-ink">{m.nome}</span>
+                    <span className="text-[13px] text-muted-foreground">{m.quandoUsar}</span>
+                  </button>
+                ))}
+              </div>
+            </BlocoRecolhivel>
           </Secao>
 
           {acessos.editar && (

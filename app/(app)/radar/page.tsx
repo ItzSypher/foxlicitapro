@@ -4,6 +4,10 @@ import type { LimitesCaixa } from "@/core/caixa";
 import type { RespostaRadar } from "@/core/types";
 import { RadarComPipeline } from "@/components/pipeline/radar-com-pipeline";
 import { ufsDeColeta } from "@/core/areas";
+import type { Deserta } from "@/core/desertas";
+import { propostaProntaLigada } from "@/core/propostas-prontas";
+import { listarDesertas } from "@/db/desertas";
+import { propostasProntasDasCompras } from "@/db/propostas-prontas";
 import { temPermissao } from "@/core/permissoes";
 import { carregarPainelMeta } from "@/db/meta";
 import { idsNoPipeline, resumoPipeline, type ResumoPipeline } from "@/db/pipeline";
@@ -42,7 +46,7 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
   const sessao = await exigirSessao();
   const [preferencias, perfil] = await Promise.all([lerPreferencias(sessao.empresaId), perfilAtual()]);
   const limites: LimitesCaixa = { capitalMaximo: preferencias.capitalMaximo, diasMaximosParado: preferencias.diasMaximosParado };
-  const [resposta, ids, palavras, resumoPipe, meta] = await Promise.all([
+  const [resposta, ids, palavras, resumoPipe, meta, desertas] = await Promise.all([
     obterRadar(frente, limites, perfil).catch((): RespostaRadar | null => null),
     idsNoPipeline(sessao.empresaId).catch((): Set<string> => new Set()),
     listarPalavrasChave(sessao.empresaId, sessao.usuarioId).catch((): string[] => []),
@@ -50,6 +54,10 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
     resumoPipeline(sessao.empresaId).catch((): ResumoPipeline | null => null),
     // Já devolve null se falhar: o resumo só perde o painel da meta.
     carregarPainelMeta(sessao.empresaId, new Date()),
+    // Dispensas sem vencedor das UFs da empresa; se falhar (ou estiver desligada), a aba só fica vazia.
+    propostaProntaLigada(process.env.DESERTAS_ATIVA)
+      ? listarDesertas(ufsDeColeta(perfil.areas)).catch((): Deserta[] => [])
+      : Promise.resolve<Deserta[]>([]),
   ]);
   const pipeline: PipelinePainel | null = resumoPipe
     ? { ativas: resumoPipe.ativas, emDisputa: resumoPipe.emDisputa.quantidade }
@@ -67,9 +75,14 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
         porPagina: lerPorPagina(params),
         preferencias,
         perfil,
+        desertas,
       })
     : null;
-  const pagina: PaginaRadar | null = base ? { ...base, painel: { ...base.painel, pipeline } } : null;
+  // Selo "Proposta pronta": uma consulta só, para as oportunidades da página (quando o assistente está ligado).
+  const prontas: Record<string, string> = base && propostaProntaLigada(process.env.PROPOSTA_PRONTA_ATIVA)
+    ? await propostasProntasDasCompras(sessao.empresaId, base.itens.map((o) => o.id)).catch((): Record<string, string> => ({}))
+    : {};
+  const pagina: PaginaRadar | null = base ? { ...base, prontas, painel: { ...base.painel, pipeline } } : null;
 
   return (
     <RadarComPipeline

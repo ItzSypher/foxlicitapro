@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { excluirPropostaAction, marcarEnviadaAction } from "@/app/(app)/propostas/actions";
+import { BlocoRecolhivel } from "@/components/propostas/bloco-recolhivel";
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Secao } from "@/components/propostas/campos";
 import { LinhaDoTempo, QuadroResultado, type ResumoResultado } from "@/components/propostas/linha-do-tempo";
 import { CamposEnvio, ENVIO_VAZIO, envioParaAction, type DadosEnvio } from "@/components/propostas/registrar-envio";
 import { Pilula } from "@/components/radar/pilula";
+import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { EventoProposta } from "@/core/proposta-eventos";
 import { formatarMoeda } from "@/lib/formato";
@@ -95,7 +97,13 @@ export function PropostaExterna({
           <Pilula tom="positivo">Enviada</Pilula>
           <Pilula tom="neutro">Enviada fora do sistema</Pilula>
         </div>
-        <h1 className="text-[22px] leading-tight font-semibold break-words text-ink">{proposta.titulo}</h1>
+        <TextoRecolhivel
+          texto={proposta.titulo}
+          como="h1"
+          linhas={2}
+          className="text-[22px] leading-tight font-semibold break-words text-ink"
+        />
+        <p className="text-2xl font-semibold tabular-nums text-ink lg:hidden">{formatarMoeda(proposta.total)}</p>
         {mensagem && (
           <p role="alert" className="text-[13px] text-negative">
             {mensagem}
@@ -108,12 +116,14 @@ export function PropostaExterna({
           <Secao id="secao-envio-externo" titulo="Envio">
             <dl className="flex flex-col gap-2.5">
               <Linha rotulo="Órgão" valor={proposta.orgao || "—"} />
-              <Linha rotulo="Número" valor={proposta.numero || "—"} />
-              {proposta.objeto !== "" && <Linha rotulo="Objeto" valor={proposta.objeto} />}
-              <Linha rotulo="Portal" valor={proposta.portal ?? "—"} />
-              <Linha rotulo="Valor" valor={formatarMoeda(proposta.total)} />
-              <Linha rotulo="Enviada em" valor={proposta.enviadaEm ? dataFmt.format(new Date(proposta.enviadaEm)) : "—"} />
-              <Linha rotulo="Registrada por" valor={proposta.criadoPorNome ?? "—"} />
+              <BlocoRecolhivel titulo="Detalhes" classeConteudo="gap-2.5 lg:contents">
+                <Linha rotulo="Número" valor={proposta.numero || "—"} />
+                {proposta.objeto !== "" && <Linha rotulo="Objeto" valor={proposta.objeto} />}
+                <Linha rotulo="Portal" valor={proposta.portal ?? "—"} />
+                <Linha rotulo="Valor" valor={formatarMoeda(proposta.total)} />
+                <Linha rotulo="Enviada em" valor={proposta.enviadaEm ? dataFmt.format(new Date(proposta.enviadaEm)) : "—"} />
+                <Linha rotulo="Registrada por" valor={proposta.criadoPorNome ?? "—"} />
+              </BlocoRecolhivel>
             </dl>
           </Secao>
 
@@ -143,7 +153,9 @@ export function PropostaExterna({
         <aside aria-label="Resultado e linha do tempo" className="flex min-w-0 flex-col gap-4">
           <Secao id="secao-linha-do-tempo" titulo="Linha do tempo">
             <QuadroResultado dados={{ status: "enviada", ...proposta.resultado }} />
-            <LinhaDoTempo propostaId={proposta.id} eventos={eventos} />
+            <BlocoRecolhivel titulo={`Ver linha do tempo e comprovantes (${eventos.length})`} classeConteudo="gap-0">
+              <LinhaDoTempo propostaId={proposta.id} eventos={eventos} />
+            </BlocoRecolhivel>
           </Secao>
           {podeEditar && (
             <button type="button" onClick={() => setExcluir(true)} className={`${BOTAO_SECUNDARIO} text-negative`}>

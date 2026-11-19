@@ -10,6 +10,7 @@ import { MetaSemana } from "@/components/meta/meta-semana";
 import { Segmentado, TRILHO_SEGMENTADO, classeItemSegmentado } from "@/components/ui/segmentado";
 import { useFaixaRolavel } from "@/components/ui/usar-faixa-rolavel";
 import { cn } from "@/lib/utils";
+import { AdicionarPeloLink } from "./adicionar-pelo-link";
 import { BlocoErro } from "./bloco-erro";
 import { Coluna } from "./coluna";
 import { FolhaFechamento, type FechamentoPendente } from "./folha-fechamento";
@@ -415,6 +416,8 @@ function Quadro({
           </p>
         ) : null}
       </div>
+
+      {podeEditar ? <AdicionarPeloLink /> : null}
 
       {meta && !vazio ? <MetaSemana painel={meta} className="shrink-0" /> : null}
 

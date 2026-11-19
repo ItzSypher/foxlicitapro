@@ -23,7 +23,7 @@ function Raposa({ classe }: { classe: string }) {
 /** Posição do botão: acima da barra inferior e das barras fixas de cada página no celular. */
 function posicaoBotao(tipo: string, caminho: string): string {
   if (tipo === "licitacao") return "bottom-[calc(142px+env(safe-area-inset-bottom))] lg:bottom-6";
-  if (tipo === "proposta") return "bottom-[calc(152px+env(safe-area-inset-bottom))] lg:bottom-[104px] xl:bottom-6";
+  if (tipo === "proposta") return "bottom-[calc(168px+env(safe-area-inset-bottom))] lg:bottom-[104px] xl:bottom-6";
   if (caminho.startsWith("/calculadora")) return "bottom-[calc(140px+env(safe-area-inset-bottom))] lg:bottom-6";
   return "bottom-[calc(80px+env(safe-area-inset-bottom))] lg:bottom-6";
 }

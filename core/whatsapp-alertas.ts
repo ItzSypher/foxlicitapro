@@ -4,6 +4,7 @@
  */
 import { diaDeSaoPaulo, textoRestante } from "@/core/avisos";
 import { inicioDaSemana, type MetaConfig } from "@/core/meta";
+import { lerLinksPncp } from "@/core/link-pncp";
 import { resumirObjeto } from "@/core/objeto";
 import { ROTULO_ETAPA, ehEtapa } from "@/components/pipeline/tipos";
 import { z } from "zod";
@@ -562,6 +563,8 @@ export type Comando =
   | { tipo: "voltar" }
   | { tipo: "sim" }
   | { tipo: "nao" }
+  /** Pedido para pôr licitações no Pipeline pelo link; `texto` é a mensagem inteira */
+  | { tipo: "analisar"; texto: string }
   | { tipo: "livre"; texto: string };
 
 function simplificar(texto: string): string {
@@ -572,6 +575,17 @@ function simplificar(texto: string): string {
     .replace(/[.!?,;:]+$/u, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const PEDIDO_ANALISAR = /^(?:analisar|analisa|analise|adicionar|adiciona)(?:\s|$)/;
+const MAX_PALAVRAS_SOBRANDO = 3;
+
+/** "analisar <link>", ou só o link colado (com no máximo umas palavrinhas junto). Pergunta longa com link segue para o assistente. */
+function pedeAnalise(limpo: string, texto: string): boolean {
+  if (PEDIDO_ANALISAR.test(limpo)) return true;
+  if (lerLinksPncp(texto).length === 0) return false;
+  const sobra = texto.split(/\s+/).filter((t) => t !== "" && lerLinksPncp(t).length === 0);
+  return sobra.length <= MAX_PALAVRAS_SOBRANDO;
 }
 
 /** Lê o que a pessoa escreveu, sem diferenciar acento, caixa e espaço extra. */
@@ -602,6 +616,7 @@ export function lerComando(texto: string): Comando {
     case "cancelar":
       return { tipo: "nao" };
     default:
+      if (pedeAnalise(limpo, texto)) return { tipo: "analisar", texto: texto.trim() };
       return { tipo: "livre", texto: texto.trim() };
   }
 }

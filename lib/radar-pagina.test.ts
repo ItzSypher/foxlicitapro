@@ -145,7 +145,7 @@ describe("página do Radar montada no servidor", () => {
     const p = montar(consulta({ aba: "para-voce" }), base);
     expect(p.itens.map((i) => i.id)).toEqual(["id-1"]);
     expect(p.motivos["id-1"].length).toBeGreaterThan(0);
-    expect(p.contagensAbas).toEqual({ "para-voce": 1, todas: 3 });
+    expect(p.contagensAbas).toEqual({ "para-voce": 1, todas: 3, desertas: 0 });
     expect(p.baseRecomendacao).toBe(3);
   });
 
@@ -205,5 +205,41 @@ describe("página do Radar montada no servidor", () => {
     expect(p.tudoDoRamo).toBe(true);
     expect(p.itens.map((i) => i.id)).toEqual(["id-2", "id-3", "id-1"]);
     expect(p.motivos["id-3"]).toEqual(["Palavra-chave: cadeiras"]);
+  });
+});
+
+describe("aba Desertas", () => {
+  const desertas = Array.from({ length: 5 }, (_, i) => ({
+    id: `d-${i}`,
+    uf: "RJ",
+    codigoIbge: "3304557",
+    municipio: "Rio de Janeiro",
+    orgao: `Órgão ${i}`,
+    orgaoCnpj: `${i}`.padStart(14, "0"),
+    unidade: "",
+    objeto: `Objeto ${i}`,
+    valorEstimado: 100 * i,
+    itensSemVencedor: 1,
+    totalItens: 1,
+    situacao: "deserta" as const,
+    desertaEm: "2026-11-10T12:00:00-03:00",
+    anoCompra: 2026,
+    sequencialCompra: i + 1,
+    linkPncp: "",
+  }));
+
+  it("pagina as desertas e deixa a lista de oportunidades vazia", () => {
+    const p = montar(consulta({ aba: "desertas", desertas, porPagina: 2, pagina: 3 }));
+    expect(p.itens).toEqual([]);
+    expect(p.desertas.map((d) => d.id)).toEqual(["d-4"]);
+    expect(p.total).toBe(5);
+    expect(p.totalPaginas).toBe(3);
+    expect(p.contagensAbas.desertas).toBe(5);
+  });
+
+  it("conta as desertas nas outras abas sem listá-las", () => {
+    const p = montar(consulta({ aba: "todas", desertas }));
+    expect(p.desertas).toEqual([]);
+    expect(p.contagensAbas.desertas).toBe(5);
   });
 });

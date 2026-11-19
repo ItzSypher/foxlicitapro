@@ -86,7 +86,7 @@ export function ListaPropostas({
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Filtro de propostas" className="flex border-b border-border">
+      <div role="tablist" aria-label="Filtro de propostas" className="flex flex-wrap gap-2 md:gap-0 md:border-b md:border-border">
         {ORDEM_ABAS.map((id) => (
           <button
             key={id}
@@ -95,8 +95,10 @@ export function ListaPropostas({
             aria-selected={aba === id}
             onClick={() => setAba(id)}
             className={cn(
-              "-mb-px inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 border-b-2 border-transparent px-2 text-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
-              "aria-selected:border-brand aria-selected:font-semibold aria-selected:text-ink",
+              "inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-full border border-control bg-raised px-3 text-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand",
+              "aria-selected:border-brand aria-selected:bg-active aria-selected:font-semibold aria-selected:text-ink",
+              "md:-mb-px md:flex-1 md:rounded-none md:border-0 md:border-b-2 md:border-transparent md:bg-transparent md:px-2 md:focus-visible:ring-inset",
+              "md:aria-selected:border-brand md:aria-selected:bg-transparent",
             )}
           >
             <span className="truncate lg:hidden">{ROTULO_ABA_CURTO[id]}</span>
@@ -143,25 +145,28 @@ export function ListaPropostas({
                   prefetch={false}
                   className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_128px_104px_104px] md:gap-x-4"
                 >
-                  <span className="min-w-0 truncate text-sm font-medium text-ink md:col-start-1">{p.titulo}</span>
-                  <span className="justify-self-end md:order-4 md:col-start-4 md:justify-self-start">
+                  <span className="min-w-0 text-sm font-medium break-words text-ink line-clamp-2 md:col-start-1 md:line-clamp-1">{p.titulo}</span>
+                  <span className="self-start justify-self-end md:order-4 md:col-start-4 md:justify-self-start">
                     {p.status === "enviada" && p.resultado !== null ? (
                       <PilulaResultado resultado={p.resultado} />
                     ) : (
                       <PilulaStatus status={p.status} />
                     )}
                   </span>
-                  <span className="col-span-2 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground md:contents">
-                    <span className="min-w-0 flex-1 truncate md:order-2 md:col-start-2 md:flex-none">
+                  <span className="col-span-2 flex min-w-0 flex-col gap-1 text-[13px] text-muted-foreground md:contents">
+                    <span className="min-w-0 truncate md:order-2 md:col-start-2">
                       {p.orgao || "Sem órgão"}
                       {p.autor === "assistente" ? " · assistente" : p.criadoPorNome ? ` · ${p.criadoPorNome}` : ""}
                       {p.externa ? " · fora do sistema" : ""}
                     </span>
-                    <span className="tabular-nums text-ink md:order-3 md:col-start-3 md:text-right">
-                      {formatarMoeda(p.total)}
-                    </span>
-                    <span className="text-xs tabular-nums text-faint md:order-5 md:col-start-5 md:text-right">
-                      {dataHoraCurta(p.atualizadoEm)}
+                    <span className="flex min-w-0 items-center justify-between gap-2 md:contents">
+                      <span className="text-sm font-semibold tabular-nums text-ink md:order-3 md:col-start-3 md:text-right md:text-[13px] md:font-normal">
+                        {formatarMoeda(p.total)}
+                      </span>
+                      <span className="text-xs tabular-nums text-faint md:order-5 md:col-start-5 md:text-right">
+                        <span className="md:hidden">Atualizada </span>
+                        {dataHoraCurta(p.atualizadoEm)}
+                      </span>
                     </span>
                   </span>
                 </Link>

@@ -15,7 +15,7 @@ export function SeletorAba({
   onEscolher: (valor: Aba) => void;
 }) {
   return (
-    <div role="group" aria-label="Oportunidades" className="flex items-end gap-1 border-b border-border">
+    <div role="group" aria-label="Oportunidades" className="flex items-end gap-1 overflow-x-auto border-b border-border [scrollbar-width:none]">
       {ABAS.map((opcao) => {
         const ativa = aba === opcao.id;
         return (
@@ -25,7 +25,7 @@ export function SeletorAba({
             aria-pressed={ativa}
             onClick={() => onEscolher(opcao.id)}
             className={cn(
-              "-mb-px inline-flex h-11 items-center gap-2 border-b-2 px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset",
+              "-mb-px inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset",
               ativa
                 ? "border-brand font-semibold text-ink"
                 : "border-transparent text-muted-foreground hover:text-ink",

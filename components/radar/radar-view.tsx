@@ -38,6 +38,7 @@ import { BarraFiltros } from "./filtros";
 import { BuscaPalavras } from "./busca-palavras";
 import { BuscaPncp } from "./busca-pncp";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
+import { ListaDesertas } from "./lista-desertas";
 import { Paginacao } from "./paginacao";
 import type { PainelMeta } from "@/core/meta";
 import { PainelDiaView } from "./painel-dia";
@@ -106,6 +107,7 @@ export function RadarView({
   const filtros = useMemo(() => lerFiltros(params), [params]);
   const aba = lerAba(params);
   const paraVoce = aba === "para-voce";
+  const emDesertas = aba === "desertas";
   const buscaNaUrl = lerBusca(params);
 
   // O campo de busca vive no estado (digitar não espera o servidor); a URL recebe o texto após a pausa.
@@ -463,47 +465,53 @@ export function RadarView({
 
           <SeletorAba aba={aba} contagens={dados.contagensAbas} onEscolher={mudarAba} />
 
-          <BuscaPalavras
-            busca={busca}
-            aoBuscar={buscar}
-            aoAplicar={aplicarBusca}
-            salvas={salvas}
-            aoMudarSalvas={setSalvas}
-            selecionadas={selecionadas}
-            aoAlternar={alternarPalavra}
-            aoRemoverMarcada={alternarPalavra}
-            aoGuardar={marcarGuardada}
-          />
+          {emDesertas ? null : (
+            <>
+              <BuscaPalavras
+                busca={busca}
+                aoBuscar={buscar}
+                aoAplicar={aplicarBusca}
+                salvas={salvas}
+                aoMudarSalvas={setSalvas}
+                selecionadas={selecionadas}
+                aoAlternar={alternarPalavra}
+                aoRemoverMarcada={alternarPalavra}
+                aoGuardar={marcarGuardada}
+              />
 
-          <BuscaPncp texto={buscaNaUrl} ufs={filtros.ufs.length > 0 ? filtros.ufs : ufsDaEmpresa} />
+              <BuscaPncp texto={buscaNaUrl} ufs={filtros.ufs.length > 0 ? filtros.ufs : ufsDaEmpresa} />
 
-          <BarraFiltros
-            filtros={filtros}
-            ufsAtendidas={ufsDaEmpresa}
-            ufEmAdicao={ufEmAdicao}
-            erroUf={erroUf}
-            onAdicionarUf={adicionarUf}
-            contagensUf={dados.contagensUf}
-            contagensFonte={dados.contagensFonte}
-            tudoDoRamo={dados.tudoDoRamo}
-            visao={visao}
-            totalResultados={total}
-            semOrdem={paraVoce}
-            onUfs={mudarUfs}
-            onValor={mudarValor}
-            onFontes={mudarFontes}
-            onTudoDoRamo={mudarTudoDoRamo}
-            onModalidade={(valor: FiltroModalidade) =>
-              mudarFiltro("modalidade", valor, FILTROS_PADRAO.modalidade)
-            }
-            onOrdem={(valor: Ordem) => mudarFiltro("ordem", valor, FILTROS_PADRAO.ordem)}
-            onVisao={mudarVisao}
-            onLimparPainel={limparFiltros}
-          />
+              <BarraFiltros
+                filtros={filtros}
+                ufsAtendidas={ufsDaEmpresa}
+                ufEmAdicao={ufEmAdicao}
+                erroUf={erroUf}
+                onAdicionarUf={adicionarUf}
+                contagensUf={dados.contagensUf}
+                contagensFonte={dados.contagensFonte}
+                tudoDoRamo={dados.tudoDoRamo}
+                visao={visao}
+                totalResultados={total}
+                semOrdem={paraVoce}
+                onUfs={mudarUfs}
+                onValor={mudarValor}
+                onFontes={mudarFontes}
+                onTudoDoRamo={mudarTudoDoRamo}
+                onModalidade={(valor: FiltroModalidade) =>
+                  mudarFiltro("modalidade", valor, FILTROS_PADRAO.modalidade)
+                }
+                onOrdem={(valor: Ordem) => mudarFiltro("ordem", valor, FILTROS_PADRAO.ordem)}
+                onVisao={mudarVisao}
+                onLimparPainel={limparFiltros}
+              />
+            </>
+          )}
 
           {aviso ? <AvisoFalhaParcial texto={aviso} /> : null}
 
-          {total === 0 && filtroTextoAtivo ? (
+          {total === 0 && emDesertas ? (
+            <EstadoVazio frase="Dispensas sem vencedor nos últimos 60 dias; o órgão costuma repetir a compra." />
+          ) : total === 0 && filtroTextoAtivo ? (
             <EstadoVazio
               frase="Nada encontrado com essa busca."
               rotuloAcao="Limpar a busca"
@@ -533,7 +541,14 @@ export function RadarView({
                   </Link>
                 </p>
               ) : null}
-              {visao === "cards" ? (
+              {emDesertas ? (
+                <>
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Dispensas sem vencedor nos últimos 60 dias; o órgão costuma repetir a compra.
+                  </p>
+                  <ListaDesertas key={chaveLista} itens={dados.desertas} ocupado={pendente} />
+                </>
+              ) : visao === "cards" ? (
                 <ul
                   key={chaveLista}
                   aria-busy={pendente}
@@ -549,6 +564,7 @@ export function RadarView({
                         indice={indice}
                         agoraInicial={agoraInicial}
                         motivos={dados.motivos[item.id]}
+                        propostaProntaId={dados.prontas[item.id]}
                         onAbrir={abrirDetalhe}
                       />
                     </li>

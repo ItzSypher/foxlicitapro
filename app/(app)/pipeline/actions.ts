@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
 import {
@@ -21,7 +22,9 @@ import { MOTIVOS_PERDA, type MotivoPerda } from "@/core/fechamento";
 import { temPermissao } from "@/core/permissoes";
 import { ehPassoJuridico, type MarcaJuridica } from "@/core/revisao-juridica";
 import { gravarFechamento } from "@/db/resultados";
+import { adicionarPelosLinks, type ResultadoDoTexto } from "@/lib/adicionar-pelo-link";
 import { avisarJuridicoPendente, avisarResponsavel } from "@/lib/avisos";
+import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
 import { SEM_PERMISSAO, lerSessao, verificarPermissao } from "@/lib/sessao";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ComentarioPipeline, Sessao } from "@/core/types-equipe";
@@ -71,6 +74,27 @@ export async function salvarNoPipeline(item: OportunidadeComScore): Promise<Resu
     "Não foi possível salvar no pipeline. Tente de novo.",
     "Item não encontrado.",
   );
+}
+
+export type RespostaLinks = { ok: true; resultados: ResultadoDoTexto[] } | { ok: false; erro: string };
+
+const linksSchema = z.string().trim().min(1).max(5000);
+
+/** "Adicionar pelo link": um link por linha; cada um vira um item na etapa Radar do Pipeline. */
+export async function adicionarPelosLinksAction(texto: string): Promise<RespostaLinks> {
+  const v = await verificarPermissao("mover_pipeline");
+  if (!v.ok) return { ok: false, erro: v.erro };
+  const lido = linksSchema.safeParse(texto);
+  if (!lido.success) return { ok: false, erro: "Cole pelo menos um link." };
+  try {
+    const frente = lerFrente((await cookies()).get(COOKIE_FRENTE)?.value);
+    const resultados = await adicionarPelosLinks(v.sessao.empresaId, v.sessao.usuarioId, lido.data, frente);
+    if (resultados.some((r) => r.ok && !r.jaEstava)) atualizarTelas();
+    return { ok: true, resultados };
+  } catch (e) {
+    console.error("[pipeline]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível adicionar agora. Tente de novo." };
+  }
 }
 
 export async function moverEtapa(id: string, etapa: EtapaId): Promise<ResultadoAcao> {

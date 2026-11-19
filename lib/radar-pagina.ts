@@ -1,3 +1,4 @@
+import type { Deserta } from "@/core/desertas";
 import type { PerfilEmpresa } from "@/core/perfil";
 import { recomendar, type PreferenciasDeRecomendacao } from "@/core/recomendacao";
 import type { Frente, ModalidadeId, OportunidadeComScore } from "@/core/types";
@@ -67,11 +68,17 @@ export interface ConsultaRadar {
   preferencias?: PreferenciasDeRecomendacao;
   /** Perfil da empresa logada; sem ele, vale o perfil de origem (testes) */
   perfil?: PerfilEmpresa;
+  /** Desertas e fracassadas das áreas da empresa (aba "Desertas"), da mais recente para a mais antiga */
+  desertas?: ReadonlyArray<Deserta>;
 }
 
 /** O que o cliente recebe: só a página atual e os totais das abas e dos filtros. */
 export interface PaginaRadar {
   itens: OportunidadeComScore[];
+  /** Página atual da aba "Desertas" (vazia nas outras abas) */
+  desertas: Deserta[];
+  /** Oportunidade (id) -> proposta que o assistente montou, para o selo "Proposta pronta"; o servidor preenche */
+  prontas: Record<string, string>;
   /** Motivos de cada recomendação da página (aba "Para você") */
   motivos: Record<string, string[]>;
   /** Quantos itens a aba atual tem, somando todas as páginas */
@@ -144,8 +151,11 @@ export function montarPaginaRadar(
     : recomendar(base, consulta.frente, new Date(referencia), undefined, consulta.preferencias, consulta.perfil);
 
   const paraVoce = consulta.aba === "para-voce";
-  const visiveis = paraVoce ? recomendadas.map((r) => r.item) : todas;
+  const emDesertas = consulta.aba === "desertas";
+  const todasDesertas = consulta.desertas ?? [];
+  const visiveis = paraVoce ? recomendadas.map((r) => r.item) : emDesertas ? [] : todas;
   const fatia = paginar(visiveis, consulta.pagina, consulta.porPagina);
+  const fatiaDesertas = emDesertas ? paginar(todasDesertas, consulta.pagina, consulta.porPagina) : null;
 
   const motivos: Record<string, string[]> = {};
   if (paraVoce) {
@@ -156,20 +166,23 @@ export function montarPaginaRadar(
     }
   }
 
+  const paginaAtual = fatiaDesertas ?? fatia;
   return {
     itens: fatia.itens,
+    desertas: fatiaDesertas ? fatiaDesertas.itens : [],
+    prontas: {},
     motivos,
-    total: visiveis.length,
-    pagina: fatia.pagina,
-    totalPaginas: fatia.totalPaginas,
+    total: fatiaDesertas ? todasDesertas.length : visiveis.length,
+    pagina: paginaAtual.pagina,
+    totalPaginas: paginaAtual.totalPaginas,
     porPagina: consulta.porPagina,
-    inicio: fatia.inicio,
-    fim: fatia.fim,
+    inicio: paginaAtual.inicio,
+    fim: paginaAtual.fim,
     contagensUf: contarPorUf(filtrar(porTexto, { ...consulta.filtros, ufs: [] })),
     contagensFonte: contarPorFonte(filtrar(porTexto, { ...consulta.filtros, fontes: [] })),
     tudoDoRamo,
     ufsPendentes,
-    contagensAbas: { "para-voce": recomendadas.length, todas: todas.length },
+    contagensAbas: { "para-voce": recomendadas.length, todas: todas.length, desertas: todasDesertas.length },
     baseRecomendacao: base.length,
     resumo: resumir(oportunidades, agora),
     painel: calcularPainel(base, agora),

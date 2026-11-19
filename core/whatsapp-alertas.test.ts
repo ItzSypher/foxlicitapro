@@ -388,6 +388,18 @@ describe("lerComando", () => {
   it("o resto é texto livre, sem mexer no original", () => {
     expect(lerComando("  Quanto custa?  ")).toEqual({ tipo: "livre", texto: "Quanto custa?" });
   });
+  it("analisar com link, só o link colado ou vários links", () => {
+    const link = "https://pncp.gov.br/app/editais/12345678000199/2025/123";
+    expect(lerComando("Analisar " + link)).toEqual({ tipo: "analisar", texto: "Analisar " + link });
+    expect(lerComando(link)).toEqual({ tipo: "analisar", texto: link });
+    expect(lerComando("veja esse " + link + "\n12345678000199-1-000007/2024").tipo).toBe("analisar");
+    expect(lerComando("analisar").tipo).toBe("analisar");
+    expect(lerComando("12345678000199-1-000123/2025").tipo).toBe("analisar");
+  });
+  it("pergunta longa com link segue para o assistente", () => {
+    const texto = "o que você acha desse edital https://pncp.gov.br/app/editais/12345678000199/2025/123 para nós?";
+    expect(lerComando(texto).tipo).toBe("livre");
+  });
 });
 
 describe("botões", () => {

@@ -290,6 +290,13 @@ export async function definirResponsavel(
   });
 }
 
+/** Etapa atual de um item do pipeline; null se ele não está lá. */
+export async function lerEtapaItem(empresaId: string, id: string): Promise<EtapaId | null> {
+  const linhas = await sql`select etapa from pipeline_itens where empresa_id = ${empresaId} and id = ${id}`;
+  const lida = etapaSchema.safeParse(linhas[0]?.etapa);
+  return lida.success ? lida.data : null;
+}
+
 /** Texto do objeto da oportunidade, para avisos. */
 export async function lerObjetoItem(empresaId: string, id: string): Promise<string | null> {
   const linhas = await sql`select dados->>'objeto' as objeto from pipeline_itens where empresa_id = ${empresaId} and id = ${id}`;

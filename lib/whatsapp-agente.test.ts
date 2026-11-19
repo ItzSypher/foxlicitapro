@@ -25,6 +25,7 @@ const m = vi.hoisted(() => ({
   assistenteDisponivel: vi.fn(),
   registrarMensagem: vi.fn(),
   montarSistemaDoChat: vi.fn(),
+  adicionarChave: vi.fn(),
 }));
 
 vi.mock("@/db/whatsapp", () => ({
@@ -47,6 +48,7 @@ vi.mock("@/lib/whatsapp-envio", () => ({ enviarParaPessoa: m.enviarParaPessoa, e
 vi.mock("@/lib/zernio", () => ({ enviarTexto: m.enviarTexto, mostrarDigitando: m.mostrarDigitando }));
 vi.mock("@/lib/gemini", () => ({ gerarTexto: m.gerarTexto, assistenteDisponivel: m.assistenteDisponivel }));
 vi.mock("@/lib/assistente/limite", () => ({ registrarMensagem: m.registrarMensagem }));
+vi.mock("@/lib/adicionar-pelo-link", () => ({ adicionarChave: m.adicionarChave }));
 vi.mock("@/lib/assistente/contexto", () => ({ montarSistemaDoChat: m.montarSistemaDoChat }));
 
 import { processarMensagem } from "./whatsapp-agente";
@@ -206,6 +208,52 @@ describe("processarMensagem", () => {
     m.gerarTexto.mockRejectedValue(new Error("falhou"));
     await expect(processarMensagem(mensagem("e aí?"), AGORA)).resolves.toBeUndefined();
     expect(textosEnviados()[0]).toBe("Não consegui responder agora. Tente de novo em instantes.");
+  });
+
+  describe("analisar link", () => {
+    const LINK = "https://pncp.gov.br/app/editais/12345678000199/2025/123";
+    const ok = { ok: true, jaEstava: false, titulo: "Material de escritório", etapa: "radar", rotuloEtapa: "Radar", href: "/licitacao/12345678000199/2025/123" };
+
+    it("analisar <link>: adiciona na empresa da pessoa e responde com título, etapa e link do sistema", async () => {
+      m.adicionarChave.mockResolvedValue(ok);
+      await processarMensagem(mensagem("analisar " + LINK), AGORA);
+      expect(m.adicionarChave).toHaveBeenCalledWith("emp1", "u1", { cnpj: "12345678000199", ano: 2025, sequencial: 123 });
+      const texto = textosEnviados()[0] ?? "";
+      expect(texto).toContain("Material de escritório");
+      expect(texto).toContain("Etapa: Radar");
+      expect(texto).toMatch(/https?:\/\/\S+\/licitacao\/12345678000199\/2025\/123/);
+      expect(m.gerarTexto).not.toHaveBeenCalled();
+    });
+
+    it("só o link colado funciona e vários links viram várias respostas na mesma mensagem", async () => {
+      m.adicionarChave.mockResolvedValueOnce(ok).mockResolvedValueOnce({ ...ok, jaEstava: true, etapa: "cotando", rotuloEtapa: "Cotando" });
+      await processarMensagem(mensagem(LINK + "\n12345678000199-1-000007/2024"), AGORA);
+      expect(m.adicionarChave).toHaveBeenCalledTimes(2);
+      expect(textosEnviados()).toHaveLength(1);
+      expect(textosEnviados()[0]).toContain("Já estava no Pipeline");
+      expect(textosEnviados()[0]).toContain("Etapa: Cotando");
+    });
+
+    it("erro de um link não derruba os outros", async () => {
+      m.adicionarChave.mockResolvedValueOnce({ ok: false, erro: "Não achei essa contratação no PNCP." }).mockResolvedValueOnce(ok);
+      await processarMensagem(mensagem(LINK + "\n12345678000199-1-000007/2024"), AGORA);
+      expect(textosEnviados()[0]).toContain("Não achei essa contratação no PNCP.");
+      expect(textosEnviados()[0]).toContain("Adicionada ao Pipeline");
+    });
+
+    it("sem link reconhecido explica como usar", async () => {
+      await processarMensagem(mensagem("analisar isso"), AGORA);
+      expect(m.adicionarChave).not.toHaveBeenCalled();
+      expect(textosEnviados()[0]).toContain("analisar");
+      expect(textosEnviados()[0]).toContain("PNCP");
+    });
+
+    it("sem a permissão de mexer no pipeline: recusa e não adiciona", async () => {
+      m.lerVinculoPorNumero.mockResolvedValue(vinculo({ papel: "juridico", permissoes: ["revisao_juridica"] }));
+      await processarMensagem(mensagem("analisar " + LINK), AGORA);
+      expect(m.adicionarChave).not.toHaveBeenCalled();
+      expect(textosEnviados()[0]).toContain("não pode mexer no pipeline");
+    });
   });
 
   it("ignora mensagem da própria conta", async () => {

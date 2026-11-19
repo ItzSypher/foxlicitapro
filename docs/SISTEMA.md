@@ -1,68 +1,123 @@
-# FoxLicita Pro — o que o sistema é
+# FoxLicita Pro
 
-Documento interno. Atualizado em 19/11/2026.
+Documento interno. Atualizado em 19/11/2026. Parte 1 é o produto; parte 2 é a técnica.
 
-## Em uma frase
+---
 
-Sistema do lado do fornecedor que acha licitações do ramo da empresa, organiza a disputa do começo ao resultado e avisa as pessoas certas pelo WhatsApp. É vendido como **serviço de acompanhamento**: o cliente contrata o acompanhamento das licitações no próprio CNPJ, operado por um gestor de licitação.
+# Parte 1 — Produto
 
-## Quem usa
+## O que é
 
-| Papel | O que faz |
+Serviço de **acompanhamento de licitações no CNPJ do cliente**. O sistema acha as licitações do ramo da empresa, organiza a disputa do começo ao resultado e avisa as pessoas certas pelo WhatsApp. Um gestor de licitação opera; o dono do CNPJ acompanha.
+
+- **Endereço:** https://licitapro.foxtisolutions.com.br
+- **Para quem:** MEIs e pequenas empresas que vendem para o governo (hoje: informática, escritório, papelaria, manutenção).
+- **Modelo comercial:** acompanhamento contratado pelo cliente. Pilotos sem valor fixo; próximos clientes pagam.
+
+## O que faz
+
+| Área | O que entrega |
 |---|---|
-| **Dono** | Dono do CNPJ. Acompanha: Pipeline, meta da semana, propostas, resultados. Recebe o resumo de acompanhamento no WhatsApp. Configura a empresa (ramo, estados, dados da proposta, assinatura). |
-| **Gestor** | Opera a licitação: escolhe as oportunidades, monta e revisa propostas, envia, registra comprovante e resultado. Recebe o resumo operacional e os prazos urgentes. Pode cuidar de várias empresas com um login só (seletor de empresa no menu). |
-| **Outros membros** | Permissões marcadas em Equipe (mexer no Pipeline, editar ou aprovar propostas, usar o assistente). |
-| **Superadmin** | Administração da plataforma: cria empresas (inclusive de teste, sem consulta à Receita), liga gestores às empresas. |
+| **Radar** | Licitações abertas do ramo, com nota, filtros (estados, valor, modalidade, fonte), busca por palavra e busca direta no PNCP. Abas de novas, fechando e desertas. |
+| **Pipeline** | Quadro por etapa até o resultado. Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. |
+| **Licitação** | Edital, itens, ficha resumida, semelhantes em outros órgãos, concorrentes. |
+| **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação, envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
+| **Resultados** | O que fechou: ganho, perdido, preços praticados. |
+| **Conselheiro** | Assistente que responde sobre a tela aberta e guarda as conversas. |
+| **WhatsApp** | Resumo das 7h e prazos urgentes. O gestor recebe o operacional; o dono, o acompanhamento. |
 
-Exemplo atual: Arthur Silva Moura (MEI, dono), Paulo Henrique (gestor e jurídico, cuida do Arthur e do Daniel).
+## Quem acessa
 
-## Telas
-
-- **Radar** — oportunidades abertas do ramo, com nota, filtros (estados, faixa de valor, modalidade, fonte, "tudo do meu ramo"), busca por palavra e busca direta no PNCP. Resumo do dia e meta da semana no topo.
-- **Pipeline** — quadro por etapa (triagem, análise, proposta, disputa, resultado), com responsável, prazos e histórico. Item em Disputa conta para a meta.
-- **Licitação** — detalhe do edital, itens, ficha do edital, semelhantes, concorrentes.
-- **Propostas** — proposta com dados padrão da empresa, assinatura, revisão e aprovação, envio com comprovante, proposta enviada fora do sistema, linha do tempo e resultado lido do PNCP.
-- **Resultados** e **Encerradas** — o que já fechou, ganho, perdido, preços praticados.
-- **Conselheiro** — assistente que responde sobre a página aberta e guarda as conversas.
-- **Calculadora**, **Fornecedores** — apoio para preço e cotação.
-- **Alertas** — o que cada pessoa recebe no WhatsApp e a situação da conversa (aberta ou fechada, último resumo).
-- **Empresa** — ramo (CNAEs), onde atende (estados, regiões, municípios), dados da proposta, assinatura, meta semanal.
-- **Equipe** — pessoas, papéis, permissões, responsável padrão.
-- **Admin** — empresas da plataforma e gestores ligados a cada uma (só superadmin).
-
-## De onde vêm as licitações
-
-1. **PNCP** (fonte principal): coleta diária às 7h por estado escolhido, dispensa e pregão eletrônico, até 3.000 por estado e modalidade. O PNCP já traz processos de BNC, BLL, Licitanet, Portal de Compras Públicas e Compras RJ, identificados pelo selo de fonte.
-2. **Busca direta no PNCP**: pela palavra digitada, em tempo real, para o que a coleta ainda não trouxe.
-3. **Alerta Licitação** (API paga por uso, 100 por dia grátis): cobre diários oficiais e sites de prefeitura que ainda não publicam no PNCP (municípios pequenos só são obrigados a partir de abril de 2027).
-
-Estado novo marcado no filtro entra na coleta diária e é coletado na hora, em segundo plano.
-
-## WhatsApp
-
-- **Só o resumo das 7h e prazo urgente** (2 h e 24 h) dos itens do Pipeline. Teto de 150 alertas por mês por empresa.
-- O gestor recebe o operacional; o dono recebe acompanhamento (movimentos do gestor, licitações grandes, entradas em disputa, meta).
-- Gestor com várias empresas recebe **uma mensagem só**, com um bloco por empresa.
-- **Regra do WhatsApp:** o sistema só pode mandar mensagem até 24 h depois da última mensagem da pessoa. Quem não responde há mais de 24 h não recebe o resumo. Basta responder qualquer coisa ou tocar em "Continuar recebendo". A tela Alertas mostra quem está com a conversa aberta.
-
-## Rotinas automáticas
-
-| Quando | O quê |
+| Papel | Acesso |
 |---|---|
-| 7h (diário) | Coleta do PNCP e do Alerta Licitação, resumo por e-mail, avisos, resultado das propostas enviadas |
-| 7h às 20h, de hora em hora | Alertas de WhatsApp (resumo das 7h e prazos) |
-| Ao abrir o Radar | Se o cache tem mais de 30 min, pede nova coleta em segundo plano |
+| **Dono** | Tudo da própria empresa: configura ramo, estados, dados da proposta, equipe. |
+| **Gestor** | Opera Pipeline e propostas. Pode cuidar de várias empresas com um login (seletor no menu). |
+| **Membro** | O que o dono marcar em Equipe. |
+| **Superadmin** | Cria empresas e liga gestores a elas (Admin). |
 
-## Em preparação (código pronto, desligado)
+Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que o superadmin ligou a ele.
 
-- **Desertas e fracassadas**: dispensas sem vencedor nos últimos 60 dias, que o órgão costuma repetir (`DESERTAS_ATIVA`).
-- **Proposta pronta**: rascunho automático para as 3 melhores do ramo que fecham em até 5 dias (`PROPOSTA_PRONTA_ATIVA`).
-- Faltam as telas (aba Desertas, Semelhantes no detalhe, selo "Proposta pronta").
+## Dados que o sistema guarda
 
-## Técnico, em resumo
+- **Empresa:** CNPJ, razão social, endereço, CNAEs (consultados na Receita), estados atendidos, meta.
+- **Pessoas:** nome, e-mail, senha (cifrada, nunca legível), papel, WhatsApp.
+- **Proposta:** representante (nome, CPF, RG), dados bancários, imagem da assinatura, propostas, comprovantes de envio.
+- **Uso:** Pipeline, histórico de etapas, conversas do conselheiro, mensagens trocadas com o WhatsApp do sistema.
+- **Licitações:** dados públicos do PNCP e do Alerta Licitação.
 
-- Next.js 16 na Vercel; Postgres no Supabase pelo pooler em modo sessão (porta 5432).
-- Migrations manuais (`npm run db:migrar`), aplicadas só com ok.
-- WhatsApp pelo Zernio (conta em coexistência). Assistente com modelo de linguagem configurado por variável de ambiente.
-- Segredos só nas variáveis da Vercel. Histórico de decisões em `docs/LOG.md`.
+## Fontes de licitação
+
+1. **PNCP** — coleta diária às 7h dos estados escolhidos (dispensa e pregão eletrônico). Inclui o que BNC, BLL, Licitanet, Portal de Compras Públicas e Compras RJ publicam no PNCP.
+2. **Busca direta no PNCP** — em tempo real, pela palavra.
+3. **Alerta Licitação** — diários oficiais e sites de prefeituras pequenas, que só serão obrigadas a usar o PNCP em abril de 2027.
+
+## Regras do WhatsApp
+
+- Só resumo das 7h e prazo urgente (2 h e 24 h). Gestor com várias empresas recebe uma mensagem com um bloco por empresa.
+- O WhatsApp só permite mensagem até 24 h depois da última mensagem da pessoa. Quem fica um dia sem responder deixa de receber até mandar qualquer coisa. A tela Alertas mostra a situação de cada um.
+
+---
+
+# Parte 2 — Técnica
+
+## Arquitetura
+
+- **App:** Next.js 16 (App Router, Server Components, Server Actions), TypeScript estrito, Tailwind. Hospedagem Vercel (região gru1), deploy a cada push na `main`.
+- **Banco:** Postgres no Supabase, pelo pooler em **modo sessão (porta 5432)** — o modo transação travava com consultas paralelas. Driver `postgres`, `max: 3` por instância. Migrations manuais em `db/migrations`, aplicadas com `npm run db:migrar` e só com ok.
+- **Camadas:** `core/` regras puras e testadas; `db/` consultas (sempre filtradas por `empresa_id`); `lib/` integrações e orquestração; `app/` telas e rotas; `components/` interface.
+- **Testes:** Vitest (~920 testes), `tsc --noEmit` e ESLint antes de cada commit.
+
+## Integrações
+
+| Serviço | Uso | Acesso |
+|---|---|---|
+| PNCP consulta (`/api/consulta/v1/contratacoes/proposta`) | Coleta por UF e modalidade, até 60 páginas de 50 | Público |
+| PNCP busca (`/api/search/`) | Busca por texto em tempo real | Público |
+| PNCP itens/resultados | Detalhe do edital e resultado das propostas | Público |
+| Alerta Licitação (`/api/v1/licitacoesAbertas`) | Segunda fonte; 100/dia grátis, depois R$ 0,01 | `ALERTA_LICITACAO_TOKEN` |
+| BrasilAPI | Dados do CNPJ ao criar empresa | Público |
+| Zernio | WhatsApp (envio, webhook com assinatura) | `ZERNIO_API_KEY`, segredo do webhook |
+| Modelo de linguagem | Conselheiro, ficha do edital, rascunho de proposta | Chave em variável de ambiente |
+| E-mail | Resumo diário | Variável de ambiente |
+
+## Rotinas
+
+| Quando | Rota | O quê |
+|---|---|---|
+| 7h | `/api/cron/radar` (Vercel Cron) | Coleta PNCP + Alerta, resumo por e-mail, avisos, resultados, desertas |
+| 7h30 | `/api/cron/radar?so=prontas` | Rascunhos de proposta |
+| 7h às 20h, hora em hora | `/api/cron/alertas` (pg_cron no Supabase) | WhatsApp |
+| Sob demanda | `/api/cron/coleta?ufs=` | Coleta pedida pelo Radar ou estado novo, em chamada separada |
+
+Cache do Radar em `radar_cache` por UF e modalidade; a tela só lê o cache (abre em ~1 s). Cache com mais de 30 min pede nova coleta em segundo plano.
+
+## Rapidez
+
+- Telas leem só o banco; nada chama o PNCP na hora de abrir (exceto a busca direta, sob pedido).
+- Filtro, ordenação e paginação no servidor; só a página atual vai ao navegador.
+- Coleta longa nunca roda dentro da visita.
+
+## Segurança
+
+**Em vigor**
+- Senha com scrypt; sessão em cookie assinado (HMAC, `APP_SECRET`), `httpOnly`, `secure`, `sameSite=lax`, 30 dias, conferida no banco a cada pedido (pessoa ou empresa desativada perde o acesso na hora).
+- Isolamento por empresa em toda consulta; empresa ativa do gestor validada contra `usuario_empresas` a cada pedido.
+- Permissões por papel conferidas no servidor (`exigirPermissao`, `exigirDono`, `exigirSuperadmin`).
+- Rotas de cron exigem `Authorization: Bearer <CRON_SECRET>`; webhook do WhatsApp confere a assinatura do corpo.
+- Limite de 5 tentativas de login por e-mail a cada 15 min.
+- Cabeçalhos: `X-Frame-Options DENY`, `frame-ancestors 'none'`, `nosniff`, HSTS, `Referrer-Policy`, `Permissions-Policy`.
+- Segredos só nas variáveis da Vercel; RLS ligado nas tabelas.
+
+**A melhorar (por prioridade)**
+1. Limite de login guardado em memória vale por instância: mover para o banco.
+2. RLS não protege o app (conexão com o dono do banco); o isolamento depende do código. Avaliar papel de banco com RLS por empresa.
+3. CSP completa (scripts e estilos) ainda não definida.
+4. Trocar o token do Alerta Licitação, que apareceu num print.
+5. Registro de auditoria de quem viu e alterou dados sensíveis (CPF, RG, banco).
+6. Recuperação de senha e verificação em duas etapas para dono e superadmin.
+
+## Variáveis de ambiente
+
+`DATABASE_URL`, `APP_SECRET`, `CRON_SECRET`, `ALERTAS_CRON_SECRET`, `APP_URL`, `ZERNIO_API_KEY` e segredo do webhook, `ALERTA_LICITACAO_TOKEN`, `ALERTA_LICITACAO_MAX_DIA`, `WA_LIMITE_ALERTAS`, `PROPOSTA_PRONTA_ATIVA`, `DESERTAS_ATIVA` (as duas últimas ligadas por padrão; `false` desliga). Lista completa em `.env.example`.
+
+Histórico de decisões: `docs/LOG.md`.

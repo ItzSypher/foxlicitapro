@@ -40,9 +40,9 @@ function op(
 }
 
 describe("propostaProntaLigada", () => {
-  it("vale desligada por padrão e liga com true, 1, sim ou on", () => {
-    expect(propostaProntaLigada(undefined)).toBe(false);
-    expect(propostaProntaLigada("")).toBe(false);
+  it("vale ligada por padrão e continua ligada com true, 1, sim ou on", () => {
+    expect(propostaProntaLigada(undefined)).toBe(true);
+    expect(propostaProntaLigada("")).toBe(true);
     for (const v of ["true", " TRUE ", "1", "sim", "on"]) expect(propostaProntaLigada(v)).toBe(true);
   });
 

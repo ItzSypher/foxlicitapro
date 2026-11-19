@@ -21,7 +21,10 @@ import {
   registrarEntrada,
   type VinculoWa,
 } from "@/db/whatsapp";
+import { lerLinksPncp } from "@/core/link-pncp";
+import { adicionarChave } from "@/lib/adicionar-pelo-link";
 import { montarSistemaDoChat } from "@/lib/assistente/contexto";
+import { linkAbsoluto } from "@/lib/email";
 import { registrarMensagem } from "@/lib/assistente/limite";
 import { interpretarRota } from "@/lib/assistente/rota";
 import { lerFrente } from "@/lib/frente";
@@ -40,6 +43,7 @@ const DIA_MS = 24 * 3_600_000;
 const MAX_OBJETO = 80;
 const MAX_LINHAS_PRAZOS = 8;
 const MAX_PROXIMOS = 3;
+const MAX_LINKS_WHATSAPP = 5;
 const BOTOES_CONFIRMA = [
   { titulo: "Sim", payload: "sim" },
   { titulo: "Não", payload: "nao" },
@@ -138,6 +142,39 @@ async function executarAcao(v: VinculoWa, acao: AcaoBotao): Promise<string> {
     if (e instanceof ErroRevisaoJuridica) return e.message;
     throw e;
   }
+}
+
+const COMO_ANALISAR =
+  "Para pôr uma licitação no Pipeline, mande *analisar* e o link dela no PNCP.\n" +
+  "Pode mandar vários, um por linha. Exemplo:\n" +
+  "analisar https://pncp.gov.br/app/editais/00000000000000/2025/123";
+
+/**
+ * "analisar <link>": põe cada licitação no Pipeline da empresa da pessoa e responde com título, etapa e o link do sistema.
+ * A empresa é a do cadastro: a escolha de empresa do painel fica num cookie do navegador e não chega ao WhatsApp.
+ */
+async function analisarLinks(v: VinculoWa, texto: string): Promise<string> {
+  if (!permitido(v, "mover_pipeline")) return "Seu perfil não pode mexer no pipeline.";
+  const chaves = lerLinksPncp(texto);
+  if (chaves.length === 0) return `Não reconheci nenhum link do PNCP.\n${COMO_ANALISAR}`;
+  try {
+    await mostrarDigitando(v.conversaId ?? "");
+  } catch {
+    // o aviso de "digitando" é só cortesia
+  }
+  const blocos: string[] = [];
+  for (const chave of chaves.slice(0, MAX_LINKS_WHATSAPP)) {
+    const r = await adicionarChave(v.empresaId, v.usuarioId, chave);
+    if (!r.ok) {
+      blocos.push(`⚠️ ${chave.cnpj}/${chave.ano}/${chave.sequencial}\n${r.erro}`);
+      continue;
+    }
+    const abertura = r.jaEstava ? "ℹ️ Já estava no Pipeline" : "✅ Adicionada ao Pipeline";
+    blocos.push(`${abertura}\n${r.titulo}\nEtapa: ${r.rotuloEtapa}\n${linkAbsoluto(r.href)}`);
+  }
+  const resto = chaves.length - MAX_LINKS_WHATSAPP;
+  if (resto > 0) blocos.push(`Passou de ${MAX_LINKS_WHATSAPP} links por mensagem. Mande os outros ${resto} de novo.`);
+  return blocos.join("\n\n");
 }
 
 /** Pergunta livre ao assistente. Se a resposta pedir uma ação, guarda a pendência e pergunta "Confirma?". */
@@ -239,6 +276,8 @@ async function tratar(msg: MensagemRecebida, agora: Date): Promise<void> {
     await responder(textoPipeline(await listarPipeline(atual.empresaId), agora));
   } else if (comando.tipo === "prazos") {
     await responder(textoPrazos(await listarPipeline(atual.empresaId), agora));
+  } else if (comando.tipo === "analisar") {
+    await responder(await analisarLinks(atual, comando.texto));
   } else if (comando.tipo === "livre" && comando.texto !== "") {
     const r = await responderLivre(atual, comando.texto, agora);
     await responder(r.texto, r.botoes);

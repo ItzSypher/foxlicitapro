@@ -12,12 +12,12 @@ export const MAXIMO_PRONTAS_POR_EMPRESA = 3;
 export const DIAS_PARA_FECHAR = 5;
 
 /**
- * Chave de liga e desliga das partes novas (PROPOSTA_PRONTA_ATIVA, DESERTAS_ATIVA): desligada por padrão
- * até a tela ficar pronta; só "true", "1", "sim" ou "on" ligam.
+ * Chave de liga e desliga das partes novas (PROPOSTA_PRONTA_ATIVA, DESERTAS_ATIVA): ligada por padrão;
+ * só "false", "0", "nao", "não" ou "off" desligam.
  */
 export function propostaProntaLigada(valor: string | undefined): boolean {
   const v = (valor ?? "").trim().toLowerCase();
-  return v === "true" || v === "1" || v === "sim" || v === "on";
+  return !(v === "false" || v === "0" || v === "nao" || v === "não" || v === "off");
 }
 
 /**

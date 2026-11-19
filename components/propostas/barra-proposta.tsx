@@ -1,6 +1,8 @@
 "use client";
 
-import { ClipboardCheck, Download, Send } from "lucide-react";
+import { useState } from "react";
+import { ClipboardCheck, Download, Ellipsis, Send } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { formatarMoeda } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -22,14 +24,23 @@ interface Props {
 }
 
 const BOTAO =
-  "inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-control border px-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand lg:flex-none lg:px-4";
+  "inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-control border px-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand lg:flex-none lg:px-4";
 const BOTAO_PADRAO = "border-control bg-raised text-ink hover:bg-active";
+const ITEM_MENU =
+  "flex min-h-12 w-full items-center gap-3 rounded-control px-3 text-left text-sm font-medium text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand";
 
 /**
- * Barra fixa do documento: no celular fica no rodapé, acima da navegação (que já respeita a área segura);
- * no desktop fica presa ao topo da página.
+ * Barra fixa do documento. No celular fica no rodapé, acima da navegação (que já respeita a área segura), com
+ * dois botões: Baixar PDF e "Mais" (Enviar e Revisão). No desktop fica presa ao topo e mostra todas as ações.
  */
 export function BarraProposta({ salvo, aoTentarDeNovo, total, abaixoDoMinimo, aoBaixar, aoEnviar }: Props) {
+  const [maisAberto, setMaisAberto] = useState(false);
+
+  function irParaRevisao() {
+    setMaisAberto(false);
+    window.setTimeout(() => document.getElementById("revisao")?.scrollIntoView({ block: "start" }), 150);
+  }
+
   return (
     <div
       className={cn(
@@ -71,17 +82,67 @@ export function BarraProposta({ salvo, aoTentarDeNovo, total, abaixoDoMinimo, ao
           <Download aria-hidden className="size-4 shrink-0" />
           Baixar PDF
         </button>
+
         {aoEnviar && (
-          <button type="button" onClick={aoEnviar} className={cn(BOTAO, BOTAO_PADRAO)}>
+          <button type="button" onClick={aoEnviar} className={cn(BOTAO, BOTAO_PADRAO, "max-lg:hidden")}>
             <Send aria-hidden className="size-4 shrink-0" />
             Enviar
           </button>
         )}
-        <a href="#revisao" className={cn(BOTAO, BOTAO_PADRAO)}>
+        <a href="#revisao" className={cn(BOTAO, BOTAO_PADRAO, "max-lg:hidden")}>
           <ClipboardCheck aria-hidden className="size-4 shrink-0" />
           Revisão
         </a>
+
+        <button
+          type="button"
+          onClick={() => setMaisAberto(true)}
+          aria-haspopup="dialog"
+          aria-expanded={maisAberto}
+          className={cn(BOTAO, BOTAO_PADRAO, "lg:hidden")}
+        >
+          <Ellipsis aria-hidden className="size-4 shrink-0" />
+          Mais
+        </button>
       </div>
+
+      <Sheet open={maisAberto} onOpenChange={setMaisAberto}>
+        <SheetContent
+          side="bottom"
+          className="gap-0 overflow-y-auto rounded-t-sheet border-t border-border pb-[env(safe-area-inset-bottom)] shadow-none data-[side=bottom]:h-auto data-[side=bottom]:max-h-[85dvh]"
+        >
+          <SheetHeader className="pr-14">
+            <SheetTitle>Mais ações</SheetTitle>
+            <SheetDescription>Enviar a proposta ou ir para a revisão.</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-0.5 px-2 pb-3">
+            {aoEnviar && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMaisAberto(false);
+                  aoEnviar();
+                }}
+                className={ITEM_MENU}
+              >
+                <Send aria-hidden className="size-4 shrink-0" />
+                Enviar
+              </button>
+            )}
+            <a
+              href="#revisao"
+              onClick={(e) => {
+                e.preventDefault();
+                irParaRevisao();
+              }}
+              className={ITEM_MENU}
+            >
+              <ClipboardCheck aria-hidden className="size-4 shrink-0" />
+              Revisão
+            </a>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

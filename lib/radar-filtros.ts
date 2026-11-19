@@ -22,13 +22,14 @@ export interface Filtros {
 
 export type Visao = "cards" | "lista";
 
-export type Aba = "para-voce" | "todas";
+export type Aba = "para-voce" | "todas" | "desertas";
 
 export const ABA_PADRAO: Aba = "para-voce";
 
 export const ABAS: ReadonlyArray<{ id: Aba; rotulo: string }> = [
   { id: "para-voce", rotulo: "Para você" },
   { id: "todas", rotulo: "Todas" },
+  { id: "desertas", rotulo: "Desertas" },
 ];
 
 /** Aba pedida em ?aba= (a padrão quando falta ou é inválida). */

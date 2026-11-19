@@ -1,6 +1,8 @@
 "use client";
 
 import { memo } from "react";
+import Link from "next/link";
+import { FileCheck } from "lucide-react";
 import type { OportunidadeComScore } from "@/core/types";
 import { resumirObjeto } from "@/core/objeto";
 import { formatarMoedaCurta } from "@/lib/formato";
@@ -18,10 +20,12 @@ interface Props {
   agoraInicial: number;
   /** Por que a oportunidade combina com o perfil (aba "Para você") */
   motivos?: ReadonlyArray<string>;
+  /** Id do rascunho que o assistente montou para esta oportunidade; mostra o selo "Proposta pronta" */
+  propostaProntaId?: string;
   onAbrir: (item: OportunidadeComScore) => void;
 }
 
-function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: Props) {
+function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaProntaId, onAbrir }: Props) {
   const cor = TEXTO_FAIXA[item.score.faixa];
   return (
     <div
@@ -64,6 +68,17 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
         </span>
         <SeloFonte linkOrigem={item.linkOrigem} linkAlerta={item.linkAlerta} className="shrink-0" />
       </span>
+
+      {propostaProntaId ? (
+        <Link
+          href={`/propostas/${propostaProntaId}`}
+          prefetch={false}
+          className="relative z-10 inline-flex min-h-11 w-fit max-w-full items-center gap-1.5 rounded-full border border-border bg-raised px-3 text-xs font-medium text-brand outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <FileCheck aria-hidden="true" className="size-3.5 shrink-0" />
+          <span className="truncate">Proposta pronta</span>
+        </Link>
+      ) : null}
 
       {motivos && motivos.length > 0 ? <Motivos motivos={motivos.slice(0, 1)} className="mt-auto" /> : null}
       <AlertaDoScore score={item.score} className={motivos && motivos.length > 0 ? undefined : "mt-auto"} />

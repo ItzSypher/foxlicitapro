@@ -29,13 +29,13 @@ export default async function PropostasPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-[22px] font-semibold leading-tight text-ink">Propostas</h1>
           <p className="text-sm text-muted-foreground">Edite, mande para revisão, envie e acompanhe o resultado.</p>
         </div>
         {podeCriar ? (
-          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end max-sm:[&>*]:flex-1">
             <RegistrarExterna />
             <BotaoNovaProposta />
           </div>

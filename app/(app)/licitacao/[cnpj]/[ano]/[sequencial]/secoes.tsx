@@ -29,7 +29,10 @@ import { precoSugeridoDoItem } from "@/core/preco-sugerido";
 import { formatarMoeda } from "@/lib/formato";
 import { calcularScore } from "@/core/score";
 import type { FichaSalva } from "@/core/ficha";
-import type { OportunidadeComScore } from "@/core/types";
+import { acharSemelhantes } from "@/core/semelhantes";
+import type { OportunidadeComScore, RespostaRadar } from "@/core/types";
+import { Semelhantes } from "@/components/licitacao/semelhantes";
+import { obterRadar } from "@/lib/radar-dados";
 import { lerAmostrasEmCache, lerBuscaRecente } from "@/db/concorrentes";
 import { listarCotacoes, resumirCotacoesDoItem } from "@/db/cotacoes";
 import { listarPrecosRecentes } from "@/db/fornecedores";
@@ -296,6 +299,16 @@ export async function SecaoArquivos({ chave }: { chave: ChaveUrl }) {
 export async function SecaoTexto({ chave }: { chave: ChaveUrl }) {
   const detalhe = await detalheDoPedido(chave.cnpj, chave.ano, chave.sequencial);
   return <TextoEdital objeto={detalhe.objeto} informacaoComplementar={detalhe.informacaoComplementar} />;
+}
+
+/** Até 5 compras abertas do Radar com objeto parecido; só lê o cache, sem coleta nova. */
+export async function SecaoSemelhantes({ chave }: { chave: ChaveUrl }) {
+  const d = await dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial);
+  const radar = await obterRadar(d.score?.frenteCasada ?? d.frente, d.limites, d.perfil).catch((): RespostaRadar | null => null);
+  const achadas = radar
+    ? acharSemelhantes({ id: d.detalhe.numeroControle, objeto: d.detalhe.objeto, orgaoCnpj: chave.cnpj }, radar.oportunidades)
+    : [];
+  return <Semelhantes itens={achadas} />;
 }
 
 export async function SecaoNota({ chave }: { chave: ChaveUrl }) {
