@@ -80,7 +80,7 @@ export function BuscaPalavras({
           evento.preventDefault();
           aoAplicar(busca);
         }}
-        className="sticky top-[52px] z-10 -mx-4 flex items-center gap-2 border-b border-border bg-ground px-4 py-2 lg:static lg:mx-0 lg:border-b-0 lg:px-0 lg:py-0"
+        className="sticky top-[52px] z-20 -mx-4 flex items-center gap-2 border-b border-border bg-ground px-4 py-2 lg:static lg:mx-0 lg:border-b-0 lg:px-0 lg:py-0"
       >
         <div className="relative min-w-0 flex-1">
           <Search

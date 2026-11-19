@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { TEXTO_FAIXA } from "@/components/radar/faixa";
 import { usePrazo } from "@/components/radar/prazo";
 import { Termometro } from "@/components/radar/termometro";
+import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import type { Score } from "@/core/types";
 import { formatarEncerramento, formatarMoeda } from "@/lib/formato";
 import { nomeFaixa } from "@/lib/radar-filtros";
@@ -57,7 +58,11 @@ export function CabecalhoLicitacao({
       </Link>
 
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-xl leading-snug font-semibold wrap-break-word text-ink sm:text-[22px]">{titulo}</h1>
+        <TextoRecolhivel
+          texto={titulo}
+          como="h1"
+          className="text-xl leading-snug font-semibold wrap-break-word text-ink sm:text-[22px]"
+        />
         <p className="text-[13px] leading-snug wrap-break-word text-muted-foreground">{identificacao}</p>
       </div>
 

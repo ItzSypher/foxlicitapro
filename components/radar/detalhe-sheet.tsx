@@ -18,8 +18,10 @@ import { formatarCnpj, formatarEncerramento, formatarMoeda } from "@/lib/formato
 import { nomeFaixa, nomeModalidade } from "@/lib/radar-filtros";
 import { cn } from "@/lib/utils";
 import { DicaGlossario, DicaModalidade, DicaNota, DicaValor } from "./dicas";
+import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Pilula } from "./pilula";
 import { ContagemTexto } from "./prazo";
+import { Termometro } from "./termometro";
 
 const CONSULTA_DESKTOP = "(min-width: 768px)";
 
@@ -68,9 +70,11 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
         {item ? (
           <>
             <SheetHeader className="gap-1 border-b border-border p-4 pr-14">
-              <SheetTitle className="text-[17px] leading-snug wrap-break-word">
-                {resumirObjeto(item.objeto)}
-              </SheetTitle>
+              <TextoRecolhivel
+                texto={resumirObjeto(item.objeto)}
+                como={SheetTitle}
+                className="text-[17px] leading-snug wrap-break-word"
+              />
               <SheetDescription className="text-xs">
                 {nomeModalidade(item.modalidadeId)} · {item.municipio} · {item.orgao}
               </SheetDescription>
@@ -117,6 +121,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
               </div>
 
               <Secao titulo="Por que essa nota" dica={<DicaNota score={item.score} className="-my-3.5" />}>
+                <Termometro score={item.score} />
                 {item.score.alertas && item.score.alertas.length > 0 ? (
                   <ul className="mb-3 flex flex-col gap-1">
                     {item.score.alertas.map((alerta) => (

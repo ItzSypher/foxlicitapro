@@ -10,7 +10,6 @@ import { TEXTO_FAIXA } from "./faixa";
 import { DicaNota } from "./dicas";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { PrazoDoCard } from "./prazo";
-import { Termometro } from "./termometro";
 
 interface Props {
   item: OportunidadeComScore;
@@ -26,7 +25,7 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
   return (
     <div
       style={{ "--i": indice } as React.CSSProperties}
-      className="card-entrada relative flex h-full w-full flex-col gap-3 rounded-card bg-surface p-4 text-left transition-[background-color,scale] duration-150 hover:bg-raised active:scale-[.99]"
+      className="card-entrada relative isolate flex h-full w-full flex-col gap-3 rounded-card bg-surface p-4 text-left transition-[background-color,scale] duration-150 hover:bg-raised active:scale-[.99]"
     >
       <span className="flex items-start justify-between gap-3">
         <span className="flex min-w-0 items-center gap-1">
@@ -59,13 +58,11 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
       </button>
 
       <span className="truncate text-[13px] text-muted-foreground">
-        {item.municipio} · {nomeModalidade(item.modalidadeId)} · {item.orgao}
+        {item.municipio}/{item.uf} · {nomeModalidade(item.modalidadeId)}
       </span>
 
-      {motivos && motivos.length > 0 ? <Motivos motivos={motivos} /> : null}
-      <AlertaDoScore score={item.score} />
-
-      <Termometro score={item.score} className="mt-auto" />
+      {motivos && motivos.length > 0 ? <Motivos motivos={motivos.slice(0, 1)} className="mt-auto" /> : null}
+      <AlertaDoScore score={item.score} className={motivos && motivos.length > 0 ? undefined : "mt-auto"} />
     </div>
   );
 }

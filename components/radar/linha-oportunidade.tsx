@@ -52,7 +52,7 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
     <div
       style={{ "--i": indice } as React.CSSProperties}
       className={cn(
-        "card-entrada relative grid w-full grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3 border-b border-rule px-2 py-3 text-left transition-colors hover:bg-raised md:min-h-16 md:gap-x-4 md:py-2",
+        "card-entrada relative isolate grid w-full grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3 border-b border-rule px-2 py-3 text-left transition-colors hover:bg-raised md:min-h-16 md:gap-x-4 md:py-2",
         COLUNAS,
       )}
     >
@@ -77,13 +77,16 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
           <span className="line-clamp-2 md:line-clamp-1">{resumirObjeto(item.objeto)}</span>
         </button>
         <span className="hidden truncate text-xs text-muted-foreground md:block">
-          {item.municipio} · {item.orgao}
+          {item.municipio}/{item.uf}
+        </span>
+        <span className="truncate text-xs text-muted-foreground md:hidden">
+          {item.municipio}/{item.uf} · {nomeModalidade(item.modalidadeId)}
         </span>
         <span className="text-[13px] tabular-nums text-muted-foreground md:hidden">
           <span className="text-ink">{valor}</span> ·{" "}
           <span className={menosDe24h ? "text-negative" : undefined}>{prazoTelefone}</span>
         </span>
-        {motivos && motivos.length > 0 ? <Motivos motivos={motivos} className="mt-0.5" /> : null}
+        {motivos && motivos.length > 0 ? <Motivos motivos={motivos.slice(0, 1)} className="mt-0.5" /> : null}
         <AlertaDoScore score={item.score} />
       </span>
 

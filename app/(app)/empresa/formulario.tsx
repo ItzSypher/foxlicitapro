@@ -47,7 +47,7 @@ export function FormularioEmpresa(inicial: Props) {
         <SeletorRegioes regioes={regioes} onChange={setRegioes} />
       </section>
 
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex flex-col gap-2 border-t border-border bg-ground px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex flex-col gap-2 border-t border-border bg-ground px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
         {aviso ? (
           <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-positive" : "text-sm text-negative"}>
             {aviso.texto}

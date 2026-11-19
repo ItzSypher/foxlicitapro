@@ -105,20 +105,28 @@ export function InfoDica({ rotulo = "O que é isso?", children, className }: Pro
     }
   }, [aberto]);
 
-  // Em tela larga, mede e posiciona; reposiciona quando a página rola ou muda de tamanho.
+  // Em tela larga, mede e posiciona; reposiciona quando a janela muda de tamanho.
   useLayoutEffect(() => {
     const botao = botaoRef.current;
     const balao = balaoRef.current;
     if (!aberto || estreita || !botao || !balao) return;
     const atualizar = () => setPosicao(calcularPosicao(botao, balao));
     atualizar();
-    window.addEventListener("scroll", atualizar, true);
     window.addEventListener("resize", atualizar);
-    return () => {
-      window.removeEventListener("scroll", atualizar, true);
-      window.removeEventListener("resize", atualizar);
-    };
+    return () => window.removeEventListener("resize", atualizar);
   }, [aberto, estreita]);
+
+  // Rolar a página fecha o balão (a rolagem dentro do próprio balão não fecha).
+  useEffect(() => {
+    if (!aberto) return;
+    function aoRolar(evento: Event) {
+      const alvo = evento.target;
+      if (alvo instanceof Node && balaoRef.current?.contains(alvo)) return;
+      fechar();
+    }
+    window.addEventListener("scroll", aoRolar, true);
+    return () => window.removeEventListener("scroll", aoRolar, true);
+  }, [aberto, fechar]);
 
   // Esc e toque fora fecham.
   useEffect(() => {

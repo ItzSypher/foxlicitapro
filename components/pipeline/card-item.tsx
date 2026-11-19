@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { comentarAction, lerComentariosAction, salvarNotas } from "@/app/(app)/pipeline/actions";
 import { Seletor } from "@/components/ui/seletor";
+import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ComentarioPipeline } from "@/core/types-equipe";
 import { margemEmPercentual, type Estatistica, type ResumoCotacoes } from "@/core/cotacoes-resumo";
@@ -66,7 +67,7 @@ function Folha({
     <Sheet open={aberto} onOpenChange={aoMudar}>
       <SheetContent side={colunas ? "right" : "bottom"} className={colunas ? "gap-0 overflow-y-auto" : CLASSE_FOLHA}>
         <SheetHeader className="pr-14">
-          <SheetTitle>{titulo}</SheetTitle>
+          <TextoRecolhivel texto={titulo} como={SheetTitle} />
           <SheetDescription className="line-clamp-2">{descricao}</SheetDescription>
         </SheetHeader>
         <div className="flex min-w-0 flex-col gap-3 px-4 pb-4">{children}</div>
@@ -292,11 +293,14 @@ function Notas({
   id,
   inicial,
   aoAbrir,
+  aoSalvar,
   somenteLeitura,
 }: {
   id: string;
   inicial: string;
   aoAbrir: (aberto: boolean) => void;
+  /** Avisa o card do texto salvo, para a próxima abertura do detalhe não mostrar o antigo. */
+  aoSalvar: (texto: string) => void;
   somenteLeitura: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -325,6 +329,7 @@ function Notas({
       const r = await salvarNotas(id, texto);
       if (r.ok) {
         setBase(texto);
+        aoSalvar(texto);
         setCarimbo(true);
       } else {
         setErro(r.erro);
@@ -396,11 +401,14 @@ function Comentarios({
   total,
   titulo,
   aoAbrir,
+  aoContar,
 }: {
   id: string;
   total: number;
   titulo: string;
   aoAbrir: (aberto: boolean) => void;
+  /** Avisa o card da quantidade atual, para a próxima abertura do detalhe não mostrar a antiga. */
+  aoContar: (total: number) => void;
 }) {
   const [aberto, setAberto] = useState(false);
   const [lista, setLista] = useState<ComentarioPipeline[] | null>(null);
@@ -420,6 +428,7 @@ function Comentarios({
         if (r.ok) {
           setLista(r.comentarios);
           setQuantidade(r.comentarios.length);
+          aoContar(r.comentarios.length);
           setAgora(Date.now());
         } else {
           setErro(r.erro);
@@ -436,6 +445,7 @@ function Comentarios({
       if (r.ok) {
         setLista(r.comentarios);
         setQuantidade(r.comentarios.length);
+        aoContar(r.comentarios.length);
         setAgora(Date.now());
         setTexto("");
       } else {
@@ -512,24 +522,15 @@ function Responsavel({
     dado.responsavelId !== null && !pessoas.some((p) => p.id === dado.responsavelId)
       ? { id: dado.responsavelId, nome: dado.responsavelNome ?? "Pessoa removida" }
       : null;
-  const adicionadoPor = (
-    <p className="text-xs text-muted-foreground">
-      {dado.criadoPorNome ? `Adicionado por ${dado.criadoPorNome}` : "Adicionado por pessoa não registrada"}
-    </p>
-  );
   if (somenteLeitura) {
     return (
-      <div className="flex flex-col gap-0.5">
-        <p className="text-[13px] text-muted-foreground">
-          Responsável: <span className="text-ink">{dado.responsavelNome ?? "ninguém"}</span>
-        </p>
-        {adicionadoPor}
-      </div>
+      <p className="text-[13px] text-muted-foreground">
+        Responsável: <span className="text-ink">{dado.responsavelNome ?? "ninguém"}</span>
+      </p>
     );
   }
   return (
-    <div className="flex flex-col gap-0.5">
-      <Seletor
+    <Seletor
         id={id}
         rotulo="Responsável"
         posicaoRotulo="acima"
@@ -541,8 +542,67 @@ function Responsavel({
           ...pessoas.map((p) => ({ valor: p.id, rotulo: p.nome })),
         ]}
       />
-      {adicionadoPor}
-    </div>
+  );
+}
+
+/** Folha com o que não cabe no card: quem adicionou, cotações, preço sugerido, revisão jurídica, notas e comentários. */
+function DetalheItem({
+  aberto,
+  aoMudar,
+  dado,
+  titulo,
+  tituloCurto,
+  podeEditar,
+  podeRevisar,
+  notas,
+  aoSalvarNotas,
+  totalComentarios,
+  aoContarComentarios,
+  aoAbrirSub,
+}: {
+  aberto: boolean;
+  aoMudar: (aberto: boolean) => void;
+  dado: ItemPipeline;
+  titulo: string;
+  tituloCurto: string;
+  podeEditar: boolean;
+  podeRevisar: boolean;
+  notas: string;
+  aoSalvarNotas: (texto: string) => void;
+  totalComentarios: number;
+  aoContarComentarios: (total: number) => void;
+  aoAbrirSub: (aberto: boolean) => void;
+}) {
+  return (
+    <Folha aberto={aberto} aoMudar={aoMudar} titulo={titulo} descricao="Detalhes do item no pipeline">
+      <p className="text-xs text-muted-foreground">
+        Região: <span className={dado.item.regiao === "nova-iguacu" ? "font-medium text-ink" : ""}>{ROTULO_REGIAO[dado.item.regiao]}</span>
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {dado.criadoPorNome ? `Adicionado por ${dado.criadoPorNome}` : "Adicionado por pessoa não registrada"}
+      </p>
+      <LinhaCotacoes dado={dado} resumo={dado.cotacoes} titulo={tituloCurto} aoAbrir={aoAbrirSub} />
+      <LinhaPreco dado={dado} preco={dado.preco} titulo={tituloCurto} aoAbrir={aoAbrirSub} />
+      {dado.etapa === "revisao_juridica" ? (
+        <LinhaRevisao dado={dado} titulo={tituloCurto} podeRevisar={podeRevisar} aoAbrir={aoAbrirSub} />
+      ) : null}
+      <div className="-mx-1.5 flex flex-wrap items-center gap-x-1 border-t border-rule pt-1">
+        <Notas
+          id={dado.id}
+          inicial={notas}
+          aoAbrir={aoAbrirSub}
+          aoSalvar={aoSalvarNotas}
+          somenteLeitura={!podeEditar}
+        />
+        <Comentarios
+          id={dado.id}
+          total={totalComentarios}
+          titulo={tituloCurto}
+          aoAbrir={aoAbrirSub}
+          aoContar={aoContarComentarios}
+        />
+      </div>
+    </Folha>
   );
 }
 
@@ -578,15 +638,14 @@ export function CardItem({
 }: Props) {
   const { item } = dado;
   const [confirmando, setConfirmando] = useState(false);
-  const [notasAbertas, setNotasAbertas] = useState(false);
-  const [comentariosAbertos, setComentariosAbertos] = useState(false);
-  const [revisaoAberta, setRevisaoAberta] = useState(false);
-  const [cotacoesAbertas, setCotacoesAbertas] = useState(false);
-  const [precoAberto, setPrecoAberto] = useState(false);
+  const [detalheAberto, setDetalheAberto] = useState(false);
+  const [subAberta, setSubAberta] = useState(false);
+  const [notas, setNotas] = useState(dado.notas);
+  const [totalComentarios, setTotalComentarios] = useState(dado.comentarios);
   const titulo = useMemo(() => resumirObjeto(item.objeto), [item.objeto]);
   const tituloCurto = titulo.length > 90 ? `${titulo.slice(0, 89)}…` : titulo;
   const pncp = item.linkPncp;
-  const podeArrastar = arrastavel && !notasAbertas && !comentariosAbertos && !revisaoAberta && !cotacoesAbertas && !precoAberto && !confirmando;
+  const podeArrastar = arrastavel && !detalheAberto && !subAberta && !confirmando;
 
   return (
     <li
@@ -616,6 +675,14 @@ export function CardItem({
           <Prazo encerramentoIso={item.dataEncerramento} agoraInicial={agoraInicial} />
         </span>
         <span className="flex shrink-0 items-center">
+          <button
+            type="button"
+            onClick={() => setDetalheAberto(true)}
+            aria-haspopup="dialog"
+            className="inline-flex h-11 items-center rounded-control px-2 text-[13px] text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
+          >
+            Detalhes
+          </button>
           <Link
             href={`/licitacao/${item.orgaoCnpj}/${item.anoCompra}/${item.sequencialCompra}`}
             className="inline-flex h-11 items-center rounded-control px-2 text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
@@ -634,21 +701,15 @@ export function CardItem({
         </span>
       </div>
 
-      <p className="line-clamp-3 text-sm font-medium leading-snug text-ink">{titulo}</p>
+      <p className="line-clamp-2 text-sm font-medium leading-snug text-ink">{titulo}</p>
 
       <p className="text-[13px] leading-snug text-muted-foreground">
-        <span className={item.regiao === "nova-iguacu" ? "font-medium text-ink" : ""}>{ROTULO_REGIAO[item.regiao]}</span>
-        {" · "}
-        {item.municipio}
+        {item.municipio}/{item.uf}
         {" · "}
         <span className="tabular-nums text-ink">
           {item.valorEstimado === null ? "—" : formatarReais(item.valorEstimado)}
         </span>
       </p>
-
-      <LinhaCotacoes dado={dado} resumo={dado.cotacoes} titulo={tituloCurto} aoAbrir={setCotacoesAbertas} />
-
-      <LinhaPreco dado={dado} preco={dado.preco} titulo={tituloCurto} aoAbrir={setPrecoAberto} />
 
       <Responsavel
         dado={dado}
@@ -657,14 +718,20 @@ export function CardItem({
         somenteLeitura={!podeEditar}
       />
 
-      {dado.etapa === "revisao_juridica" ? (
-        <LinhaRevisao dado={dado} titulo={tituloCurto} podeRevisar={podeRevisar} aoAbrir={setRevisaoAberta} />
-      ) : null}
-
-      <div className="-mx-1.5 -mb-1 flex flex-wrap items-center gap-x-1 border-t border-rule pt-1">
-        <Notas id={dado.id} inicial={dado.notas} aoAbrir={setNotasAbertas} somenteLeitura={!podeEditar} />
-        <Comentarios id={dado.id} total={dado.comentarios} titulo={tituloCurto} aoAbrir={setComentariosAbertos} />
-      </div>
+      <DetalheItem
+        aberto={detalheAberto}
+        aoMudar={setDetalheAberto}
+        dado={dado}
+        titulo={titulo}
+        tituloCurto={tituloCurto}
+        podeEditar={podeEditar}
+        podeRevisar={podeRevisar}
+        notas={notas}
+        aoSalvarNotas={setNotas}
+        totalComentarios={totalComentarios}
+        aoContarComentarios={setTotalComentarios}
+        aoAbrirSub={setSubAberta}
+      />
 
       {confirmando && podeEditar ? (
         <div role="group" aria-label="Confirmar remoção" className="flex flex-col gap-2 border-t border-rule pt-3">

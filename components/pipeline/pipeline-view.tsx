@@ -478,7 +478,7 @@ function Quadro({
               type="button"
               aria-label="Rolar o quadro para a esquerda"
               onClick={() => rolarLado(-1)}
-              className="absolute top-1/2 left-1 z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-control bg-surface text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+              className="absolute top-2 left-1 z-10 inline-flex size-8 items-center justify-center rounded-full border border-control bg-surface text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
             >
               <ChevronLeft aria-hidden="true" className="size-5" />
             </button>
@@ -488,7 +488,7 @@ function Quadro({
               type="button"
               aria-label="Rolar o quadro para a direita"
               onClick={() => rolarLado(1)}
-              className="absolute top-1/2 right-1 z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-control bg-surface text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+              className="absolute top-2 right-1 z-10 inline-flex size-8 items-center justify-center rounded-full border border-control bg-surface text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
             >
               <ChevronRight aria-hidden="true" className="size-5" />
             </button>
