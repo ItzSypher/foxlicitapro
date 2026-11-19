@@ -28,8 +28,10 @@ export interface SessaoToken {
 
 /** Quem está logado. */
 export interface Sessao extends SessaoToken {
-  /** Empresa da pessoa, lida do banco a cada pedido: todo dado da empresa se filtra por ela */
+  /** Empresa ativa no pedido (a própria ou uma escolhida no seletor): todo dado da empresa se filtra por ela */
   empresaId: string;
+  /** Empresa do cadastro da pessoa; difere de empresaId quando ela está em outra empresa por usuario_empresas */
+  empresaPropriaId: string;
   superadmin: boolean;
   permissoes: Permissao[];
 }

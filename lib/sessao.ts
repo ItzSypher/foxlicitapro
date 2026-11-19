@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { COOKIE_SESSAO, DURACAO_SESSAO_SEGUNDOS, criarToken, lerToken } from "@/lib/auth";
 import { lerUsuario } from "@/db/usuarios";
+import { listarIdsEmpresasExtras } from "@/db/usuario-empresas";
+import { COOKIE_EMPRESA_ATIVA, cookieEmpresaRelevante, decidirEmpresaAtiva, papelNaEmpresa } from "@/core/empresa-ativa";
 import { temPermissao, type Permissao } from "@/core/permissoes";
 import type { Sessao, SessaoToken } from "@/core/types-equipe";
 
@@ -15,6 +17,7 @@ import type { Sessao, SessaoToken } from "@/core/types-equipe";
  * exigirPermissao / verificarPermissao: o dono passa sempre; os outros, só com a permissão marcada.
  * A assinatura do cookie vale 30 dias, mas pessoa desativada (ou de empresa desativada) perde o acesso na hora (confere no banco).
  * A sessão carrega empresaId, lido do banco a cada pedido: toda consulta de dados da empresa se filtra por ele.
+ * Quem acessa várias empresas (usuario_empresas) escolhe a ativa no cookie `empresa_ativa`; nas que não são a própria, o papel é "gestor".
  */
 const sessaoDoPedido = cache(async (): Promise<Sessao | null> => {
   const jar = await cookies();
@@ -25,11 +28,16 @@ const sessaoDoPedido = cache(async (): Promise<Sessao | null> => {
   try {
     const usuario = await lerUsuario(sessao.usuarioId);
     if (!usuario || !usuario.ativo) return null;
+    // Só consulta os acessos extras se o cookie aponta para outra empresa.
+    const pedida = cookieEmpresaRelevante(jar.get(COOKIE_EMPRESA_ATIVA)?.value, usuario.empresaId);
+    const extras = pedida ? await listarIdsEmpresasExtras(usuario.id) : [];
+    const ativa = decidirEmpresaAtiva(pedida ?? undefined, usuario.empresaId, extras);
     return {
       usuarioId: usuario.id,
       nome: usuario.nome,
-      papel: usuario.papel,
-      empresaId: usuario.empresaId,
+      papel: papelNaEmpresa(usuario.papel, ativa.propria),
+      empresaId: ativa.empresaId,
+      empresaPropriaId: usuario.empresaId,
       superadmin: usuario.superadmin,
       permissoes: usuario.permissoes,
     };
@@ -89,6 +97,18 @@ export async function verificarPermissao(permissao: Permissao): Promise<Resultad
   return { ok: true, sessao };
 }
 
+/** Grava a empresa ativa (o acesso já foi conferido por quem chama). */
+export async function gravarEmpresaAtiva(empresaId: string): Promise<void> {
+  const jar = await cookies();
+  jar.set(COOKIE_EMPRESA_ATIVA, empresaId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: DURACAO_SESSAO_SEGUNDOS,
+  });
+}
+
 /** Grava o cookie da sessão (usado no login). */
 export async function iniciarSessao(sessao: SessaoToken): Promise<void> {
   const segredo = process.env.APP_SECRET;
@@ -106,4 +126,5 @@ export async function iniciarSessao(sessao: SessaoToken): Promise<void> {
 export async function encerrarSessao(): Promise<void> {
   const jar = await cookies();
   jar.delete(COOKIE_SESSAO);
+  jar.delete(COOKIE_EMPRESA_ATIVA);
 }

@@ -130,6 +130,7 @@ async function enviarUrgentes(
   urgentes: ReadonlyArray<AlertaWa>,
   agora: Date,
   responsavelPadrao: () => Promise<string | null>,
+  semBotoes: boolean,
 ): Promise<number> {
   const pendentes = (await listarPendentes(v.usuarioId, agora)).filter((p) => CRITICOS.has(p.tipo));
   if (urgentes.length > MAX_AVULSOS) {
@@ -143,7 +144,7 @@ async function enviarUrgentes(
   for (const a of urgentes) {
     const linha = pendentes.find((p) => p.tipo === a.tipo && p.texto === a.texto && p.itemId === a.itemId);
     if (!linha) continue;
-    const botoes = botoesDoAlerta(a.tipo, a.itemId, a.itemId === null ? null : await responsavelPadrao());
+    const botoes = semBotoes ? [] : botoesDoAlerta(a.tipo, a.itemId, a.itemId === null ? null : await responsavelPadrao());
     if (await enviarParaPessoa(v, a.texto, agora, { botoes, critico: true })) {
       await marcarEnviados([linha.id], agora);
       enviados += 1;
@@ -155,8 +156,14 @@ async function enviarUrgentes(
 /**
  * Grava na fila só o que cada pessoa escolheu receber (sem repetir chave por pessoa). Prazo urgente sai
  * na hora para quem está com a janela aberta, dentro do horário; aviso espera o resumo das 7h.
+ * `semBotoes`: alertas de uma empresa que não é a da pessoa (gestor de várias); os botões agem na empresa própria.
  */
-export async function entregarAlertasWa(empresaId: string, alertas: ReadonlyArray<AlertaWa>, agora: Date = new Date()): Promise<{ novos: number; enviados: number }> {
+export async function entregarAlertasWa(
+  empresaId: string,
+  alertas: ReadonlyArray<AlertaWa>,
+  agora: Date = new Date(),
+  opcoes: { semBotoes?: boolean } = {},
+): Promise<{ novos: number; enviados: number }> {
   const resultado = { novos: 0, enviados: 0 };
   if (alertas.length === 0) return resultado;
   let padrao: Promise<string | null> | null = null;
@@ -185,7 +192,7 @@ export async function entregarAlertasWa(empresaId: string, alertas: ReadonlyArra
           continue;
         }
         if (!dentroDoHorario(agora)) continue;
-        resultado.enviados += await enviarUrgentes(v, urgentes, agora, responsavelPadrao);
+        resultado.enviados += await enviarUrgentes(v, urgentes, agora, responsavelPadrao, opcoes.semBotoes === true);
       } catch (e) {
         console.error("[whatsapp] alertas:", e instanceof Error ? e.message : "falha");
       }

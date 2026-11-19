@@ -41,6 +41,7 @@ async function sessaoDoResponsavel(empresaId: string): Promise<Sessao | null> {
     nome: usuario.nome,
     papel: usuario.papel,
     empresaId,
+    empresaPropriaId: usuario.empresaId,
     superadmin: usuario.superadmin,
     permissoes: usuario.permissoes,
   };

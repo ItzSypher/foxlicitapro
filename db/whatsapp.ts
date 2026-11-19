@@ -106,6 +106,20 @@ export async function listarVinculosAtivos(empresaId: string): Promise<VinculoWa
   return linhas.map(paraVinculo);
 }
 
+/**
+ * Gestores de várias empresas que acessam esta empresa por usuario_empresas (não a equipe própria dela),
+ * ativos, com alertas ligados e conversa vinculada. Falha se a tabela usuario_empresas ainda não existe.
+ */
+export async function listarVinculosGestoresExtras(empresaId: string): Promise<VinculoWa[]> {
+  const linhas = await sql`
+    select ${colunasVinculo()} from usuarios
+    where ativo and aviso_whatsapp and wa_conversa_id is not null and empresa_id <> ${empresaId}
+      and id in (select usuario_id from usuario_empresas where empresa_id = ${empresaId})
+    order by lower(nome) asc
+  `;
+  return linhas.map(paraVinculo);
+}
+
 /** Pessoas ativas da empresa com WhatsApp ligado (com os alertas pausados ou não), para a tela de situação. */
 export async function listarVinculosDaEmpresa(empresaId: string): Promise<VinculoWa[]> {
   const linhas = await sql`

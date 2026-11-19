@@ -147,29 +147,42 @@ export interface NovaEmpresa extends Omit<EmpresaConsultada, "cnpj"> {
   regioes: Regiao[];
 }
 
+/** Grava a empresa dentro da transação. */
+async function inserirEmpresa(tx: postgres.TransactionSql, nova: NovaEmpresa, teste: boolean): Promise<Empresa> {
+  const cnaes = cnaesSchema.parse(nova.cnaes);
+  const cnaesJson = JSON.parse(JSON.stringify(cnaes)) as postgres.JSONValue;
+  const regioesJson = JSON.parse(JSON.stringify(nova.regioes.filter(ehRegiao))) as postgres.JSONValue;
+  const areasJson = JSON.parse(JSON.stringify(areasDasRegioes(nova.regioes.filter(ehRegiao), nova.uf, nova.municipio))) as postgres.JSONValue;
+  const digitos = somenteDigitos(nova.cnpj);
+  const linhas = await tx<LinhaEmpresa[]>`
+    insert into empresas (cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, areas, data_abertura,
+                          endereco, cep, telefone, email_contato, teste)
+    values (${digitos}, ${nova.razaoSocial}, ${nova.nomeFantasia}, ${nova.porte}, ${nova.uf}, ${nova.municipio},
+            ${tx.json(cnaesJson)}, ${tx.json(regioesJson)}, ${tx.json(areasJson)}, ${nova.dataAbertura}, ${nova.endereco}, ${nova.cep},
+            ${nova.telefone}, ${nova.email}, ${teste})
+    returning ${colunas()}
+  `;
+  const empresa = linhas[0] ? converter(linhas[0]) : null;
+  if (!empresa) throw new Error("A empresa não foi gravada");
+  return empresa;
+}
+
+function traduzirErroCnpj(e: unknown): never {
+  if (typeof e === "object" && e !== null && "constraint_name" in e && e.constraint_name === "empresas_cnpj_key") {
+    throw new CnpjJaCadastrado();
+  }
+  throw e;
+}
+
 /** Cria a empresa e o primeiro dono dela na mesma transação (ou nenhum dos dois). */
 export async function criarEmpresaComDono(
   nova: NovaEmpresa,
   dono: { nome: string; email: string; senhaHash: string },
   teste = false,
 ): Promise<{ empresa: Empresa; dono: Usuario }> {
-  const cnaes = cnaesSchema.parse(nova.cnaes);
-  const cnaesJson = JSON.parse(JSON.stringify(cnaes)) as postgres.JSONValue;
-  const regioesJson = JSON.parse(JSON.stringify(nova.regioes.filter(ehRegiao))) as postgres.JSONValue;
-  const areasJson = JSON.parse(JSON.stringify(areasDasRegioes(nova.regioes.filter(ehRegiao), nova.uf, nova.municipio))) as postgres.JSONValue;
-  const digitos = somenteDigitos(nova.cnpj);
   try {
     return await sql.begin(async (tx) => {
-      const linhas = await tx<LinhaEmpresa[]>`
-        insert into empresas (cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, areas, data_abertura,
-                              endereco, cep, telefone, email_contato, teste)
-        values (${digitos}, ${nova.razaoSocial}, ${nova.nomeFantasia}, ${nova.porte}, ${nova.uf}, ${nova.municipio},
-                ${tx.json(cnaesJson)}, ${tx.json(regioesJson)}, ${tx.json(areasJson)}, ${nova.dataAbertura}, ${nova.endereco}, ${nova.cep},
-                ${nova.telefone}, ${nova.email}, ${teste})
-        returning ${colunas()}
-      `;
-      const empresa = linhas[0] ? converter(linhas[0]) : null;
-      if (!empresa) throw new Error("A empresa não foi gravada");
+      const empresa = await inserirEmpresa(tx, nova, teste);
       const criado = await criarUsuario(
         { empresaId: empresa.id, nome: dono.nome, email: dono.email, papel: "dono", senhaHash: dono.senhaHash },
         tx as unknown as postgres.Sql,
@@ -177,10 +190,16 @@ export async function criarEmpresaComDono(
       return { empresa, dono: criado };
     });
   } catch (e) {
-    if (typeof e === "object" && e !== null && "constraint_name" in e && e.constraint_name === "empresas_cnpj_key") {
-      throw new CnpjJaCadastrado();
-    }
-    throw e;
+    return traduzirErroCnpj(e);
+  }
+}
+
+/** Cria a empresa sem ninguém dentro: quem cuida dela entra depois, como gestor (usuario_empresas). */
+export async function criarEmpresaSemDono(nova: NovaEmpresa, teste = false): Promise<Empresa> {
+  try {
+    return await sql.begin((tx) => inserirEmpresa(tx, nova, teste));
+  } catch (e) {
+    return traduzirErroCnpj(e);
   }
 }
 

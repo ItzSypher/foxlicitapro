@@ -4,7 +4,8 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { encerrarSessao, exigirSessao } from "@/lib/sessao";
+import { encerrarSessao, exigirSessao, gravarEmpresaAtiva } from "@/lib/sessao";
+import { usuarioAcessaEmpresa } from "@/db/usuario-empresas";
 import { COOKIE_FRENTE, ehFrente } from "@/lib/frente";
 import { ufsDeColeta } from "@/core/areas";
 import { perfilAtual } from "@/lib/empresa-atual";
@@ -34,4 +35,14 @@ export async function atualizarRadarAgora(): Promise<void> {
   const perfil = await perfilAtual();
   await atualizarRadar({ ufs: ufsDeColeta(perfil.areas) });
   revalidatePath("/radar");
+}
+
+/** Seletor de empresa de quem gerencia várias: confere o acesso, grava a empresa ativa e volta ao Radar. */
+export async function trocarEmpresaAction(empresaId: string): Promise<void> {
+  const sessao = await exigirSessao();
+  if (typeof empresaId === "string" && (await usuarioAcessaEmpresa(sessao.usuarioId, empresaId))) {
+    await gravarEmpresaAtiva(empresaId);
+    revalidatePath("/", "layout");
+  }
+  redirect("/radar");
 }

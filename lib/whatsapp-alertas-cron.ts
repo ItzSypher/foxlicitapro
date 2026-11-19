@@ -1,8 +1,8 @@
 import "server-only";
 import { diaDeSaoPaulo } from "@/core/avisos";
 import { casarCnaesComForca } from "@/core/cnae-keywords";
-import { META_PADRAO } from "@/core/meta";
-import { descricaoDoCnae, type PerfilEmpresa } from "@/core/perfil";
+import { META_PADRAO, type MetaConfig } from "@/core/meta";
+import { descricaoDoCnae, nomeExibicao, type PerfilEmpresa } from "@/core/perfil";
 import { recomendar } from "@/core/recomendacao";
 import type { OportunidadeComScore } from "@/core/types";
 import {
@@ -11,8 +11,12 @@ import {
   horaDeSaoPaulo,
   inicioDaSemana,
   janelaAberta,
+  juntarResumos,
+  partesDoResumoManha,
   textoResumoManha,
   type AlertaWa,
+  type BlocoResumo,
+  type DadosResumoManha,
   type ItemAlerta,
   type MovimentoEquipe,
   type NovaDoRamo,
@@ -23,6 +27,7 @@ import { lerEmpresa, listarIdsEmpresasAtivas } from "@/db/empresas";
 import { lerMetaDisputas } from "@/db/meta";
 import { listarPipeline } from "@/db/pipeline";
 import { lerPreferencias } from "@/db/preferencias";
+import { listarIdsEmpresasExtras } from "@/db/usuario-empresas";
 import {
   chavesRegistradas,
   descartarAvulsosAntigos,
@@ -33,6 +38,7 @@ import {
   listarMudancasDesde,
   listarPendentes,
   listarVinculosAtivos,
+  listarVinculosGestoresExtras,
   marcarEnviados,
   registrarEnviados,
   type VinculoWa,
@@ -53,6 +59,7 @@ const BASE_PADRAO = "https://licitapro.foxtisolutions.com.br";
 const RECOMENDADAS_POR_FRENTE = 20;
 const MAX_TERMOS_BATEU = 2;
 const MAX_DESCRICAO_BATEU = 45;
+const MAX_NOME_EMPRESA = 30;
 
 export interface ResultadoAlertasWa {
   ativo: boolean;
@@ -155,14 +162,17 @@ function chaveDaNova(id: string): string {
   return `radar:${id}`;
 }
 
-/** Resumo das 7h: uma vez por dia por pessoa, só com a janela aberta. Devolve quantos foram enviados. */
-async function enviarResumosDaManha(
-  empresaId: string,
-  vinculos: ReadonlyArray<VinculoWa>,
-  itens: ReadonlyArray<ItemAlerta>,
-  agora: Date,
-): Promise<number> {
-  const dia = diaDeSaoPaulo(agora);
+/** Dados de uma empresa para o resumo das 7h. Cada parte só é lida quando alguém pede. */
+interface ContextoResumo {
+  empresaId: string;
+  itens: ReadonlyArray<ItemAlerta>;
+  novas: () => Promise<NovaDoRamo[]>;
+  movimentos: () => Promise<MovimentoEquipe[]>;
+  disputasNaSemana: () => Promise<number>;
+  meta: () => Promise<MetaConfig>;
+}
+
+function contextoDaEmpresa(empresaId: string, itens: ReadonlyArray<ItemAlerta>, agora: Date): ContextoResumo {
   const novas = sobDemanda(() =>
     novasDoRamo(empresaId, new Set(itens.map((i) => i.id)), agora).catch((e: unknown): NovaDoRamo[] => {
       console.error("[whatsapp] radar:", mensagemDe(e));
@@ -189,6 +199,155 @@ async function enviarResumosDaManha(
     return new Set(mudancas.filter((m) => m.para === "disputa").map((m) => m.itemId)).size;
   });
   const meta = sobDemanda(() => lerMetaDisputas(empresaId));
+  return { empresaId, itens, novas, movimentos, disputasNaSemana, meta };
+}
+
+/** Leituras que valem para a rodada inteira: o nome curto e o contexto de cada empresa extra, lidos uma vez só. */
+interface CacheRodada {
+  nomes: Map<string, Promise<string | null>>;
+  extras: Map<string, Promise<ContextoResumo | null>>;
+}
+
+function novoCache(): CacheRodada {
+  return { nomes: new Map(), extras: new Map() };
+}
+
+/** Nome para o cabeçalho e o aviso de prazo: fantasia ou razão social, curto. Null se a empresa não existe. */
+function nomeCurtoDaEmpresa(empresaId: string, cache: CacheRodada): Promise<string | null> {
+  let nome = cache.nomes.get(empresaId);
+  if (nome === undefined) {
+    nome = lerEmpresa(empresaId)
+      .then((perfil) => {
+        if (!perfil) return null;
+        const inteiro = nomeExibicao(perfil);
+        return inteiro.length <= MAX_NOME_EMPRESA ? inteiro : `${inteiro.slice(0, MAX_NOME_EMPRESA - 1).trimEnd()}…`;
+      })
+      .catch((e: unknown) => {
+        console.error("[whatsapp] empresa:", mensagemDe(e));
+        return null;
+      });
+    cache.nomes.set(empresaId, nome);
+  }
+  return nome;
+}
+
+interface ItemDoPipeline {
+  id: string;
+  etapa: string;
+  item: { objeto: string; dataEncerramento: string };
+  responsavelId: string | null;
+}
+
+function itemDeAlerta(i: ItemDoPipeline): ItemAlerta {
+  return { id: i.id, etapa: i.etapa, objeto: i.item.objeto, dataEncerramento: i.item.dataEncerramento, responsavelId: i.responsavelId };
+}
+
+function contextoDaExtra(empresaId: string, agora: Date, cache: CacheRodada): Promise<ContextoResumo | null> {
+  let contexto = cache.extras.get(empresaId);
+  if (contexto === undefined) {
+    contexto = (async () => {
+      const pipeline = await listarPipeline(empresaId);
+      return contextoDaEmpresa(empresaId, pipeline.map(itemDeAlerta), agora);
+    })().catch((e: unknown) => {
+      console.error("[whatsapp] pipeline:", mensagemDe(e));
+      return null;
+    });
+    cache.extras.set(empresaId, contexto);
+  }
+  return contexto;
+}
+
+/** A tabela usuario_empresas ainda não existe (migration não aplicada): vale como "sem empresas extras". */
+function semTabelaDeAcessos(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "code" in e && e.code === "42P01";
+}
+
+/** Empresas ativas extras da pessoa, em ordem de nome. Sem a tabela, nenhuma. Outro erro sobe. */
+async function empresasExtrasDaPessoa(
+  usuarioId: string,
+  propriaId: string,
+  cache: CacheRodada,
+): Promise<Array<{ id: string; nome: string }>> {
+  let ids: string[];
+  try {
+    ids = await listarIdsEmpresasExtras(usuarioId);
+  } catch (e) {
+    if (semTabelaDeAcessos(e)) return [];
+    throw e;
+  }
+  const achadas = await Promise.all(
+    ids.filter((id) => id !== propriaId).map(async (id) => ({ id, nome: await nomeCurtoDaEmpresa(id, cache) })),
+  );
+  return achadas
+    .filter((a): a is { id: string; nome: string } => a.nome !== null)
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+/** Gestores de outras empresas que acessam esta. Sem a tabela (ou com falha), nenhum: o cron segue como antes. */
+async function gestoresExtrasDaEmpresa(empresaId: string): Promise<VinculoWa[]> {
+  try {
+    return await listarVinculosGestoresExtras(empresaId);
+  } catch (e) {
+    if (!semTabelaDeAcessos(e)) console.error("[whatsapp] gestores:", mensagemDe(e));
+    return [];
+  }
+}
+
+/** Novas do Radar que esta pessoa ainda não viu (a chave `radar:` só é gravada depois do envio). */
+async function novasDaPessoa(ctx: ContextoResumo, v: VinculoWa): Promise<NovaDoRamo[]> {
+  if (!v.escolhas.novas && !v.escolhas.grandes) return [];
+  const todas = await ctx.novas();
+  const jaVistas = await chavesRegistradas(v.usuarioId, todas.map((n) => chaveDaNova(n.id)));
+  return todas.filter((n) => !jaVistas.has(chaveDaNova(n.id)));
+}
+
+async function dadosDoResumo(
+  ctx: ContextoResumo,
+  v: VinculoWa,
+  novas: ReadonlyArray<NovaDoRamo>,
+  pendencias: ReadonlyArray<string>,
+): Promise<DadosResumoManha> {
+  const e = v.escolhas;
+  return {
+    usuarioId: v.usuarioId,
+    nome: v.nome,
+    escolhas: e,
+    novas,
+    itens: ctx.itens,
+    movimentos: e.movimentos || e.disputa ? await ctx.movimentos() : [],
+    pendencias,
+    disputasNaSemana: e.meta ? await ctx.disputasNaSemana() : 0,
+    meta: e.meta ? await ctx.meta() : META_PADRAO,
+  };
+}
+
+function registroDeNovas(usuarioId: string, novas: ReadonlyArray<NovaDoRamo>, mostradas: ReadonlyArray<string>): AlertaWa[] {
+  const vistas = new Set(mostradas);
+  return novas
+    .filter((n) => vistas.has(n.id))
+    .map((n) => ({
+      usuarioId,
+      tipo: "radar",
+      chave: chaveDaNova(n.id),
+      texto: n.objeto.slice(0, 200),
+      itemId: null,
+      validade: null,
+    }));
+}
+
+/**
+ * Resumo das 7h: uma vez por dia por pessoa, só com a janela aberta. Quem é gestor de outras empresas recebe
+ * uma mensagem só, com um bloco por empresa. Devolve quantos foram enviados.
+ */
+async function enviarResumosDaManha(
+  empresaId: string,
+  vinculos: ReadonlyArray<VinculoWa>,
+  itens: ReadonlyArray<ItemAlerta>,
+  agora: Date,
+  cache: CacheRodada,
+): Promise<number> {
+  const dia = diaDeSaoPaulo(agora);
+  const propria = contextoDaEmpresa(empresaId, itens, agora);
 
   let enviados = 0;
   for (const v of vinculos) {
@@ -198,47 +357,40 @@ async function enviarResumosDaManha(
       if (!janelaAberta(v.ultimaEntrada, agora)) continue;
       const e = v.escolhas;
 
-      let suasNovas: NovaDoRamo[] = [];
-      if (e.novas || e.grandes) {
-        const todas = await novas();
-        const jaVistas = await chavesRegistradas(v.usuarioId, todas.map((n) => chaveDaNova(n.id)));
-        suasNovas = todas.filter((n) => !jaVistas.has(chaveDaNova(n.id)));
-      }
+      const suasNovas = await novasDaPessoa(propria, v);
       const pendentes = e.pendencias ? (await listarPendentes(v.usuarioId, agora)).filter((p) => p.tipo === "aviso") : [];
+      const dadosProprios = await dadosDoResumo(propria, v, suasNovas, pendentes.map((p) => p.texto));
+      const extras = await empresasExtrasDaPessoa(v.usuarioId, empresaId, cache);
 
-      const resumo = textoResumoManha(
-        {
-          usuarioId: v.usuarioId,
-          nome: v.nome,
-          escolhas: e,
-          novas: suasNovas,
-          itens,
-          movimentos: e.movimentos || e.disputa ? await movimentos() : [],
-          pendencias: pendentes.map((p) => p.texto),
-          disputasNaSemana: e.meta ? await disputasNaSemana() : 0,
-          meta: e.meta ? await meta() : META_PADRAO,
-        },
-        agora,
-      );
-      if (resumo.texto === "") continue;
-      const ok = await enviarParaPessoa(v, resumo.texto, agora, {
+      let texto: string;
+      const registros: Array<{ empresaId: string; alertas: AlertaWa[] }> = [];
+      if (extras.length === 0) {
+        const resumo = textoResumoManha(dadosProprios, agora);
+        texto = resumo.texto;
+        registros.push({ empresaId, alertas: registroDeNovas(v.usuarioId, suasNovas, resumo.novasMostradas) });
+      } else {
+        const proprias = partesDoResumoManha(dadosProprios, agora);
+        const nomeProprio = (await nomeCurtoDaEmpresa(empresaId, cache)) ?? "Sua empresa";
+        const blocos: BlocoResumo[] = [{ empresa: nomeProprio, partes: proprias.partes }];
+        registros.push({ empresaId, alertas: registroDeNovas(v.usuarioId, suasNovas, proprias.novasMostradas) });
+        for (const extra of extras) {
+          const ctx = await contextoDaExtra(extra.id, agora, cache);
+          if (ctx === null) continue;
+          const novasExtra = await novasDaPessoa(ctx, v);
+          const partes = partesDoResumoManha(await dadosDoResumo(ctx, v, novasExtra, []), agora);
+          blocos.push({ empresa: extra.nome, partes: partes.partes });
+          registros.push({ empresaId: extra.id, alertas: registroDeNovas(v.usuarioId, novasExtra, partes.novasMostradas) });
+        }
+        texto = juntarResumos(v.nome, blocos);
+      }
+      if (texto === "") continue;
+      const ok = await enviarParaPessoa(v, texto, agora, {
         botoes: [{ titulo: "Continuar recebendo", payload: "continuar" }],
         critico: true,
       });
       if (!ok) continue;
       await gravarConfig(chave, agora.toISOString());
-      const mostradas = new Set(resumo.novasMostradas);
-      const registro: AlertaWa[] = suasNovas
-        .filter((n) => mostradas.has(n.id))
-        .map((n) => ({
-          usuarioId: v.usuarioId,
-          tipo: "radar",
-          chave: chaveDaNova(n.id),
-          texto: n.objeto.slice(0, 200),
-          itemId: null,
-          validade: null,
-        }));
-      await registrarEnviados(empresaId, registro, agora);
+      for (const r of registros) await registrarEnviados(r.empresaId, r.alertas, agora);
       if (pendentes.length > 0) await marcarEnviados(pendentes.map((p) => p.id), agora);
       enviados += 1;
     } catch (e) {
@@ -248,32 +400,48 @@ async function enviarResumosDaManha(
   return enviados;
 }
 
-async function rodarEmpresa(empresaId: string, agora: Date): Promise<{ novos: number; enviados: number; resumos: number } | null> {
+async function rodarEmpresa(
+  empresaId: string,
+  agora: Date,
+  cache: CacheRodada,
+): Promise<{ novos: number; enviados: number; resumos: number } | null> {
   const vinculos = await listarVinculosAtivos(empresaId);
-  if (vinculos.length === 0) return null;
+  const gestoresExtras = await gestoresExtrasDaEmpresa(empresaId);
+  if (vinculos.length === 0 && gestoresExtras.length === 0) return null;
   const pessoas: PessoaWa[] = vinculos.map((v) => ({ id: v.usuarioId, ativa: true, prazos: v.escolhas.prazos }));
   const pipeline = await listarPipeline(empresaId).catch((e: unknown) => {
     console.error("[whatsapp] pipeline:", mensagemDe(e));
     return [];
   });
-  const itens: ItemAlerta[] = pipeline.map((i) => ({
-    id: i.id,
-    etapa: i.etapa,
-    objeto: i.item.objeto,
-    dataEncerramento: i.item.dataEncerramento,
-    responsavelId: i.responsavelId,
-  }));
+  const itens: ItemAlerta[] = pipeline.map(itemDeAlerta);
 
   const entrega = await entregarAlertasWa(empresaId, alertasDePrazo(itens, pessoas, agora), agora);
+  let novos = entrega.novos;
+  let enviados = entrega.enviados;
+
+  if (gestoresExtras.length > 0) {
+    // Prazo urgente dos itens desta empresa para quem a acessa de fora, com o nome dela no texto.
+    // Item com responsável da própria equipe que já recebe prazo fica só com ele, como acontece com o gestor de casa.
+    const nome = await nomeCurtoDaEmpresa(empresaId, cache);
+    if (nome !== null) {
+      const daEquipe = new Set(pessoas.filter((p) => p.prazos).map((p) => p.id));
+      const itensDosGestores = itens.filter((i) => i.responsavelId === null || !daEquipe.has(i.responsavelId));
+      const gestores: PessoaWa[] = gestoresExtras.map((v) => ({ id: v.usuarioId, ativa: true, prazos: v.escolhas.prazos }));
+      const doGestor = await entregarAlertasWa(empresaId, alertasDePrazo(itensDosGestores, gestores, agora, nome), agora, { semBotoes: true });
+      novos += doGestor.novos;
+      enviados += doGestor.enviados;
+    }
+  }
+
   let resumos = 0;
-  if (horaDeSaoPaulo(agora) === HORA_RESUMO) {
+  if (vinculos.length > 0 && horaDeSaoPaulo(agora) === HORA_RESUMO) {
     try {
-      resumos = await enviarResumosDaManha(empresaId, vinculos, itens, agora);
+      resumos = await enviarResumosDaManha(empresaId, vinculos, itens, agora, cache);
     } catch (e) {
       console.error("[whatsapp] resumo:", mensagemDe(e));
     }
   }
-  return { novos: entrega.novos, enviados: entrega.enviados + resumos, resumos };
+  return { novos, enviados: enviados + resumos, resumos };
 }
 
 export async function executarAlertasWa(agora: Date): Promise<ResultadoAlertasWa> {
@@ -291,9 +459,10 @@ export async function executarAlertasWa(agora: Date): Promise<ResultadoAlertasWa
   if (!dentroDoHorario(agora)) return resultado;
 
   const ids = await listarIdsEmpresasAtivas().catch((): string[] => []);
+  const cache = novoCache();
   for (const empresaId of ids) {
     try {
-      const r = await rodarEmpresa(empresaId, agora);
+      const r = await rodarEmpresa(empresaId, agora, cache);
       if (r === null) continue;
       resultado.empresas += 1;
       resultado.novos += r.novos;

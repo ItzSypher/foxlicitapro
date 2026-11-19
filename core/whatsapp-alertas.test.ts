@@ -10,18 +10,21 @@ import {
   gerarCodigoAtivacao,
   inicioDaSemana,
   janelaAberta,
+  juntarResumos,
   lerComando,
   lerEscolhas,
   lerEventoRecebido,
   lerPayload,
   linkAtivacao,
   mesDeSaoPaulo,
+  partesDoResumoManha,
   payloadDoBotao,
   quandoFecha,
   textoDoResumo,
   textoResumoManha,
   tituloAtribuir,
   type AcaoBotao,
+  type BlocoResumo,
   type DadosResumoManha,
   type ItemAlerta,
   type MovimentoEquipe,
@@ -132,6 +135,10 @@ describe("alertasDePrazo", () => {
     const r = alertasDePrazo([item({ id: "i1" })], [ana, beto, caio, dora], AGORA);
     expect(r.map((a) => a.usuarioId)).toEqual(["ana", "beto"]);
     expect(r[0]?.tipo).toBe("prazo24");
+  });
+  it("com o nome da empresa, o texto diz de qual é o prazo", () => {
+    const r = alertasDePrazo([item({ id: "i1", dataEncerramento: depois(HORA) })], [ana], AGORA, "Beta");
+    expect(r[0]?.texto).toContain("⏰ Prazo em 1 h (Beta)\n");
   });
   it("só 24 h e 2 h: o de 48 h fica para o resumo", () => {
     expect(alertasDePrazo([item({ id: "i1", dataEncerramento: depois(30 * HORA) })], [ana], AGORA)).toHaveLength(0);
@@ -278,6 +285,65 @@ describe("textoResumoManha", () => {
   it("nada escolhido ou nada a dizer: vazio", () => {
     const nada = { ...escolhasDoPerfil("operacional"), meta: false };
     expect(textoResumoManha(dados({ escolhas: nada }), AGORA)).toEqual({ texto: "", novasMostradas: [] });
+  });
+});
+
+describe("juntarResumos", () => {
+  const parteLonga = (titulo: string, n: number): string =>
+    [titulo, ...Array.from({ length: n }, (_, i) => `• Item ${i + 1} ${"x".repeat(80)}`)].join("\n");
+
+  it("uma mensagem só com a saudação e um bloco por empresa", () => {
+    const blocos: BlocoResumo[] = [
+      { empresa: "Alfa", partes: ["⏰ Fecham em 48 h: 1\n• Toner (em 10 h)", "🎯 Meta da semana: 0 de 10 (mínimo 5). Faltam 5 para o mínimo."] },
+      { empresa: "Beta", partes: ["🎯 Meta da semana: 2 de 10 (mínimo 5). Faltam 3 para o mínimo."] },
+    ];
+    const texto = juntarResumos("Ana Souza", blocos);
+    expect(texto.startsWith("☀️ Bom dia, Ana!\n\n🏢 *Alfa*\n\n⏰ Fecham em 48 h: 1")).toBe(true);
+    expect(texto).toContain("\n\n🏢 *Beta*\n\n🎯 Meta da semana: 2 de 10");
+    expect(texto.indexOf("*Alfa*")).toBeLessThan(texto.indexOf("*Beta*"));
+    expect(texto).not.toContain("no sistema");
+  });
+  it("bloco sem partes não aparece; sem nenhum, texto vazio", () => {
+    expect(juntarResumos("Ana", [{ empresa: "Alfa", partes: [] }, { empresa: "Beta", partes: ["🎯 Meta"] }])).not.toContain("Alfa");
+    expect(juntarResumos("Ana", [{ empresa: "Alfa", partes: [] }])).toBe("");
+    expect(juntarResumos("Ana", [])).toBe("");
+  });
+  it("passou do limite: corta as listas de cada bloco e avisa quantas ficaram de fora", () => {
+    const blocos: BlocoResumo[] = [
+      { empresa: "Alfa", partes: [parteLonga("⏰ Fecham em 48 h: 30", 30), "🎯 Meta da semana: 1 de 10 (mínimo 5)"] },
+      { empresa: "Beta", partes: [parteLonga("⌛ Aguardando resultado: 30", 30)] },
+    ];
+    const texto = juntarResumos("Ana", blocos, 1500);
+    expect(texto.length).toBeLessThanOrEqual(1500);
+    expect(texto).toContain("*Alfa*");
+    expect(texto).toContain("*Beta*");
+    expect(texto).toContain("⏰ Fecham em 48 h: 30");
+    expect(texto).toContain("⌛ Aguardando resultado: 30");
+    expect(texto.match(/e mais \d+ no sistema/g)).toHaveLength(2);
+    expect(texto).toContain("• Item 1 ");
+  });
+  it("bloco curto fica inteiro e deixa a sobra para o longo", () => {
+    const blocos: BlocoResumo[] = [
+      { empresa: "Alfa", partes: ["🎯 Meta da semana: 1 de 10 (mínimo 5)"] },
+      { empresa: "Beta", partes: [parteLonga("⏰ Fecham em 48 h: 40", 40)] },
+    ];
+    const texto = juntarResumos("Ana", blocos, 1200);
+    expect(texto.length).toBeLessThanOrEqual(1200);
+    expect(texto).toContain("🎯 Meta da semana: 1 de 10 (mínimo 5)");
+    expect(texto).toMatch(/e mais \d+ no sistema/);
+    expect(texto.match(/e mais \d+ no sistema/g)).toHaveLength(1);
+  });
+  it("o +N da lista entra na conta do que ficou de fora", () => {
+    const parte = [parteLonga("⏰ Fecham em 48 h: 25", 5), "+20"].join("\n");
+    const texto = juntarResumos("Ana", [{ empresa: "Alfa", partes: [parte] }, { empresa: "Beta", partes: ["🎯 Meta"] }], 400);
+    const omitidos = Number(/e mais (\d+) no sistema/.exec(texto)?.[1]);
+    expect(omitidos).toBeGreaterThanOrEqual(20);
+    expect(texto).not.toContain("\n+20");
+  });
+  it("partesDoResumoManha traz as mesmas partes do texto do resumo", () => {
+    const d = dados({ disputasNaSemana: 2 });
+    const { partes } = partesDoResumoManha(d, AGORA);
+    expect(textoResumoManha(d, AGORA).texto).toBe(`☀️ Bom dia, Ana!\n\n${partes.join("\n\n")}`);
   });
 });
 

@@ -7,7 +7,20 @@ import { CLASSE_CAMPO, EditorCnaes, SeletorRegioes } from "@/components/empresa/
 import type { EmpresaConsultada } from "@/core/brasilapi";
 import { PORTES, ROTULO_PORTE, type CnaePerfil, type Porte } from "@/core/perfil";
 import type { Regiao } from "@/core/types";
-import { consultarCnpjAction, criarEmpresaAction, criarEmpresaTesteAction, definirEmpresaAtivaAction } from "./actions";
+import {
+  adicionarGestorAction,
+  consultarCnpjAction,
+  criarEmpresaAction,
+  criarEmpresaTesteAction,
+  definirEmpresaAtivaAction,
+  removerGestorAction,
+} from "./actions";
+
+export interface GestorLinha {
+  usuarioId: string;
+  nome: string;
+  email: string;
+}
 
 export interface LinhaEmpresa {
   id: string;
@@ -18,6 +31,7 @@ export interface LinhaEmpresa {
   ativa: boolean;
   teste: boolean;
   usuarios: number;
+  gestores: GestorLinha[];
 }
 
 const BOTAO =
@@ -68,6 +82,7 @@ export function PainelEmpresas({ empresas, empresaAtualId }: { empresas: LinhaEm
                 </button>
               )}
             </div>
+            <Gestores empresaId={e.id} gestores={e.gestores} aoMudar={() => roteador.refresh()} />
             {erro && erro.id === e.id ? (
               <p role="alert" className="text-[13px] text-negative">
                 {erro.texto}
@@ -82,6 +97,77 @@ export function PainelEmpresas({ empresas, empresaAtualId }: { empresas: LinhaEm
   );
 }
 
+function Gestores({ empresaId, gestores, aoMudar }: { empresaId: string; gestores: GestorLinha[]; aoMudar: () => void }) {
+  const [email, setEmail] = useState("");
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [ocupado, iniciar] = useTransition();
+
+  function adicionar() {
+    setAviso(null);
+    iniciar(async () => {
+      const r = await adicionarGestorAction({ empresaId, email });
+      if (!r.ok) {
+        setAviso(r.erro);
+        return;
+      }
+      setEmail("");
+      aoMudar();
+    });
+  }
+
+  function remover(g: GestorLinha) {
+    setAviso(null);
+    iniciar(async () => {
+      const r = await removerGestorAction({ empresaId, usuarioId: g.usuarioId });
+      if (!r.ok) {
+        setAviso(r.erro);
+        return;
+      }
+      aoMudar();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-2">
+      <h3 className="text-sm font-semibold text-ink">Gestores</h3>
+      {gestores.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">Ninguém de fora da equipe gerencia esta empresa.</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {gestores.map((g) => (
+            <li key={g.usuarioId} className="flex min-w-0 items-center gap-2">
+              <p className="min-w-0 flex-1 text-[13px] break-words text-ink">
+                {g.nome} <span className="text-muted-foreground">· {g.email}</span>
+              </p>
+              <button type="button" disabled={ocupado} onClick={() => remover(g)} className={BOTAO_SECUNDARIO}>
+                Remover
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          aria-label="E-mail do gestor"
+          type="email"
+          placeholder="E-mail de quem já tem login"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={CLASSE_CAMPO}
+        />
+        <button type="button" disabled={ocupado || email.trim() === ""} onClick={adicionar} className={`${BOTAO_SECUNDARIO} w-full sm:w-auto`}>
+          {ocupado ? "Aguarde…" : "Adicionar gestor"}
+        </button>
+      </div>
+      {aviso ? (
+        <p role="alert" className="text-[13px] text-negative">
+          {aviso}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function NovaEmpresaTeste({ aoCriar }: { aoCriar: () => void }) {
   const [cnpj, setCnpj] = useState("");
   const [razaoSocial, setRazaoSocial] = useState("");
@@ -92,18 +178,24 @@ function NovaEmpresaTeste({ aoCriar }: { aoCriar: () => void }) {
   const [nomeDono, setNomeDono] = useState("");
   const [emailDono, setEmailDono] = useState("");
   const [senha, setSenha] = useState("");
+  const [semDono, setSemDono] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [ocupado, iniciar] = useTransition();
 
   function criar() {
     setAviso(null);
     iniciar(async () => {
-      const r = await criarEmpresaTesteAction({ cnpj, razaoSocial, uf, municipio, porte, regioes, nomeDono, emailDono, senha });
+      const r = await criarEmpresaTesteAction({ cnpj, razaoSocial, uf, municipio, porte, regioes, semDono, nomeDono, emailDono, senha });
       if (!r.ok) {
         setAviso({ ok: false, texto: r.erro });
         return;
       }
-      setAviso({ ok: true, texto: "Empresa de teste criada. O dono já pode entrar com o e-mail e a senha informados." });
+      setAviso({
+        ok: true,
+        texto: semDono
+          ? "Empresa de teste criada sem dono. Adicione quem vai gerenciá-la na seção Gestores."
+          : "Empresa de teste criada. O dono já pode entrar com o e-mail e a senha informados.",
+      });
       setCnpj("");
       setRazaoSocial("");
       setMunicipio("");
@@ -140,17 +232,25 @@ function NovaEmpresaTeste({ aoCriar }: { aoCriar: () => void }) {
       </div>
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-semibold text-ink">Primeiro dono</h3>
-        <input aria-label="Nome do dono de teste" placeholder="Nome" value={nomeDono} onChange={(e) => setNomeDono(e.target.value)} className={CLASSE_CAMPO} />
-        <input aria-label="E-mail do dono de teste" type="email" placeholder="E-mail" value={emailDono} onChange={(e) => setEmailDono(e.target.value)} className={CLASSE_CAMPO} />
-        <input
-          aria-label="Senha do dono de teste"
-          type="password"
-          autoComplete="new-password"
-          placeholder="Senha (mínimo 8 caracteres)"
-          value={senha}
-          onChange={(e) => setSenha(e.target.value)}
-          className={CLASSE_CAMPO}
-        />
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ink">
+          <input type="checkbox" checked={semDono} onChange={(e) => setSemDono(e.target.checked)} className="size-4" />
+          Criar sem dono por enquanto (o dono é adicionado depois)
+        </label>
+        {semDono ? null : (
+          <>
+            <input aria-label="Nome do dono de teste" placeholder="Nome" value={nomeDono} onChange={(e) => setNomeDono(e.target.value)} className={CLASSE_CAMPO} />
+            <input aria-label="E-mail do dono de teste" type="email" placeholder="E-mail" value={emailDono} onChange={(e) => setEmailDono(e.target.value)} className={CLASSE_CAMPO} />
+            <input
+              aria-label="Senha do dono de teste"
+              type="password"
+              autoComplete="new-password"
+              placeholder="Senha (mínimo 8 caracteres)"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className={CLASSE_CAMPO}
+            />
+          </>
+        )}
       </div>
       <button type="button" disabled={ocupado} onClick={criar} className={`${BOTAO} w-full sm:w-fit`}>
         {ocupado ? "Criando…" : "Criar empresa de teste"}

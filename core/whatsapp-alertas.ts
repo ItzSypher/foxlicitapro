@@ -217,8 +217,14 @@ function primeiroNome(nome: string): string {
 /**
  * Item em jogo que fecha em até 24 h (faixas de 24 h e 2 h). Vai ao responsável, se ele quer prazos;
  * sem responsável (ou com um que não quer prazos), a todas as pessoas ativas que querem.
+ * `empresa`: nome curto, só para itens de uma empresa que não é a da pessoa (gestor de várias empresas).
  */
-export function alertasDePrazo(itens: ReadonlyArray<ItemAlerta>, pessoas: ReadonlyArray<PessoaWa>, agora: Date): AlertaWa[] {
+export function alertasDePrazo(
+  itens: ReadonlyArray<ItemAlerta>,
+  pessoas: ReadonlyArray<PessoaWa>,
+  agora: Date,
+  empresa?: string,
+): AlertaWa[] {
   const querem = pessoas.filter((p) => p.ativa && p.prazos).map((p) => p.id);
   const alertas: AlertaWa[] = [];
   for (const item of itens) {
@@ -228,7 +234,8 @@ export function alertasDePrazo(itens: ReadonlyArray<ItemAlerta>, pessoas: Readon
     if (faixa !== "prazo2" && faixa !== "prazo24") continue;
     const responsavel = item.responsavelId === null ? null : querem.find((id) => id === item.responsavelId);
     const destinos = responsavel ? [responsavel] : querem;
-    const texto = `⏰ Prazo em ${textoRestante(encerramento.getTime() - agora.getTime())}\n${objetoCurto(item.objeto)}`;
+    const onde = empresa === undefined ? "" : ` (${empresa})`;
+    const texto = `⏰ Prazo em ${textoRestante(encerramento.getTime() - agora.getTime())}${onde}\n${objetoCurto(item.objeto)}`;
     for (const usuarioId of destinos) {
       alertas.push({ usuarioId, tipo: faixa, chave: `${faixa}:${item.id}`, texto, itemId: item.id, validade: encerramento });
     }
@@ -380,11 +387,14 @@ function textoDaMeta(feitas: number, meta: MetaConfig): string {
   return `${placar}. ${faltam === 1 ? "Falta 1" : `Faltam ${faltam}`} para o mínimo.`;
 }
 
-/**
- * Resumo das 7h, montado pelas escolhas da pessoa. Cada parte só entra se tiver o que dizer;
- * a meta entra sempre que escolhida. Sem nenhuma parte, texto vazio.
- */
-export function textoResumoManha(d: DadosResumoManha, agora: Date): ResumoManha {
+/** As partes do resumo (cada uma é um trecho com título e lista) e as novas que apareceram nelas. */
+export interface PartesResumo {
+  partes: string[];
+  novasMostradas: string[];
+}
+
+/** Cada parte só entra se tiver o que dizer; a meta entra sempre que escolhida. */
+export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesResumo {
   const e = d.escolhas;
   const partes: string[] = [];
   const mostradas = new Set<string>();
@@ -461,9 +471,85 @@ export function textoResumoManha(d: DadosResumoManha, agora: Date): ResumoManha 
 
   if (e.meta) partes.push(textoDaMeta(d.disputasNaSemana, d.meta));
 
+  return { partes, novasMostradas: [...mostradas] };
+}
+
+function saudacaoDaManha(nome: string): string {
+  return primeiroNome(nome) === "" ? "☀️ Bom dia!" : `☀️ Bom dia, ${primeiroNome(nome)}!`;
+}
+
+/**
+ * Resumo das 7h, montado pelas escolhas da pessoa. Cada parte só entra se tiver o que dizer;
+ * a meta entra sempre que escolhida. Sem nenhuma parte, texto vazio.
+ */
+export function textoResumoManha(d: DadosResumoManha, agora: Date): ResumoManha {
+  const { partes, novasMostradas } = partesDoResumoManha(d, agora);
   if (partes.length === 0) return { texto: "", novasMostradas: [] };
-  const saudacao = primeiroNome(d.nome) === "" ? "☀️ Bom dia!" : `☀️ Bom dia, ${primeiroNome(d.nome)}!`;
-  return { texto: cortar([saudacao, ...partes].join("\n\n"), MAX_TEXTO_WA), novasMostradas: [...mostradas] };
+  return { texto: cortar([saudacaoDaManha(d.nome), ...partes].join("\n\n"), MAX_TEXTO_WA), novasMostradas };
+}
+
+/** Parte do resumo de uma empresa, com o nome curto dela. */
+export interface BlocoResumo {
+  empresa: string;
+  partes: ReadonlyArray<string>;
+}
+
+function textoDoBloco(empresa: string, partes: ReadonlyArray<string>, omitidos: number): string {
+  return [`🏢 *${empresa}*`, ...partes, ...(omitidos > 0 ? [`e mais ${omitidos} no sistema`] : [])].join("\n\n");
+}
+
+/** Tira a última entrada da lista de uma parte (título na primeira linha). Sem lista que sobre, a parte some. */
+function tirarUltimaEntrada(parte: string): { parte: string | null; perdidos: number } {
+  const separador = parte.includes("\n\n") ? "\n\n" : "\n";
+  const entradas = parte.split(separador);
+  const ultima = entradas.pop() ?? "";
+  const resto = /^\+(\d+)$/.exec(ultima);
+  const perdidos = resto?.[1] ? Number(resto[1]) : 1;
+  return entradas.length <= 1 ? { parte: null, perdidos } : { parte: entradas.join(separador), perdidos };
+}
+
+/** Encolhe o bloco até caber: corta o fim das listas (da última parte para a primeira) e avisa quantas entradas ficaram de fora. */
+function ajustarBloco(bloco: BlocoResumo, orcamento: number): string {
+  const partes = [...bloco.partes];
+  let omitidos = 0;
+  while (partes.length > 0 && textoDoBloco(bloco.empresa, partes, omitidos).length > orcamento) {
+    const indice = partes.length - 1;
+    const { parte, perdidos } = tirarUltimaEntrada(partes[indice] ?? "");
+    omitidos += perdidos;
+    if (parte === null) partes.pop();
+    else partes[indice] = parte;
+  }
+  return textoDoBloco(bloco.empresa, partes, omitidos);
+}
+
+/**
+ * Uma mensagem só para a pessoa com um bloco por empresa (cabeçalho com o nome curto dela). Cabe em `max`
+ * caracteres: blocos curtos ficam inteiros e os longos dividem o espaço que sobra, com as listas cortadas
+ * e "e mais N no sistema". Sem blocos com conteúdo, texto vazio.
+ */
+export function juntarResumos(nome: string, blocos: ReadonlyArray<BlocoResumo>, max: number = MAX_TEXTO_WA): string {
+  const comConteudo = blocos.filter((b) => b.partes.length > 0);
+  if (comConteudo.length === 0) return "";
+  const saudacao = saudacaoDaManha(nome);
+  const completos = comConteudo.map((b) => textoDoBloco(b.empresa, b.partes, 0).length);
+  let sobra = max - saudacao.length - 2 * comConteudo.length;
+  let pendentes = comConteudo.map((_, i) => i);
+  const orcamentos = new Map<number, number>();
+  while (pendentes.length > 0) {
+    const parcela = Math.floor(sobra / pendentes.length);
+    const cabem = pendentes.filter((i) => (completos[i] ?? 0) <= parcela);
+    if (cabem.length === 0) {
+      for (const i of pendentes) orcamentos.set(i, parcela);
+      break;
+    }
+    for (const i of cabem) {
+      orcamentos.set(i, completos[i] ?? 0);
+      sobra -= completos[i] ?? 0;
+    }
+    pendentes = pendentes.filter((i) => !cabem.includes(i));
+  }
+  const textos = comConteudo.map((b, i) => ajustarBloco(b, orcamentos.get(i) ?? 0));
+  return cortar([saudacao, ...textos].join("\n\n"), max);
 }
 
 /* ---------- comandos ---------- */

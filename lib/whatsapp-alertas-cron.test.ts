@@ -11,6 +11,8 @@ const m = vi.hoisted(() => ({
   descartarVencidos: vi.fn(),
   limparEventos: vi.fn(),
   listarVinculosAtivos: vi.fn(),
+  listarVinculosGestoresExtras: vi.fn(),
+  listarIdsEmpresasExtras: vi.fn(),
   listarMudancasDesde: vi.fn(),
   descartarAvulsosAntigos: vi.fn(),
   chavesRegistradas: vi.fn(),
@@ -34,6 +36,7 @@ vi.mock("@/db/whatsapp", () => ({
   descartarVencidos: m.descartarVencidos,
   limparEventos: m.limparEventos,
   listarVinculosAtivos: m.listarVinculosAtivos,
+  listarVinculosGestoresExtras: m.listarVinculosGestoresExtras,
   listarMudancasDesde: m.listarMudancasDesde,
   descartarAvulsosAntigos: m.descartarAvulsosAntigos,
   chavesRegistradas: m.chavesRegistradas,
@@ -42,7 +45,8 @@ vi.mock("@/db/whatsapp", () => ({
   registrarEnviados: m.registrarEnviados,
 }));
 vi.mock("@/db/empresas", () => ({ listarIdsEmpresasAtivas: m.listarIdsEmpresasAtivas, lerEmpresa: m.lerEmpresa }));
-vi.mock("@/db/avisos", () => ({ listarPessoasDeAviso: m.listarPessoasDeAviso }));
+vi.mock("@/db/usuario-empresas", () => ({ listarIdsEmpresasExtras: m.listarIdsEmpresasExtras }));
+vi.mock("@/db/avisos",() => ({ listarPessoasDeAviso: m.listarPessoasDeAviso }));
 vi.mock("@/db/pipeline", () => ({ listarPipeline: m.listarPipeline }));
 vi.mock("@/db/meta", () => ({ lerMetaDisputas: m.lerMetaDisputas }));
 vi.mock("@/db/preferencias", () => ({ lerPreferencias: m.lerPreferencias }));
@@ -91,6 +95,8 @@ beforeEach(() => {
   m.limparEventos.mockResolvedValue(0);
   m.listarIdsEmpresasAtivas.mockResolvedValue([EMPRESA]);
   m.listarVinculosAtivos.mockImplementation(async () => [vinculo(new Date())]);
+  m.listarVinculosGestoresExtras.mockResolvedValue([]);
+  m.listarIdsEmpresasExtras.mockResolvedValue([]);
   m.listarPessoasDeAviso.mockResolvedValue([{ id: USUARIO }]);
   m.listarPipeline.mockResolvedValue([
     {
@@ -234,6 +240,90 @@ describe("executarAlertasWa", () => {
     const r = await executarAlertasWa(DEZ_DA_MANHA);
     expect(r.empresas).toBe(1);
     erro.mockRestore();
+  });
+});
+
+describe("gestor de várias empresas", () => {
+  const EXTRA = "33333333-3333-4333-8333-333333333333";
+  const sosMeta = { ...escolhasDoPerfil("acompanhamento"), grandes: false };
+
+  function nomesDasEmpresas() {
+    m.lerEmpresa.mockImplementation(async (id: string) => ({
+      nomeFantasia: id === EMPRESA ? "Alfa" : "Beta",
+      razaoSocial: id === EMPRESA ? "Alfa Comércio Ltda" : "Beta Serviços Ltda",
+    }));
+  }
+
+  it("o resumo das 7h sai numa mensagem só, com um bloco por empresa, e uma vez por dia", async () => {
+    nomesDasEmpresas();
+    m.listarIdsEmpresasAtivas.mockResolvedValue([EMPRESA, EXTRA]);
+    m.listarVinculosAtivos.mockImplementation(async (id: string) => (id === EMPRESA ? [{ ...vinculo(SETE_DA_MANHA), escolhas: sosMeta }] : []));
+    m.listarIdsEmpresasExtras.mockResolvedValue([EXTRA]);
+    const r = await executarAlertasWa(SETE_DA_MANHA);
+    expect(r.resumos).toBe(1);
+    expect(m.enviarParaPessoa).toHaveBeenCalledTimes(1);
+    const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
+    expect(texto.indexOf("🏢 *Alfa*")).toBeGreaterThan(0);
+    expect(texto.indexOf("🏢 *Beta*")).toBeGreaterThan(texto.indexOf("🏢 *Alfa*"));
+    expect(m.gravarConfig).toHaveBeenCalledWith(`manha:${USUARIO}:2026-11-16`, SETE_DA_MANHA.toISOString());
+    expect(m.registrarEnviados).toHaveBeenCalledWith(EXTRA, [], SETE_DA_MANHA);
+
+    await executarAlertasWa(new Date(SETE_DA_MANHA.getTime() + 600_000));
+    expect(m.enviarParaPessoa).toHaveBeenCalledTimes(1);
+  });
+
+  it("sem extras o texto é o de sempre, sem cabeçalho de empresa", async () => {
+    nomesDasEmpresas();
+    m.listarVinculosAtivos.mockImplementation(async () => [{ ...vinculo(SETE_DA_MANHA), escolhas: sosMeta }]);
+    await executarAlertasWa(SETE_DA_MANHA);
+    const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
+    expect(texto).not.toContain("🏢");
+    expect(texto.startsWith("☀️ Bom dia, Pessoa!\n\n🎯 Meta da semana")).toBe(true);
+  });
+
+  it("sem a tabela usuario_empresas o cron segue como hoje", async () => {
+    nomesDasEmpresas();
+    const semRelacao = Object.assign(new Error('relation "usuario_empresas" does not exist'), { code: "42P01" });
+    m.listarVinculosGestoresExtras.mockRejectedValue(semRelacao);
+    m.listarIdsEmpresasExtras.mockRejectedValue(semRelacao);
+    m.listarVinculosAtivos.mockImplementation(async () => [{ ...vinculo(SETE_DA_MANHA), escolhas: sosMeta }]);
+    const erro = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const r = await executarAlertasWa(SETE_DA_MANHA);
+    expect(r.resumos).toBe(1);
+    expect(String(m.enviarParaPessoa.mock.calls[0]?.[1])).not.toContain("🏢");
+    expect(erro).not.toHaveBeenCalled();
+    erro.mockRestore();
+  });
+
+  it("o prazo urgente da empresa extra chega ao gestor com o nome da empresa e sem botões de item", async () => {
+    nomesDasEmpresas();
+    m.listarIdsEmpresasAtivas.mockResolvedValue([EXTRA]);
+    m.listarVinculosAtivos.mockResolvedValue([]);
+    m.listarVinculosGestoresExtras.mockResolvedValue([{ ...vinculo(DEZ_DA_MANHA, "gestor"), empresaId: EMPRESA }]);
+    m.listarPipeline.mockResolvedValue([
+      { id: "urgente", etapa: "cotando", responsavelId: null, item: { objeto: "Toner", dataEncerramento: new Date(DEZ_DA_MANHA.getTime() + 3_600_000).toISOString() } },
+    ]);
+    await executarAlertasWa(DEZ_DA_MANHA);
+    const chamada = m.entregarAlertasWa.mock.calls.find((c) => (c[1] as unknown[]).length > 0);
+    expect(chamada?.[0]).toBe(EXTRA);
+    const alertas = chamada?.[1] as Array<{ usuarioId: string; chave: string; texto: string; itemId: string | null }>;
+    expect(alertas).toHaveLength(1);
+    expect(alertas[0]).toMatchObject({ usuarioId: USUARIO, chave: "prazo2:urgente", itemId: "urgente" });
+    expect(alertas[0]?.texto).toContain("(Beta)");
+    expect(chamada?.[3]).toEqual({ semBotoes: true });
+  });
+
+  it("item com responsável da equipe que recebe prazo não vai também ao gestor de fora", async () => {
+    nomesDasEmpresas();
+    m.listarIdsEmpresasAtivas.mockResolvedValue([EXTRA]);
+    m.listarVinculosAtivos.mockResolvedValue([{ ...vinculo(DEZ_DA_MANHA, "gestor"), usuarioId: "equipe", empresaId: EXTRA }]);
+    m.listarVinculosGestoresExtras.mockResolvedValue([{ ...vinculo(DEZ_DA_MANHA, "gestor"), empresaId: EMPRESA }]);
+    m.listarPipeline.mockResolvedValue([
+      { id: "urgente", etapa: "cotando", responsavelId: "equipe", item: { objeto: "Toner", dataEncerramento: new Date(DEZ_DA_MANHA.getTime() + 3_600_000).toISOString() } },
+    ]);
+    await executarAlertasWa(DEZ_DA_MANHA);
+    const doGestor = m.entregarAlertasWa.mock.calls.find((c) => (c[3] as { semBotoes?: boolean } | undefined)?.semBotoes === true);
+    expect(doGestor?.[1]).toEqual([]);
   });
 });
 

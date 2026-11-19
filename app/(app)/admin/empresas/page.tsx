@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { listarEmpresas } from "@/db/empresas";
+import { listarGestoresPorEmpresa } from "@/db/usuario-empresas";
 import { exigirSessao } from "@/lib/sessao";
 import { PainelEmpresas } from "./painel";
 
@@ -11,6 +12,7 @@ export default async function AdminEmpresasPage() {
   const sessao = await exigirSessao();
   if (!sessao.superadmin) redirect("/radar");
   const empresas = await listarEmpresas();
+  const gestoresPorEmpresa = await listarGestoresPorEmpresa();
 
   return (
     <div className="mx-auto flex w-full max-w-[860px] min-w-0 flex-col gap-5">
@@ -21,7 +23,7 @@ export default async function AdminEmpresasPage() {
         </p>
       </header>
       <PainelEmpresas
-        empresaAtualId={sessao.empresaId}
+        empresaAtualId={sessao.empresaPropriaId}
         empresas={empresas.map((e) => ({
           id: e.id,
           cnpj: e.cnpj,
@@ -31,6 +33,7 @@ export default async function AdminEmpresasPage() {
           ativa: e.ativa,
           teste: e.teste,
           usuarios: e.usuarios,
+          gestores: (gestoresPorEmpresa.get(e.id) ?? []).map((g) => ({ usuarioId: g.usuarioId, nome: g.nome, email: g.email })),
         }))}
       />
     </div>
