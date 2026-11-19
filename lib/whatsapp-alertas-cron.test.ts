@@ -24,6 +24,7 @@ const m = vi.hoisted(() => ({
   lerPreferencias: vi.fn(),
   entregarAlertasWa: vi.fn(),
   enviarParaPessoa: vi.fn(),
+  lerMetaDisputas: vi.fn(),
 }));
 
 vi.mock("@/lib/zernio", () => ({ zernioConfigurado: m.zernioConfigurado, garantirWebhook: m.garantirWebhook }));
@@ -43,6 +44,7 @@ vi.mock("@/db/whatsapp", () => ({
 vi.mock("@/db/empresas", () => ({ listarIdsEmpresasAtivas: m.listarIdsEmpresasAtivas, lerEmpresa: m.lerEmpresa }));
 vi.mock("@/db/avisos", () => ({ listarPessoasDeAviso: m.listarPessoasDeAviso }));
 vi.mock("@/db/pipeline", () => ({ listarPipeline: m.listarPipeline }));
+vi.mock("@/db/meta", () => ({ lerMetaDisputas: m.lerMetaDisputas }));
 vi.mock("@/db/preferencias", () => ({ lerPreferencias: m.lerPreferencias }));
 vi.mock("@/lib/radar-dados", () => ({ obterRadar: vi.fn() }));
 vi.mock("@/lib/whatsapp-envio", () => ({ entregarAlertasWa: m.entregarAlertasWa, enviarParaPessoa: m.enviarParaPessoa }));
@@ -106,6 +108,7 @@ beforeEach(() => {
   m.lerPreferencias.mockResolvedValue({});
   m.entregarAlertasWa.mockResolvedValue({ novos: 0, enviados: 0 });
   m.enviarParaPessoa.mockResolvedValue(true);
+  m.lerMetaDisputas.mockResolvedValue({ minimo: 5, ideal: 10 });
 });
 
 describe("executarAlertasWa", () => {
@@ -186,8 +189,16 @@ describe("executarAlertasWa", () => {
     expect(texto).toContain("☀️ Bom dia, Pessoa!");
     expect(texto).toContain("• Paulo: Notebooks → Em disputa");
     expect(texto).toContain("🏁 Entraram em disputa: 1");
-    expect(texto).toContain("🎯 Meta da semana: 1 de 5");
+    expect(texto).toContain("🎯 Meta da semana: 1 de 10 (mínimo 5)");
     expect(texto).not.toContain("Fecham em 48 h");
+  });
+
+  it("a meta do resumo vem da configuração da empresa", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [vinculo(SETE_DA_MANHA, "dono")]);
+    m.lerMetaDisputas.mockResolvedValue({ minimo: 3, ideal: 7 });
+    await executarAlertasWa(SETE_DA_MANHA);
+    expect(m.lerMetaDisputas).toHaveBeenCalledWith(EMPRESA);
+    expect(String(m.enviarParaPessoa.mock.calls[0]?.[1])).toContain("🎯 Meta da semana: 0 de 7 (mínimo 3)");
   });
 
   it("gestor recebe o operacional e os avisos da fila saem como enviados", async () => {

@@ -4,6 +4,7 @@ import type { LimitesCaixa } from "@/core/caixa";
 import type { RespostaRadar } from "@/core/types";
 import { RadarComPipeline } from "@/components/pipeline/radar-com-pipeline";
 import { temPermissao } from "@/core/permissoes";
+import { carregarPainelMeta } from "@/db/meta";
 import { idsNoPipeline, resumoPipeline, type ResumoPipeline } from "@/db/pipeline";
 import { listarPalavrasChave } from "@/db/palavras-chave";
 import { exigirSessao } from "@/lib/sessao";
@@ -40,12 +41,14 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
   const sessao = await exigirSessao();
   const [preferencias, perfil] = await Promise.all([lerPreferencias(sessao.empresaId), perfilAtual()]);
   const limites: LimitesCaixa = { capitalMaximo: preferencias.capitalMaximo, diasMaximosParado: preferencias.diasMaximosParado };
-  const [resposta, ids, palavras, resumoPipe] = await Promise.all([
+  const [resposta, ids, palavras, resumoPipe, meta] = await Promise.all([
     obterRadar(frente, limites, perfil).catch((): RespostaRadar | null => null),
     idsNoPipeline(sessao.empresaId).catch((): Set<string> => new Set()),
     listarPalavrasChave(sessao.empresaId, sessao.usuarioId).catch((): string[] => []),
     // Uma consulta de contagem; se falhar, o cartão do pipeline só perde os números.
     resumoPipeline(sessao.empresaId).catch((): ResumoPipeline | null => null),
+    // Já devolve null se falhar: o resumo só perde o painel da meta.
+    carregarPainelMeta(sessao.empresaId, new Date()),
   ]);
   const pipeline: PipelinePainel | null = resumoPipe
     ? { ativas: resumoPipe.ativas, emDisputa: resumoPipe.emDisputa.quantidade }
@@ -75,6 +78,7 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
       buscaInicial={lerBusca(params)}
       idsSalvos={[...ids]}
       palavrasSalvas={palavras}
+      meta={meta}
       podeSalvar={sessao !== null && temPermissao(sessao, "mover_pipeline")}
     />
   );

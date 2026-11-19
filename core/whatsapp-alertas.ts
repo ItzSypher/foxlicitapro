@@ -3,6 +3,7 @@
  * Janela de 24 h, horário permitido, perfil de alerta, prazos urgentes, resumo da manhã, comandos, botões e leitura do webhook.
  */
 import { diaDeSaoPaulo, textoRestante } from "@/core/avisos";
+import { inicioDaSemana, type MetaConfig } from "@/core/meta";
 import { resumirObjeto } from "@/core/objeto";
 import { ROTULO_ETAPA, ehEtapa } from "@/components/pipeline/tipos";
 import { z } from "zod";
@@ -94,9 +95,7 @@ export interface EscolhasAlerta {
 
 export const VALOR_GRANDE_PADRAO = 100_000;
 export const VALOR_GRANDE_MAXIMO = 100_000_000;
-/** Meta da semana: itens que chegaram em disputa (mínimo e ideal). */
-export const META_MINIMA = 5;
-export const META_IDEAL = 10;
+export { inicioDaSemana };
 
 /** Escolhas de cada perfil: o operacional recebe o dia a dia; o acompanhamento, só o placar. */
 export function escolhasDoPerfil(perfil: PerfilAlerta, valorGrande: number = VALOR_GRANDE_PADRAO): EscolhasAlerta {
@@ -308,6 +307,8 @@ export interface DadosResumoManha {
   pendencias: ReadonlyArray<string>;
   /** Itens distintos que chegaram em disputa desde segunda-feira */
   disputasNaSemana: number;
+  /** Meta da semana da empresa */
+  meta: MetaConfig;
 }
 
 export interface ResumoManha {
@@ -355,14 +356,6 @@ export function quandoFecha(iso: string): string {
   return `${parte("day")}/${parte("month")} às ${parte("hour")}h${minuto === "00" ? "" : minuto}`;
 }
 
-/** Segunda-feira 0h (São Paulo) da semana de `agora`. */
-export function inicioDaSemana(agora: Date): Date {
-  const dia = diaDeSaoPaulo(agora);
-  const semana = new Date(`${dia}T12:00:00Z`).getUTCDay();
-  const voltar = (semana + 6) % 7;
-  return new Date(new Date(`${dia}T00:00:00-03:00`).getTime() - voltar * 24 * MS_HORA);
-}
-
 function linhaDaNova(n: NovaDoRamo, posicao: number): string {
   const onde = [n.municipio, n.uf].filter((p) => p !== "").join("/");
   const detalhes = [n.valor === null ? "Valor sigiloso" : reais(n.valor), onde, cortar(n.modalidade, 30)].filter((p) => p !== "");
@@ -379,12 +372,12 @@ function comResto(linhas: string[], total: number): string[] {
   return total > linhas.length ? [...linhas, `+${total - linhas.length}`] : linhas;
 }
 
-function textoDaMeta(feitas: number): string {
-  const placar = `🎯 Meta da semana: ${feitas} de ${META_MINIMA} em disputa (ideal ${META_IDEAL})`;
-  if (feitas >= META_IDEAL) return `${placar}. Ideal batido!`;
-  if (feitas >= META_MINIMA) return `${placar}. Meta batida!`;
-  const faltam = META_MINIMA - feitas;
-  return `${placar}. ${faltam === 1 ? "Falta 1" : `Faltam ${faltam}`}.`;
+function textoDaMeta(feitas: number, meta: MetaConfig): string {
+  const placar = `🎯 Meta da semana: ${feitas} de ${meta.ideal} (mínimo ${meta.minimo})`;
+  if (feitas >= meta.ideal) return `${placar}. Ideal batido!`;
+  if (feitas >= meta.minimo) return `${placar}. Meta batida!`;
+  const faltam = meta.minimo - feitas;
+  return `${placar}. ${faltam === 1 ? "Falta 1" : `Faltam ${faltam}`} para o mínimo.`;
 }
 
 /**
@@ -466,7 +459,7 @@ export function textoResumoManha(d: DadosResumoManha, agora: Date): ResumoManha 
     }
   }
 
-  if (e.meta) partes.push(textoDaMeta(d.disputasNaSemana));
+  if (e.meta) partes.push(textoDaMeta(d.disputasNaSemana, d.meta));
 
   if (partes.length === 0) return { texto: "", novasMostradas: [] };
   const saudacao = primeiroNome(d.nome) === "" ? "☀️ Bom dia!" : `☀️ Bom dia, ${primeiroNome(d.nome)}!`;

@@ -5,6 +5,7 @@ import type { Frente, OportunidadeComScore } from "@/core/types";
 import type { Visao } from "@/lib/radar-filtros";
 import type { PaginaRadar } from "@/lib/radar-pagina";
 import { RadarView } from "@/components/radar/radar-view";
+import type { PainelMeta } from "@/core/meta";
 import { BotaoSalvarPipeline } from "./botao-salvar";
 
 interface Props {
@@ -20,10 +21,12 @@ interface Props {
   podeSalvar?: boolean;
   /** Palavras-chave que a pessoa guardou */
   palavrasSalvas?: string[];
+  /** Meta da semana; null quando não foi possível ler */
+  meta?: PainelMeta | null;
 }
 
 /** Radar com o botão "Salvar no pipeline" no detalhe de cada oportunidade. */
-export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvos, podeSalvar = true, palavrasSalvas }: Props) {
+export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvos, podeSalvar = true, palavrasSalvas, meta }: Props) {
   const salvos = useMemo(() => new Set(idsSalvos), [idsSalvos]);
   return (
     <RadarView
@@ -32,6 +35,7 @@ export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvo
       visao={visao}
       buscaInicial={buscaInicial}
       palavrasSalvas={palavrasSalvas}
+      meta={meta}
       renderAcoes={(item: OportunidadeComScore) =>
         podeSalvar || salvos.has(item.id) ? (
           <BotaoSalvarPipeline key={item.id} item={item} salvo={salvos.has(item.id)} />

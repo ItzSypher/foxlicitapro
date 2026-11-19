@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { frasePrazoEncerrado } from "@/core/encerradas";
+import type { PainelMeta } from "@/core/meta";
+import { MetaSemana } from "@/components/meta/meta-semana";
 import { Segmentado, TRILHO_SEGMENTADO, classeItemSegmentado } from "@/components/ui/segmentado";
 import { useFaixaRolavel } from "@/components/ui/usar-faixa-rolavel";
 import { cn } from "@/lib/utils";
@@ -77,9 +79,11 @@ interface Props {
   podeEditar: boolean;
   /** Pode marcar o checklist da revisão jurídica */
   podeRevisar: boolean;
+  /** Meta da semana; null quando não foi possível ler */
+  meta: PainelMeta | null;
 }
 
-export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, regiaoInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar }: Props) {
+export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, regiaoInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar, meta }: Props) {
   if (itensServidor === null) {
     return (
       <div data-largura-total className="flex flex-col gap-4 lg:gap-6">
@@ -99,6 +103,7 @@ export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, r
       pessoas={pessoas}
       podeEditar={podeEditar}
       podeRevisar={podeRevisar}
+      meta={meta}
     />
   );
 }
@@ -113,6 +118,7 @@ function Quadro({
   pessoas,
   podeEditar,
   podeRevisar,
+  meta,
 }: {
   itensServidor: ItemPipeline[];
   encerradas: ResumoEncerrada[];
@@ -123,6 +129,8 @@ function Quadro({
   pessoas: PessoaPipeline[];
   podeEditar: boolean;
   podeRevisar: boolean;
+  /** Meta da semana; null quando não foi possível ler */
+  meta: PainelMeta | null;
 }) {
   const [todos, aplicar] = useOptimistic(itensServidor, reduzir);
   const [soMeus, setSoMeus] = useState(false);
@@ -369,7 +377,11 @@ function Quadro({
       data-largura-total
       className={cn(
         "flex min-w-0 flex-col gap-4 lg:gap-5",
-        vazio ? "" : "md:h-[calc(100dvh-9.25rem)] md:min-h-[26rem] lg:h-[calc(100dvh-5rem)]",
+        vazio
+          ? ""
+          : meta
+            ? "md:h-[calc(100dvh-14.75rem)] md:min-h-[26rem] lg:h-[calc(100dvh-10.5rem)]"
+            : "md:h-[calc(100dvh-9.25rem)] md:min-h-[26rem] lg:h-[calc(100dvh-5rem)]",
       )}
     >
       <div className="flex min-w-0 flex-col gap-1">
@@ -396,6 +408,8 @@ function Quadro({
           </p>
         ) : null}
       </div>
+
+      {meta && !vazio ? <MetaSemana painel={meta} className="shrink-0" /> : null}
 
       {vazio ? null : (
         <div className="flex items-center gap-2 lg:gap-3">

@@ -1,6 +1,7 @@
 import "server-only";
 import { diaDeSaoPaulo } from "@/core/avisos";
 import { casarCnaesComForca } from "@/core/cnae-keywords";
+import { META_PADRAO } from "@/core/meta";
 import { descricaoDoCnae, type PerfilEmpresa } from "@/core/perfil";
 import { recomendar } from "@/core/recomendacao";
 import type { OportunidadeComScore } from "@/core/types";
@@ -19,6 +20,7 @@ import {
 } from "@/core/whatsapp-alertas";
 import { listarPessoasDeAviso } from "@/db/avisos";
 import { lerEmpresa, listarIdsEmpresasAtivas } from "@/db/empresas";
+import { lerMetaDisputas } from "@/db/meta";
 import { listarPipeline } from "@/db/pipeline";
 import { lerPreferencias } from "@/db/preferencias";
 import {
@@ -186,6 +188,7 @@ async function enviarResumosDaManha(
     const mudancas = await listarMudancasDesde(empresaId, inicioDaSemana(agora));
     return new Set(mudancas.filter((m) => m.para === "disputa").map((m) => m.itemId)).size;
   });
+  const meta = sobDemanda(() => lerMetaDisputas(empresaId));
 
   let enviados = 0;
   for (const v of vinculos) {
@@ -213,6 +216,7 @@ async function enviarResumosDaManha(
           movimentos: e.movimentos || e.disputa ? await movimentos() : [],
           pendencias: pendentes.map((p) => p.texto),
           disputasNaSemana: e.meta ? await disputasNaSemana() : 0,
+          meta: e.meta ? await meta() : META_PADRAO,
         },
         agora,
       );

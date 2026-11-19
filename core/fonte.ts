@@ -1,5 +1,5 @@
 /** Portais de origem que o Radar reconhece pelo link da contratação. */
-export type Fonte = "Compras.gov" | "BNC" | "BLL" | "Licitanet" | "Portal de Compras Públicas" | "Compras RJ" | "Outro portal";
+export type Fonte = "Compras.gov" | "BNC" | "BLL" | "Licitanet" | "Portal de Compras Públicas" | "Compras RJ" | "Alerta Licitação" | "Outro portal";
 
 export const FONTES: ReadonlyArray<Fonte> = [
   "Compras.gov",
@@ -8,6 +8,7 @@ export const FONTES: ReadonlyArray<Fonte> = [
   "Licitanet",
   "Portal de Compras Públicas",
   "Compras RJ",
+  "Alerta Licitação",
   "Outro portal",
 ];
 
@@ -19,6 +20,7 @@ const REGRAS: ReadonlyArray<{ fonte: Fonte; trechos: ReadonlyArray<string> }> = 
   { fonte: "Licitanet", trechos: ["licitanet"] },
   { fonte: "Portal de Compras Públicas", trechos: ["portaldecompraspublicas"] },
   { fonte: "Compras RJ", trechos: ["compras.rj.gov.br"] },
+  { fonte: "Alerta Licitação", trechos: ["alertalicitacao"] },
 ];
 
 function hospedeDe(link: string): string {
@@ -30,8 +32,17 @@ function hospedeDe(link: string): string {
   }
 }
 
-/** Portal de origem da oportunidade, pelo `linkOrigem` do PNCP. Sem link ou domínio desconhecido: "Outro portal". */
-export function fonteDaOportunidade(link: string | null | undefined): Fonte {
+/**
+ * Portal de origem da oportunidade, pelo `linkOrigem` do PNCP. Sem link ou domínio desconhecido: "Outro portal",
+ * a menos que a oportunidade tenha vindo do Alerta Licitação (`linkAlerta`), que então é a fonte.
+ */
+export function fonteDaOportunidade(link: string | null | undefined, linkAlerta?: string | null): Fonte {
+  const fonte = fontePeloLink(link);
+  if (fonte === "Outro portal" && linkAlerta && linkAlerta.trim() !== "") return "Alerta Licitação";
+  return fonte;
+}
+
+function fontePeloLink(link: string | null | undefined): Fonte {
   if (!link || link.trim() === "") return "Outro portal";
   const hospede = hospedeDe(link);
   for (const regra of REGRAS) {

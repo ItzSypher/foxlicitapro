@@ -25,6 +25,7 @@ const oportunidadeSchema: z.ZodType<Oportunidade> = z.object({
   sequencialCompra: z.number(),
   linkPncp: z.string(),
   linkOrigem: z.string().nullable(),
+  linkAlerta: z.string().nullish(),
 });
 
 export interface LinhaCache {

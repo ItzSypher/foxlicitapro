@@ -2,7 +2,7 @@ import { fonteDaOportunidade } from "@/core/fonte";
 import { cn } from "@/lib/utils";
 
 /** Selo discreto com o portal de origem da contratação (Compras.gov, BNC, BLL...). */
-export function SeloFonte({ linkOrigem, className }: { linkOrigem: string | null; className?: string }) {
+export function SeloFonte({ linkOrigem, linkAlerta, className }: { linkOrigem: string | null; linkAlerta?: string | null; className?: string }) {
   return (
     <span
       className={cn(
@@ -10,7 +10,7 @@ export function SeloFonte({ linkOrigem, className }: { linkOrigem: string | null
         className,
       )}
     >
-      {fonteDaOportunidade(linkOrigem)}
+      {fonteDaOportunidade(linkOrigem, linkAlerta)}
     </span>
   );
 }

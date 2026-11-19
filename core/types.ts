@@ -33,6 +33,8 @@ export interface Oportunidade {
   sequencialCompra: number;
   linkPncp: string;
   linkOrigem: string | null;
+  /** Página da licitação no Alerta Licitação; presente só nas oportunidades que vieram dessa segunda fonte */
+  linkAlerta?: string | null;
 }
 
 export type Faixa = "go" | "atencao" | "nogo";

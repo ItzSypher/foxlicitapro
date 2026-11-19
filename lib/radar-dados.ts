@@ -4,11 +4,13 @@ import { dentroDasAreas, ufsDeColeta, uniaoDeUfs } from "@/core/areas";
 import { buscarContratacoes, MODALIDADES, UF_PADRAO } from "@/core/pncp/client";
 import { normalizarLista } from "@/core/pncp/normalize";
 import type { LimitesCaixa } from "@/core/caixa";
+import { manterDoAlerta } from "@/core/portais/alerta-licitacao";
 import { buscarRadar, pontuarEOrdenar } from "@/core/radar";
 import type { PerfilEmpresa } from "@/core/perfil";
 import type { Frente, ModalidadeId, Oportunidade, RespostaRadar } from "@/core/types";
 import { montarPaginaRadar, type ConsultaRadar, type PaginaRadar } from "@/lib/radar-pagina";
 import { listarAreasEmpresasAtivas } from "@/db/empresas";
+import { coletarAlertaLicitacao, type ResumoAlerta } from "@/lib/portais/alerta-licitacao";
 import { gravarModalidade, lerCacheRadar, marcarFalha, pegarTrava, soltarTrava, type LinhaCache } from "@/db/radar-cache";
 
 /** Depois desse tempo o cache é servido, mas uma nova coleta começa em segundo plano. */
@@ -20,11 +22,16 @@ export const MAX_PAGINAS_POR_UF = 10;
 /** Depois deste tempo a coleta não começa outra UF (a função do cron tem 300 s). As que sobram ficam para a próxima. */
 const ORCAMENTO_COLETA_MS = 230_000;
 
+/** Tempo a mais, depois do orçamento, em que a segunda fonte ainda pode começar uma consulta (a função tem 300 s). */
+const PRAZO_EXTRA_ALERTA_MS = 20_000;
+
 export interface ResumoColeta {
   executou: boolean;
   porModalidade: Array<{ uf: string; modalidadeId: ModalidadeId; itens: number; situacao: "completa" | "parcial" | "falhou" }>;
   /** UFs que ficaram para a próxima coleta por falta de tempo */
   ufsAdiadas: string[];
+  /** Segunda fonte; ausente quando a coleta nem começou (trava ocupada) */
+  alerta?: ResumoAlerta;
 }
 
 export interface OpcoesColeta {
@@ -71,8 +78,11 @@ export async function atualizarRadar(opcoes: OpcoesColeta = {}): Promise<ResumoC
       for (const r of resultados) {
         const novas = normalizarLista(r.contratacoes, agora);
         if (!r.falhou) {
-          await gravarModalidade(uf, r.modalidadeId, novas, agora);
-          porModalidade.push({ uf, modalidadeId: r.modalidadeId, itens: novas.length, situacao: "completa" });
+          // Coleta completa substitui a lista, mas não pode apagar o que só o Alerta Licitação trouxe.
+          const antigas = anteriores.find((a) => a.uf === uf && a.modalidadeId === r.modalidadeId)?.oportunidades ?? [];
+          const lista = manterDoAlerta(antigas, novas, agora);
+          await gravarModalidade(uf, r.modalidadeId, lista, agora);
+          porModalidade.push({ uf, modalidadeId: r.modalidadeId, itens: lista.length, situacao: "completa" });
           continue;
         }
         if (novas.length > 0) {
@@ -88,7 +98,13 @@ export async function atualizarRadar(opcoes: OpcoesColeta = {}): Promise<ResumoC
         await marcarFalha(uf, r.modalidadeId, agora);
       }
     }
-    return { executou: true, porModalidade, ufsAdiadas };
+    // Segunda fonte (Alerta Licitação), desligada sem token: só nas UFs que acabaram de ser coletadas e dentro do tempo que sobra.
+    const alerta = await coletarAlertaLicitacao(
+      ordenadas.filter((uf) => !ufsAdiadas.includes(uf)),
+      agora,
+      inicio + ORCAMENTO_COLETA_MS + PRAZO_EXTRA_ALERTA_MS,
+    );
+    return { executou: true, porModalidade, ufsAdiadas, alerta };
   } finally {
     await soltarTrava().catch(() => undefined);
   }

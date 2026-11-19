@@ -62,7 +62,7 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
         <span className="min-w-0 truncate">
           {item.municipio}/{item.uf} · {nomeModalidade(item.modalidadeId)}
         </span>
-        <SeloFonte linkOrigem={item.linkOrigem} className="shrink-0" />
+        <SeloFonte linkOrigem={item.linkOrigem} linkAlerta={item.linkAlerta} className="shrink-0" />
       </span>
 
       {motivos && motivos.length > 0 ? <Motivos motivos={motivos.slice(0, 1)} className="mt-auto" /> : null}

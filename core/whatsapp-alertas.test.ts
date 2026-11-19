@@ -197,6 +197,7 @@ function dados(parcial: Partial<DadosResumoManha> = {}): DadosResumoManha {
     movimentos: [],
     pendencias: [],
     disputasNaSemana: 0,
+    meta: { minimo: 5, ideal: 10 },
     ...parcial,
   };
 }
@@ -234,7 +235,7 @@ describe("textoResumoManha", () => {
     expect(r.texto).toContain("⌛ Aguardando resultado: 1\n• Cadeiras");
     expect(r.texto).toContain("📌 Para você: 1\n• 📝 Proposta para revisar");
     expect(r.texto).not.toContain("Detalhe");
-    expect(r.texto).toContain("🎯 Meta da semana: 2 de 5 em disputa (ideal 10). Faltam 3.");
+    expect(r.texto).toContain("🎯 Meta da semana: 2 de 10 (mínimo 5). Faltam 3 para o mínimo.");
   });
   it("acompanhamento: movimentos da equipe, disputas, grandes e meta; sem o operacional", () => {
     const movimentos: MovimentoEquipe[] = [
@@ -268,7 +269,11 @@ describe("textoResumoManha", () => {
     expect(r.novasMostradas).toEqual(["g1"]);
   });
   it("ideal batido", () => {
-    expect(textoResumoManha(dados({ disputasNaSemana: 10 }), AGORA).texto).toContain("Ideal batido!");
+    expect(textoResumoManha(dados({ disputasNaSemana: 10 }), AGORA).texto).toContain("🎯 Meta da semana: 10 de 10 (mínimo 5). Ideal batido!");
+  });
+  it("usa a meta configurada pela empresa", () => {
+    const r = textoResumoManha(dados({ disputasNaSemana: 2, meta: { minimo: 3, ideal: 6 } }), AGORA);
+    expect(r.texto).toContain("🎯 Meta da semana: 2 de 6 (mínimo 3). Falta 1 para o mínimo.");
   });
   it("nada escolhido ou nada a dizer: vazio", () => {
     const nada = { ...escolhasDoPerfil("operacional"), meta: false };

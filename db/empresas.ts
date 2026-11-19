@@ -128,6 +128,15 @@ export async function listarAreasEmpresasAtivas(): Promise<Areas[]> {
   );
 }
 
+/** CNAEs de todas as empresas ativas: base das palavras-chave da segunda fonte (Alerta Licitação). */
+export async function listarCnaesEmpresasAtivas(): Promise<CnaePerfil[]> {
+  const linhas = await sql<{ cnaes: unknown }[]>`select cnaes from empresas where ativa`;
+  return linhas.flatMap((l) => {
+    const r = cnaesSchema.safeParse(l.cnaes);
+    return r.success ? r.data : [];
+  });
+}
+
 export async function listarIdsEmpresasAtivas(): Promise<string[]> {
   const linhas = await sql<{ id: string }[]>`select id from empresas where ativa order by criada_em asc`;
   return linhas.map((l) => l.id);

@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { lerAmostrasEmCache } from "@/db/concorrentes";
 import { listarPrecosRecentes } from "@/db/fornecedores";
+import { carregarPainelMeta } from "@/db/meta";
 import { listarPipeline } from "@/db/pipeline";
 import { listarUsuariosAtivos } from "@/db/usuarios";
 import { separarEncerrados } from "@/core/encerradas";
@@ -94,9 +95,9 @@ export default async function PipelinePage({
     console.error("[pipeline] leitura falhou:", e instanceof Error ? e.message : e);
     itens = null;
   }
-  const pessoas = await lerPessoas(sessao.empresaId);
-
   const agora = momento();
+  const [pessoas, meta] = await Promise.all([lerPessoas(sessao.empresaId), carregarPainelMeta(sessao.empresaId, new Date(agora))]);
+
   const separados = itens === null ? null : separarEncerrados(itens, (i) => ({ etapa: i.etapa, dataEncerramento: i.item.dataEncerramento }), agora);
   const encerradas: ResumoEncerrada[] = (separados?.encerrados ?? []).map((i) => ({
     regiao: i.item.regiao,
@@ -117,6 +118,7 @@ export default async function PipelinePage({
       pessoas={pessoas}
       podeEditar={temPermissao(sessao, "mover_pipeline")}
       podeRevisar={temPermissao(sessao, "revisao_juridica")}
+      meta={meta}
     />
   );
 }

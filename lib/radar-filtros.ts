@@ -139,7 +139,7 @@ export function contarPorUf(lista: ReadonlyArray<OportunidadeComScore>): Record<
 export function contarPorFonte(lista: ReadonlyArray<OportunidadeComScore>): Record<string, number> {
   const contagem: Record<string, number> = {};
   for (const item of lista) {
-    const fonte = fonteDaOportunidade(item.linkOrigem);
+    const fonte = fonteDaOportunidade(item.linkOrigem, item.linkAlerta);
     contagem[fonte] = (contagem[fonte] ?? 0) + 1;
   }
   return contagem;
@@ -174,7 +174,7 @@ export function filtrar(lista: ReadonlyArray<OportunidadeComScore>, filtros: Fil
       (filtros.ufs.length === 0 || filtros.ufs.includes(item.uf)) &&
       pertenceAModalidade(item.modalidadeId, filtros.modalidade) &&
       dentroDaFaixaDeValor(item.valorEstimado, filtros) &&
-      (filtros.fontes.length === 0 || filtros.fontes.includes(fonteDaOportunidade(item.linkOrigem))),
+      (filtros.fontes.length === 0 || filtros.fontes.includes(fonteDaOportunidade(item.linkOrigem, item.linkAlerta))),
   );
 }
 

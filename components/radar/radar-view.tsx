@@ -37,6 +37,7 @@ import { BarraFiltros } from "./filtros";
 import { BuscaPalavras } from "./busca-palavras";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
 import { Paginacao } from "./paginacao";
+import type { PainelMeta } from "@/core/meta";
 import { PainelDiaView } from "./painel-dia";
 import { SeletorAba } from "./seletor-aba";
 import { SeletorFrente } from "./seletor-frente";
@@ -76,9 +77,11 @@ interface Props {
   renderAcoes?: (item: OportunidadeComScore) => React.ReactNode;
   /** Palavras-chave que a pessoa guardou */
   palavrasSalvas?: string[];
+  /** Meta da semana; null quando não foi possível ler */
+  meta?: PainelMeta | null;
 }
 
-export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaInicial, renderAcoes, palavrasSalvas = [] }: Props) {
+export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaInicial, renderAcoes, palavrasSalvas = [], meta = null }: Props) {
   const router = useRouter();
   const caminho = usePathname();
   const parametrosUrl = useSearchParams().toString();
@@ -407,6 +410,7 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
         <>
           <PainelDiaView
             painel={dados.painel}
+            meta={meta}
             contagensUf={dados.contagensUf}
             ufsAtivas={filtros.ufs}
             ocupado={pendente}

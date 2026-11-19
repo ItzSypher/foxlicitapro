@@ -92,11 +92,15 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                   <dd className="min-w-0 wrap-break-word text-ink">{item.orgao}</dd>
                   <dt className="text-muted-foreground">Unidade</dt>
                   <dd className="min-w-0 wrap-break-word text-ink">{item.unidade}</dd>
-                  <dt className="text-muted-foreground">CNPJ</dt>
-                  <dd className="min-w-0 font-mono tabular-nums text-ink">{formatarCnpj(item.orgaoCnpj)}</dd>
+                  {item.orgaoCnpj !== "" ? (
+                    <>
+                      <dt className="text-muted-foreground">CNPJ</dt>
+                      <dd className="min-w-0 font-mono tabular-nums text-ink">{formatarCnpj(item.orgaoCnpj)}</dd>
+                    </>
+                  ) : null}
                   <dt className="text-muted-foreground">Fonte</dt>
                   <dd className="min-w-0">
-                    <SeloFonte linkOrigem={item.linkOrigem} />
+                    <SeloFonte linkOrigem={item.linkOrigem} linkAlerta={item.linkAlerta} />
                   </dd>
                 </dl>
               </Secao>
@@ -208,21 +212,25 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
             </div>
 
             <SheetFooter className="mt-0 flex-none flex-row flex-wrap gap-2 border-t border-border bg-popover p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-              <Link
-                href={`/licitacao/${item.orgaoCnpj}/${item.anoCompra}/${item.sequencialCompra}`}
-                className="inline-flex h-11 basis-full items-center justify-center rounded-control bg-brand-fill px-4 text-sm font-semibold whitespace-nowrap text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand"
-              >
-                Ver licitação completa
-              </Link>
+              {item.orgaoCnpj !== "" ? (
+                <Link
+                  href={`/licitacao/${item.orgaoCnpj}/${item.anoCompra}/${item.sequencialCompra}`}
+                  className="inline-flex h-11 basis-full items-center justify-center rounded-control bg-brand-fill px-4 text-sm font-semibold whitespace-nowrap text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand"
+                >
+                  Ver licitação completa
+                </Link>
+              ) : null}
               {acoesExtras}
-              <a
-                href={item.linkPncp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(buttonVariants({ variant: "outline" }), "h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] px-4 text-sm")}
-              >
-                Abrir no PNCP
-              </a>
+              {item.orgaoCnpj !== "" ? (
+                <a
+                  href={item.linkPncp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(buttonVariants({ variant: "outline" }), "h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] px-4 text-sm")}
+                >
+                  Abrir no PNCP
+                </a>
+              ) : null}
               {item.linkOrigem ? (
                 <a
                   href={item.linkOrigem}
@@ -231,6 +239,16 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                   className={cn(buttonVariants({ variant: "outline" }), "h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] px-4 text-sm")}
                 >
                   Sistema de origem
+                </a>
+              ) : null}
+              {item.linkAlerta ? (
+                <a
+                  href={item.linkAlerta}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(buttonVariants({ variant: "outline" }), "h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] px-4 text-sm")}
+                >
+                  via Alerta Licitação
                 </a>
               ) : null}
             </SheetFooter>

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { MetaSemana } from "@/components/meta/meta-semana";
+import type { PainelMeta } from "@/core/meta";
 import { formatarValorCompacto, type PainelDia } from "@/lib/radar-painel";
 import { cn } from "@/lib/utils";
 import { COLUNAS_PIPELINE, COLUNAS_REGIAO, GRADE_PAINEL } from "./painel-esqueleto";
@@ -202,6 +204,8 @@ function CelulaRegiao({
 
 interface Props {
   painel: PainelDia;
+  /** Meta da semana; null quando não foi possível ler */
+  meta?: PainelMeta | null;
   contagensUf: Record<string, number>;
   ufsAtivas: ReadonlyArray<string>;
   /** Uma navegação está em andamento: o painel fica esmaecido */
@@ -216,6 +220,7 @@ interface Props {
 /** Resumo do dia que abre o Radar: faixa de indicadores clicáveis que aplicam o filtro ou a ordem correspondente na lista. */
 export function PainelDiaView({
   painel,
+  meta = null,
   contagensUf,
   ufsAtivas,
   ocupado = false,
@@ -243,6 +248,8 @@ export function PainelDiaView({
           {oculto ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronUp className="size-4" aria-hidden="true" />}
         </button>
       </div>
+
+      {oculto || !meta ? null : <MetaSemana painel={meta} />}
 
       {oculto ? null : painel.abertas === 0 ? (
         <p className="rounded-card border border-dashed border-control px-4 py-6 text-center text-sm text-muted-foreground">
