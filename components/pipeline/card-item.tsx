@@ -9,6 +9,7 @@ import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ComentarioPipeline } from "@/core/types-equipe";
 import { margemEmPercentual, type Estatistica, type ResumoCotacoes } from "@/core/cotacoes-resumo";
+import { linkInternoDaOportunidade } from "@/core/link-oportunidade";
 import { resumirObjeto } from "@/core/objeto";
 import type { PrecoSugerido } from "@/core/preco-sugerido";
 import { PrecoSugeridoDetalhe } from "@/components/preco/preco-sugerido-detalhe";
@@ -232,6 +233,7 @@ function LinhaPreco({
   aoAbrir: (aberto: boolean) => void;
 }) {
   const [aberto, setAberto] = useState(false);
+  const link = linkInternoDaOportunidade(dado.item);
   if (preco === null || preco.sugerido === null) {
     // Sem custo (cotação com custo zero): o atalho para cotar vem aqui; sem cotação nenhuma, vem da linha de cotações.
     if (preco === null || dado.cotacoes === null || dado.etapa === "ganha" || dado.etapa === "perdida") return null;
@@ -259,12 +261,15 @@ function LinhaPreco({
       </button>
       <Folha aberto={aberto} aoMudar={mudar} titulo="Preço sugerido" descricao={titulo}>
         <PrecoSugeridoDetalhe preco={preco} />
-        <Link
-          href={`/licitacao/${dado.item.orgaoCnpj}/${dado.item.anoCompra}/${dado.item.sequencialCompra}#preco-sugerido`}
-          className="inline-flex h-11 items-center justify-center rounded-control border border-control px-4 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          Ver na licitação
-        </Link>
+        {link === null ? null : (
+          <Link
+            href={link.externo ? link.href : `${link.href}#preco-sugerido`}
+            {...(link.externo ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            className="inline-flex h-11 items-center justify-center rounded-control border border-control px-4 text-sm text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            Ver na licitação
+          </Link>
+        )}
       </Folha>
     </>
   );
@@ -645,6 +650,7 @@ export function CardItem({
   const titulo = useMemo(() => resumirObjeto(item.objeto), [item.objeto]);
   const tituloCurto = titulo.length > 90 ? `${titulo.slice(0, 89)}…` : titulo;
   const pncp = item.linkPncp;
+  const linkAbrir = linkInternoDaOportunidade(item);
   const podeArrastar = arrastavel && !detalheAberto && !subAberta && !confirmando;
 
   return (
@@ -683,12 +689,15 @@ export function CardItem({
           >
             Detalhes
           </button>
-          <Link
-            href={`/licitacao/${item.orgaoCnpj}/${item.anoCompra}/${item.sequencialCompra}`}
-            className="inline-flex h-11 items-center rounded-control px-2 text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
-          >
-            Abrir
-          </Link>
+          {linkAbrir === null ? null : (
+            <Link
+              href={linkAbrir.href}
+              {...(linkAbrir.externo ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              className="inline-flex h-11 items-center rounded-control px-2 text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
+            >
+              Abrir
+            </Link>
+          )}
           <MenuAcoes
             etapa={dado.etapa}
             itemId={dado.id}

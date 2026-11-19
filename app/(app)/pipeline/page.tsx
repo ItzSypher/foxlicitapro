@@ -10,14 +10,13 @@ import type { PrecoFornecedor } from "@/core/fornecedores";
 import { resumirObjeto } from "@/core/objeto";
 import { precoSugeridoDoItem } from "@/core/preco-sugerido";
 import { temPermissao } from "@/core/permissoes";
-import { perfilAtual } from "@/lib/empresa-atual";
+import { perfilAtual, ufsDasAreasAtuais } from "@/lib/empresa-atual";
 import { exigirSessao } from "@/lib/sessao";
 import { PipelineView } from "@/components/pipeline/pipeline-view";
 import {
   ehEtapa,
-  ehFiltroRegiao,
+  lerFiltroUf,
   type EtapaId,
-  type FiltroRegiaoPipeline,
   type ItemPipeline,
   type PessoaPipeline,
   type ResumoEncerrada,
@@ -85,8 +84,8 @@ export default async function PipelinePage({
   const bruto = Array.isArray(params.etapa) ? params.etapa[0] : params.etapa;
   const etapaInicial: EtapaId = ehEtapa(bruto) ? bruto : "radar";
 
-  const regiaoBruta = Array.isArray(params.regiao) ? params.regiao[0] : params.regiao;
-  const regiaoInicial: FiltroRegiaoPipeline = ehFiltroRegiao(regiaoBruta) ? regiaoBruta : "todas";
+  const ufBruta = Array.isArray(params.uf) ? params.uf[0] : params.uf;
+  const ufInicial = lerFiltroUf(ufBruta);
 
   let itens: ItemPipeline[] | null;
   try {
@@ -96,11 +95,15 @@ export default async function PipelinePage({
     itens = null;
   }
   const agora = momento();
-  const [pessoas, meta] = await Promise.all([lerPessoas(sessao.empresaId), carregarPainelMeta(sessao.empresaId, new Date(agora))]);
+  const [pessoas, meta, ufsDasAreas] = await Promise.all([
+    lerPessoas(sessao.empresaId),
+    carregarPainelMeta(sessao.empresaId, new Date(agora)),
+    ufsDasAreasAtuais("pipeline"),
+  ]);
 
   const separados = itens === null ? null : separarEncerrados(itens, (i) => ({ etapa: i.etapa, dataEncerramento: i.item.dataEncerramento }), agora);
   const encerradas: ResumoEncerrada[] = (separados?.encerrados ?? []).map((i) => ({
-    regiao: i.item.regiao,
+    uf: i.item.uf,
     responsavelId: i.responsavelId,
     criadoPorId: i.criadoPorId,
   }));
@@ -112,7 +115,8 @@ export default async function PipelinePage({
       itens={abertos}
       encerradas={encerradas}
       etapaInicial={etapaInicial}
-      regiaoInicial={regiaoInicial}
+      ufInicial={ufInicial}
+      ufsDasAreas={ufsDasAreas}
       agoraInicial={agora}
       usuarioId={sessao.usuarioId}
       pessoas={pessoas}

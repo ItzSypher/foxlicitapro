@@ -23,6 +23,7 @@ export function baseUrl(): string {
 }
 
 export function linkAbsoluto(caminho: string): string {
+  if (/^https?:\/\//i.test(caminho)) return caminho;
   return `${baseUrl()}${caminho.startsWith("/") ? caminho : `/${caminho}`}`;
 }
 

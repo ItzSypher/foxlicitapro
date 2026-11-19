@@ -17,23 +17,18 @@ import { linhaDeNumeros } from "./formato";
 import { useColunas } from "./midia";
 import {
   ETAPAS,
-  REGIOES_PIPELINE,
-  ROTULO_REGIAO,
-  contarPorRegiao,
+  TODAS_AS_UFS,
+  contarPorUf,
   ehMeu,
-  filtrarPorRegiao,
+  filtrarPorUf,
   montarResumo,
+  ufsDoFiltro,
   type EtapaId,
-  type FiltroRegiaoPipeline,
+  type FiltroUfPipeline,
   type ItemPipeline,
   type PessoaPipeline,
   type ResumoEncerrada,
 } from "./tipos";
-
-const OPCOES_REGIAO: ReadonlyArray<{ id: FiltroRegiaoPipeline; rotulo: string }> = [
-  { id: "todas", rotulo: "Todas" },
-  ...REGIOES_PIPELINE.map((r) => ({ id: r, rotulo: ROTULO_REGIAO[r] })),
-];
 
 /** Troca parâmetros da URL sem navegar, preservando os demais; valor null remove o parâmetro. */
 function atualizarUrl(mudancas: Record<string, string | null>) {
@@ -70,7 +65,9 @@ interface Props {
   /** Licitações que passaram do prazo e saíram do quadro; só entram na linha de aviso */
   encerradas: ResumoEncerrada[];
   etapaInicial: EtapaId;
-  regiaoInicial: FiltroRegiaoPipeline;
+  ufInicial: FiltroUfPipeline;
+  /** UFs das áreas da empresa, para os chips do filtro */
+  ufsDasAreas: string[];
   agoraInicial: number;
   usuarioId: string;
   /** Pessoas ativas que podem assumir um item */
@@ -83,7 +80,7 @@ interface Props {
   meta: PainelMeta | null;
 }
 
-export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, regiaoInicial, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar, meta }: Props) {
+export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, ufInicial, ufsDasAreas, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar, meta }: Props) {
   if (itensServidor === null) {
     return (
       <div data-largura-total className="flex flex-col gap-4 lg:gap-6">
@@ -97,7 +94,8 @@ export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, r
       itensServidor={itensServidor}
       encerradas={encerradas}
       etapaInicial={etapaInicial}
-      regiaoInicial={regiaoInicial}
+      ufInicial={ufInicial}
+      ufsDasAreas={ufsDasAreas}
       agoraInicial={agoraInicial}
       usuarioId={usuarioId}
       pessoas={pessoas}
@@ -112,7 +110,8 @@ function Quadro({
   itensServidor,
   encerradas,
   etapaInicial,
-  regiaoInicial,
+  ufInicial,
+  ufsDasAreas,
   agoraInicial,
   usuarioId,
   pessoas,
@@ -123,7 +122,8 @@ function Quadro({
   itensServidor: ItemPipeline[];
   encerradas: ResumoEncerrada[];
   etapaInicial: EtapaId;
-  regiaoInicial: FiltroRegiaoPipeline;
+  ufInicial: FiltroUfPipeline;
+  ufsDasAreas: string[];
   agoraInicial: number;
   usuarioId: string;
   pessoas: PessoaPipeline[];
@@ -134,18 +134,25 @@ function Quadro({
 }) {
   const [todos, aplicar] = useOptimistic(itensServidor, reduzir);
   const [soMeus, setSoMeus] = useState(false);
-  const [regiao, setRegiao] = useState<FiltroRegiaoPipeline>(regiaoInicial);
+  const [uf, setUf] = useState<FiltroUfPipeline>(ufInicial);
   const [abertas, setAbertas] = useState<ReadonlySet<EtapaId>>(() => new Set());
   const [bordas, setBordas] = useState({ esquerda: false, direita: false });
   const doUsuario = useMemo(() => (soMeus ? todos.filter((i) => ehMeu(i, usuarioId)) : todos), [todos, soMeus, usuarioId]);
-  const contagemRegiao = useMemo(() => contarPorRegiao(doUsuario), [doUsuario]);
-  const itens = useMemo(() => filtrarPorRegiao(doUsuario, regiao), [doUsuario, regiao]);
+  const contagemUf = useMemo(() => contarPorUf(doUsuario), [doUsuario]);
+  const opcoesUf = useMemo(
+    () => [
+      { valor: TODAS_AS_UFS, rotulo: "Todas" },
+      ...ufsDoFiltro(ufsDasAreas, todos).map((u) => ({ valor: u, rotulo: u })),
+    ],
+    [ufsDasAreas, todos],
+  );
+  const itens = useMemo(() => filtrarPorUf(doUsuario, uf), [doUsuario, uf]);
   const totalEncerradas = useMemo(
     () =>
       encerradas.filter(
-        (e) => (!soMeus || ehMeu(e, usuarioId)) && (regiao === "todas" || e.regiao === regiao),
+        (e) => (!soMeus || ehMeu(e, usuarioId)) && (uf === TODAS_AS_UFS || e.uf.trim().toUpperCase() === uf),
       ).length,
-    [encerradas, soMeus, regiao, usuarioId],
+    [encerradas, soMeus, uf, usuarioId],
   );
   const [, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -230,9 +237,9 @@ function Quadro({
     atualizarUrl({ etapa: id });
   }
 
-  function escolherRegiao(id: FiltroRegiaoPipeline) {
-    setRegiao(id);
-    atualizarUrl({ regiao: id === "todas" ? null : id });
+  function escolherUf(id: FiltroUfPipeline) {
+    setUf(id);
+    atualizarUrl({ uf: id === TODAS_AS_UFS ? null : id });
   }
 
   function alternarColuna(id: EtapaId, aberta: boolean) {
@@ -400,7 +407,7 @@ function Quadro({
           <p className="text-[13px] text-muted-foreground">
             {frasePrazoEncerrado(totalEncerradas)}{" "}
             <Link
-              href={regiao === "todas" ? "/encerradas" : `/encerradas?regiao=${regiao}`}
+              href={uf === TODAS_AS_UFS ? "/encerradas" : `/encerradas?uf=${uf}`}
               className="font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
             >
               Ver encerradas
@@ -414,10 +421,10 @@ function Quadro({
       {vazio ? null : (
         <div className="flex items-center gap-2 lg:gap-3">
           <Segmentado
-            rotulo="Região"
-            valor={regiao}
-            aoMudar={escolherRegiao}
-            opcoes={OPCOES_REGIAO.map((o) => ({ valor: o.id, rotulo: o.rotulo, contagem: contagemRegiao[o.id] }))}
+            rotulo="Estado"
+            valor={uf}
+            aoMudar={escolherUf}
+            opcoes={opcoesUf.map((o) => ({ valor: o.valor, rotulo: o.rotulo, contagem: contagemUf[o.valor] ?? 0 }))}
             rolavel
             className="min-w-0"
           />

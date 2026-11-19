@@ -122,6 +122,7 @@ export function SinoAvisos({ inicial, folha, className }: Props) {
                       {a.link ? (
                         <Link
                           href={a.link}
+                          {...(/^https?:\/\//i.test(a.link) ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                           onClick={() => {
                             if (!a.lido) lido(a.id);
                             setAberto(false);

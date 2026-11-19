@@ -6,6 +6,7 @@ import { ExternalLink, Sparkles } from "lucide-react";
 import { analisarComConselheiroAction } from "@/app/(app)/conselheiro/actions";
 import { PrecoSugeridoDetalhe } from "@/components/preco/preco-sugerido-detalhe";
 import { ROTULO_ETAPA, type EtapaId } from "@/components/pipeline/tipos";
+import type { LinkDaOportunidade } from "@/core/link-oportunidade";
 import type { PrecoSugerido } from "@/core/preco-sugerido";
 import type { AnaliseSalva } from "@/lib/conselheiro/esquema";
 import { formatarEncerramento, formatarMoeda } from "@/lib/formato";
@@ -23,7 +24,8 @@ export interface CabecalhoItem {
   valorEstimado: number | null;
   encerramento: string;
   etapa: EtapaId;
-  linkLicitacao: string;
+  /** Página da licitação no sistema ou, sem chave do PNCP, o link externo; null sem nenhum endereço */
+  linkLicitacao: LinkDaOportunidade | null;
 }
 
 const MENSAGEM_INDISPONIVEL = "Conselheiro indisponível: falta configurar a chave do assistente.";
@@ -86,13 +88,16 @@ export function PainelItemConselheiro({
           <Dado rotulo="Encerramento" valor={formatarEncerramento(item.encerramento)} />
         </dl>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href={item.linkLicitacao}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-control border border-control px-4 text-sm font-medium text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand md:h-9"
-          >
-            Abrir licitação
-            <ExternalLink aria-hidden="true" className="size-4" />
-          </Link>
+          {item.linkLicitacao === null ? null : (
+            <Link
+              href={item.linkLicitacao.href}
+              {...(item.linkLicitacao.externo ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-control border border-control px-4 text-sm font-medium text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand md:h-9"
+            >
+              Abrir licitação
+              <ExternalLink aria-hidden="true" className="size-4" />
+            </Link>
+          )}
         </div>
       </header>
 

@@ -1,6 +1,7 @@
 import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
 import type { PrecoSugerido } from "@/core/preco-sugerido";
 import type { MarcaJuridica } from "@/core/revisao-juridica";
+import { acharUf } from "@/core/ufs";
 import type { OportunidadeComScore, Regiao } from "@/core/types";
 
 /** Tipos e regras puras do pipeline, compartilhados entre servidor e cliente. */
@@ -73,7 +74,7 @@ export function ehMeu(item: Pick<ItemPipeline, "responsavelId" | "criadoPorId">,
 
 /** O mínimo de um item encerrado que o Pipeline precisa para contar quantos há sob os filtros ativos. */
 export interface ResumoEncerrada {
-  regiao: Regiao;
+  uf: string;
   responsavelId: string | null;
   criadoPorId: string | null;
 }
@@ -89,28 +90,39 @@ export const ROTULO_REGIAO: Record<Regiao, string> = {
 
 export const REGIOES_PIPELINE: readonly Regiao[] = ["nova-iguacu", "baixada", "capital", "rj", "fora-rj"];
 
-/** "todas" não filtra; as demais mostram só os itens da região. */
-export type FiltroRegiaoPipeline = "todas" | Regiao;
+/** "todas" não filtra; as demais são a sigla da UF (maiúsculas) e mostram só os itens daquele estado. */
+export type FiltroUfPipeline = string;
 
-export function ehFiltroRegiao(valor: unknown): valor is FiltroRegiaoPipeline {
-  return valor === "todas" || REGIOES_PIPELINE.some((r) => r === valor);
+export const TODAS_AS_UFS = "todas";
+
+/** Lê o filtro de UF vindo da URL: "todas" ou uma sigla válida (aceita minúsculas). Qualquer outra coisa vira "todas". */
+export function lerFiltroUf(valor: unknown): FiltroUfPipeline {
+  if (typeof valor !== "string") return TODAS_AS_UFS;
+  const sigla = valor.trim().toUpperCase();
+  return acharUf(sigla) ? sigla : TODAS_AS_UFS;
 }
 
-export function filtrarPorRegiao(itens: readonly ItemPipeline[], filtro: FiltroRegiaoPipeline): ItemPipeline[] {
-  return filtro === "todas" ? [...itens] : itens.filter((i) => i.item.regiao === filtro);
+export function filtrarPorUf<T extends { item: { uf: string } }>(itens: readonly T[], filtro: FiltroUfPipeline): T[] {
+  return filtro === TODAS_AS_UFS ? [...itens] : itens.filter((i) => i.item.uf.trim().toUpperCase() === filtro);
 }
 
-export function contarPorRegiao(itens: readonly ItemPipeline[]): Record<FiltroRegiaoPipeline, number> {
-  const contagem: Record<FiltroRegiaoPipeline, number> = {
-    todas: itens.length,
-    "nova-iguacu": 0,
-    baixada: 0,
-    capital: 0,
-    rj: 0,
-    "fora-rj": 0,
-  };
-  for (const i of itens) contagem[i.item.regiao] += 1;
+/** Itens por UF (sigla em maiúsculas), mais a chave "todas" com o total. */
+export function contarPorUf(itens: readonly { item: { uf: string } }[]): Record<string, number> {
+  const contagem: Record<string, number> = { [TODAS_AS_UFS]: itens.length };
+  for (const i of itens) {
+    const uf = i.item.uf.trim().toUpperCase();
+    contagem[uf] = (contagem[uf] ?? 0) + 1;
+  }
   return contagem;
+}
+
+/** UFs do filtro: as das áreas da empresa mais as que já têm item, sem repetir e em ordem alfabética. */
+export function ufsDoFiltro(ufsDasAreas: readonly string[], itens: readonly { item: { uf: string } }[]): string[] {
+  const siglas = new Set<string>();
+  for (const u of ufsDasAreas) siglas.add(u.trim().toUpperCase());
+  for (const i of itens) siglas.add(i.item.uf.trim().toUpperCase());
+  siglas.delete("");
+  return [...siglas].sort();
 }
 
 export interface ResumoEtapa {

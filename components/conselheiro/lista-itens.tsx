@@ -3,9 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { REGIOES_PIPELINE, ROTULO_ETAPA, ROTULO_REGIAO, type EtapaId } from "@/components/pipeline/tipos";
+import { ROTULO_ETAPA, TODAS_AS_UFS, contarPorUf, ufsDoFiltro, type EtapaId } from "@/components/pipeline/tipos";
 import { normalizarTexto } from "@/core/texto-busca";
-import type { Regiao } from "@/core/types";
 import type { VereditoConselheiro } from "@/lib/conselheiro/esquema";
 import { formatarMoedaCurta, plural } from "@/lib/formato";
 import { Segmentado } from "@/components/ui/segmentado";
@@ -19,19 +18,11 @@ export interface ItemDaLista {
   orgao: string;
   municipio: string;
   uf: string;
-  regiao: Regiao;
   valorEstimado: number | null;
   etapa: EtapaId;
   /** Veredito da análise mais recente; null sem análise */
   veredito: VereditoConselheiro | null;
 }
-
-type Filtro = "todas" | Regiao;
-
-const OPCOES: ReadonlyArray<{ id: Filtro; rotulo: string }> = [
-  { id: "todas", rotulo: "Todas" },
-  ...REGIOES_PIPELINE.map((r) => ({ id: r, rotulo: ROTULO_REGIAO[r] })),
-];
 
 const CONTROLE =
   "h-11 w-full rounded-control border-0 bg-raised px-3 pl-9 text-base text-ink placeholder:text-faint outline-none focus-visible:ring-2 focus-visible:ring-brand";
@@ -40,11 +31,11 @@ function hrefDoItem(id: string): string {
   return `/conselheiro?item=${encodeURIComponent(id)}`;
 }
 
-/** Itens que passam pela busca (todas as palavras em objeto, órgão ou município, sem acento) e pela região. */
-function filtrarItens(itens: readonly ItemDaLista[], busca: string, regiao: Filtro): ItemDaLista[] {
+/** Itens que passam pela busca (todas as palavras em objeto, órgão ou município, sem acento) e pela UF. */
+function filtrarItens(itens: readonly ItemDaLista[], busca: string, uf: string): ItemDaLista[] {
   const termos = normalizarTexto(busca).split(" ").filter((t) => t !== "");
   return itens.filter((i) => {
-    if (regiao !== "todas" && i.regiao !== regiao) return false;
+    if (uf !== TODAS_AS_UFS && i.uf.trim().toUpperCase() !== uf) return false;
     if (termos.length === 0) return true;
     const palheiro = normalizarTexto(`${i.titulo} ${i.orgao} ${i.municipio}`);
     return termos.every((t) => palheiro.includes(t));
@@ -53,16 +44,26 @@ function filtrarItens(itens: readonly ItemDaLista[], busca: string, regiao: Filt
 
 export function ListaItensConselheiro({
   itens,
+  ufsDasAreas,
   selecionado,
   className,
 }: {
   itens: readonly ItemDaLista[];
+  /** UFs das áreas da empresa; as dos itens entram também */
+  ufsDasAreas: readonly string[];
   selecionado: string | null;
   className?: string;
 }) {
   const [busca, setBusca] = useState("");
-  const [regiao, setRegiao] = useState<Filtro>("todas");
-  const visiveis = useMemo(() => filtrarItens(itens, busca, regiao), [itens, busca, regiao]);
+  const [uf, setUf] = useState<string>(TODAS_AS_UFS);
+  const visiveis = useMemo(() => filtrarItens(itens, busca, uf), [itens, busca, uf]);
+  const opcoes = useMemo(() => {
+    const contagem = contarPorUf(itens.map((i) => ({ item: { uf: i.uf } })));
+    return [
+      { valor: TODAS_AS_UFS, rotulo: "Todas", contagem: itens.length },
+      ...ufsDoFiltro(ufsDasAreas, itens.map((i) => ({ item: { uf: i.uf } }))).map((u) => ({ valor: u, rotulo: u, contagem: contagem[u] ?? 0 })),
+    ];
+  }, [itens, ufsDasAreas]);
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-3", className)}>
@@ -83,11 +84,11 @@ export function ListaItensConselheiro({
       </div>
 
       <Segmentado
-        rotulo="Região"
-        valor={regiao}
-        aoMudar={setRegiao}
+        rotulo="Estado"
+        valor={uf}
+        aoMudar={setUf}
         rolavel
-        opcoes={OPCOES.map((o) => ({ valor: o.id, rotulo: o.rotulo }))}
+        opcoes={opcoes}
       />
 
       <p className="text-[13px] text-muted-foreground" aria-live="polite">

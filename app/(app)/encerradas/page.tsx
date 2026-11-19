@@ -1,26 +1,22 @@
 import { connection } from "next/server";
 import { listarPipeline } from "@/db/pipeline";
 import { maisRecentesPrimeiro, separarEncerrados, textoEncerrou } from "@/core/encerradas";
+import { linkInternoDaOportunidade } from "@/core/link-oportunidade";
 import { resumirObjeto } from "@/core/objeto";
 import { temPermissao } from "@/core/permissoes";
+import { ufsDasAreasAtuais } from "@/lib/empresa-atual";
 import { exigirSessao } from "@/lib/sessao";
 import { ListaEncerradas, type ItemEncerrado } from "@/components/encerradas/lista-encerradas";
 import {
-  REGIOES_PIPELINE,
   ROTULO_ETAPA,
-  ROTULO_REGIAO,
-  contarPorRegiao,
-  ehFiltroRegiao,
-  filtrarPorRegiao,
-  type FiltroRegiaoPipeline,
+  TODAS_AS_UFS,
+  contarPorUf,
+  filtrarPorUf,
+  lerFiltroUf,
+  ufsDoFiltro,
   type ItemPipeline,
 } from "@/components/pipeline/tipos";
 import { Segmentado } from "@/components/ui/segmentado";
-
-const OPCOES_REGIAO: ReadonlyArray<{ id: FiltroRegiaoPipeline; rotulo: string }> = [
-  { id: "todas", rotulo: "Todas" },
-  ...REGIOES_PIPELINE.map((r) => ({ id: r, rotulo: ROTULO_REGIAO[r] })),
-];
 
 /** Instante do pedido, lido fora do render. */
 function momento(): number {
@@ -34,12 +30,12 @@ function paraItem(i: ItemPipeline, agora: number): ItemEncerrado {
     titulo: resumirObjeto(item.objeto),
     orgao: item.orgao,
     municipio: item.municipio,
-    regiao: item.regiao,
+    uf: item.uf,
     valorEstimado: item.valorEstimado,
     etapaRotulo: ROTULO_ETAPA[i.etapa],
     encerrouTexto: textoEncerrou(item.dataEncerramento, agora),
     responsavelNome: i.responsavelNome,
-    href: `/licitacao/${item.orgaoCnpj}/${item.anoCompra}/${item.sequencialCompra}`,
+    link: linkInternoDaOportunidade(item),
   };
 }
 
@@ -51,8 +47,8 @@ export default async function EncerradasPage({
   await connection();
   const sessao = await exigirSessao();
   const params = await searchParams;
-  const regiaoBruta = Array.isArray(params.regiao) ? params.regiao[0] : params.regiao;
-  const regiao: FiltroRegiaoPipeline = ehFiltroRegiao(regiaoBruta) ? regiaoBruta : "todas";
+  const ufBruta = Array.isArray(params.uf) ? params.uf[0] : params.uf;
+  const uf = lerFiltroUf(ufBruta);
 
   let itens: ItemPipeline[] | null;
   try {
@@ -63,12 +59,17 @@ export default async function EncerradasPage({
   }
 
   const agora = momento();
+  const ufsDasAreas = await ufsDasAreasAtuais("encerradas");
   const encerradas =
     itens === null
       ? []
       : separarEncerrados(itens, (i) => ({ etapa: i.etapa, dataEncerramento: i.item.dataEncerramento }), agora).encerrados;
-  const contagem = contarPorRegiao(encerradas);
-  const lista = maisRecentesPrimeiro(filtrarPorRegiao(encerradas, regiao), (i) => i.item.dataEncerramento).map((i) =>
+  const contagem = contarPorUf(encerradas);
+  const opcoesUf = [
+    { valor: TODAS_AS_UFS, rotulo: "Todas" },
+    ...ufsDoFiltro(ufsDasAreas, encerradas).map((u) => ({ valor: u, rotulo: u })),
+  ];
+  const lista = maisRecentesPrimeiro(filtrarPorUf(encerradas, uf), (i) => i.item.dataEncerramento).map((i) =>
     paraItem(i, agora),
   );
 
@@ -89,13 +90,13 @@ export default async function EncerradasPage({
         <>
           {encerradas.length === 0 ? null : (
             <Segmentado
-              rotulo="Região"
-              valor={regiao}
-              opcoes={OPCOES_REGIAO.map((o) => ({
-                valor: o.id,
+              rotulo="Estado"
+              valor={uf}
+              opcoes={opcoesUf.map((o) => ({
+                valor: o.valor,
                 rotulo: o.rotulo,
-                contagem: contagem[o.id],
-                href: o.id === "todas" ? "/encerradas" : `/encerradas?regiao=${o.id}`,
+                contagem: contagem[o.valor] ?? 0,
+                href: o.valor === TODAS_AS_UFS ? "/encerradas" : `/encerradas?uf=${o.valor}`,
               }))}
               rolavel
             />

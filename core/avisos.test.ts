@@ -79,6 +79,12 @@ describe("avisosDeOportunidade", () => {
     expect(avisos[0]?.titulo).toContain("nota 85");
     expect(avisos[0]?.link).toBe("/licitacao/12345678000190/2026/7");
   });
+
+  it("oportunidade só do Alerta Licitação leva ao link externo, não a /licitacao vazio", () => {
+    const soAlerta = { ...oport("ALERTA-9", 90), orgaoCnpj: "", sequencialCompra: 0, linkAlerta: "https://alertalicitacao.com.br/!licitacao/9" };
+    const [aviso] = avisosDeOportunidade([soAlerta], new Set(), AGORA);
+    expect(aviso?.link).toBe("https://alertalicitacao.com.br/!licitacao/9");
+  });
 });
 
 describe("avisosDeFicha", () => {

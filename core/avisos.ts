@@ -4,6 +4,7 @@
  */
 import { calcularCaixa, type LimitesCaixa } from "@/core/caixa";
 import type { FichaEdital } from "@/core/ficha";
+import { linkInternoDaOportunidade } from "@/core/link-oportunidade";
 import { resumirObjeto } from "@/core/objeto";
 import type { Permissao } from "@/core/permissoes";
 import type { OportunidadeComScore } from "@/core/types";
@@ -137,7 +138,7 @@ export function avisosDeOportunidade(
       tipo: "oportunidade",
       titulo: `Nova oportunidade para você, nota ${Math.round(o.score.total)}`,
       corpo: objetoCurto(o.objeto),
-      link: `/licitacao/${o.orgaoCnpj}/${o.anoCompra}/${o.sequencialCompra}`,
+      link: linkInternoDaOportunidade(o)?.href ?? "/radar",
       chave: `oportunidade:${o.id}`,
     });
   }

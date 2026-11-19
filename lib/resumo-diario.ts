@@ -1,5 +1,6 @@
 import "server-only";
 import { normalizarTexto, regexDoTermo, removerSetorDeSistemas } from "@/core/cnae-keywords";
+import { linkInternoDaOportunidade } from "@/core/link-oportunidade";
 import { resumirObjeto } from "@/core/objeto";
 import { SISTEMA_QUE_NAO_E_TI, recomendar } from "@/core/recomendacao";
 import type { PerfilEmpresa } from "@/core/perfil";
@@ -164,7 +165,7 @@ export function paraLinha(o: OportunidadeComScore, agora: Date, anteriores: Read
     nota: o.score.total,
     faixa: o.score.faixa,
     palavraFaixa: PALAVRA_FAIXA[o.score.faixa],
-    link: linkAbsoluto(`/licitacao/${o.orgaoCnpj}/${o.anoCompra}/${o.sequencialCompra}`),
+    link: linkAbsoluto(linkInternoDaOportunidade(o)?.href ?? "/radar"),
     nova: anteriores !== null && !anteriores.has(o.id),
     encerraEm: encerraEm(o),
   };

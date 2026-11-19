@@ -7,6 +7,7 @@ import { ETAPAS_ATIVAS, type ItemPipeline } from "@/components/pipeline/tipos";
 import type { AmostraConcorrente } from "@/core/concorrentes";
 import { separarEncerrados } from "@/core/encerradas";
 import type { PrecoFornecedor } from "@/core/fornecedores";
+import { linkInternoDaOportunidade } from "@/core/link-oportunidade";
 import { resumirObjeto } from "@/core/objeto";
 import { ROTULO_REGIAO } from "@/core/perfil";
 import { temPermissao } from "@/core/permissoes";
@@ -15,7 +16,7 @@ import { lerAmostrasEmCache } from "@/db/concorrentes";
 import { lerUltimaAnalise, resumirAnalisesPorItem, type ResumoAnalise } from "@/db/conselheiro";
 import { listarPrecosRecentes } from "@/db/fornecedores";
 import { listarPipeline } from "@/db/pipeline";
-import { perfilAtual } from "@/lib/empresa-atual";
+import { perfilAtual, ufsDasAreasAtuais } from "@/lib/empresa-atual";
 import { assistenteDisponivel } from "@/lib/gemini";
 import type { AnaliseSalva } from "@/lib/conselheiro/esquema";
 import { precoDoItemPipeline } from "@/lib/conselheiro/preco";
@@ -71,14 +72,16 @@ export default async function ConselheiroPage({ searchParams }: Props) {
           ETAPAS_ATIVAS.includes(i.etapa),
         );
 
-  const resumos: Map<string, ResumoAnalise> = await resumirAnalisesPorItem(sessao.empresaId).catch(() => new Map<string, ResumoAnalise>());
+  const [resumos, ufsDasAreas]: [Map<string, ResumoAnalise>, string[]] = await Promise.all([
+    resumirAnalisesPorItem(sessao.empresaId).catch(() => new Map<string, ResumoAnalise>()),
+    ufsDasAreasAtuais("conselheiro"),
+  ]);
   const lista: ItemDaLista[] = ativos.map((i) => ({
     id: i.id,
     titulo: resumirObjeto(i.item.objeto) || "Contratação sem objeto informado",
     orgao: i.item.orgao,
     municipio: i.item.municipio,
     uf: i.item.uf,
-    regiao: i.item.regiao,
     valorEstimado: i.item.valorEstimado,
     etapa: i.etapa,
     veredito: resumos.get(i.id)?.veredito ?? null,
@@ -108,7 +111,7 @@ export default async function ConselheiroPage({ searchParams }: Props) {
         valorEstimado: escolhido.item.valorEstimado,
         encerramento: escolhido.item.dataEncerramento,
         etapa: escolhido.etapa,
-        linkLicitacao: `/licitacao/${escolhido.item.orgaoCnpj}/${escolhido.item.anoCompra}/${escolhido.item.sequencialCompra}`,
+        linkLicitacao: linkInternoDaOportunidade(escolhido.item),
       }
     : null;
 
@@ -135,6 +138,7 @@ export default async function ConselheiroPage({ searchParams }: Props) {
         <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-start">
           <ListaItensConselheiro
             itens={lista}
+            ufsDasAreas={ufsDasAreas}
             selecionado={escolhido?.id ?? null}
             className={temSelecao ? "hidden lg:flex" : "flex"}
           />

@@ -4,8 +4,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { formatarReais } from "@/components/pipeline/formato";
-import { ROTULO_REGIAO } from "@/components/pipeline/tipos";
-import type { Regiao } from "@/core/types";
+import type { LinkDaOportunidade } from "@/core/link-oportunidade";
 import { cn } from "@/lib/utils";
 
 /** Item já preparado no servidor: só texto e números, sem dados do pipeline que a lista não usa. */
@@ -14,15 +13,15 @@ export interface ItemEncerrado {
   titulo: string;
   orgao: string;
   municipio: string;
-  regiao: Regiao;
+  uf: string;
   valorEstimado: number | null;
   /** "No radar", "Proposta pronta"… */
   etapaRotulo: string;
   /** "encerrou há 3 dias" */
   encerrouTexto: string;
   responsavelNome: string | null;
-  /** Rota da licitação, a mesma do card do pipeline */
-  href: string;
+  /** Página da licitação, a mesma do card do pipeline, ou o link externo quando não há chave do PNCP; null sem endereço */
+  link: LinkDaOportunidade | null;
 }
 
 const BOTAO =
@@ -73,24 +72,22 @@ export function ListaEncerradas({ itens, podeEditar }: { itens: ItemEncerrado[];
             <li key={i.id} className="flex min-w-0 flex-col gap-2.5 rounded-card border border-border bg-surface p-3 sm:p-4">
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <p className="min-w-0 text-sm leading-snug font-medium break-words text-ink">{i.titulo}</p>
-                <Link
-                  href={i.href}
-                  className="inline-flex h-11 shrink-0 items-center rounded-control px-2 text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
-                >
-                  Abrir
-                </Link>
+                {i.link === null ? null : (
+                  <Link
+                    href={i.link.href}
+                    {...(i.link.externo ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                    className="inline-flex h-11 shrink-0 items-center rounded-control px-2 text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand lg:h-8"
+                  >
+                    Abrir
+                  </Link>
+                )}
               </div>
 
               <p className="text-[13px] leading-snug break-words text-muted-foreground">{i.orgao}</p>
 
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-snug text-muted-foreground">
-                <span
-                  className={cn(
-                    "inline-flex h-5 shrink-0 items-center rounded-control border px-1.5 text-[11px] leading-none font-medium whitespace-nowrap",
-                    i.regiao === "nova-iguacu" ? "border-brand text-ink" : "border-border",
-                  )}
-                >
-                  {ROTULO_REGIAO[i.regiao]}
+                <span className="inline-flex h-5 shrink-0 items-center rounded-control border border-border px-1.5 text-[11px] leading-none font-medium whitespace-nowrap">
+                  {i.uf}
                 </span>
                 <span className="min-w-0 break-words">
                   {i.municipio} ·{" "}

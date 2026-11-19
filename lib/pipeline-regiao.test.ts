@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  contarPorRegiao,
-  ehFiltroRegiao,
-  filtrarPorRegiao,
+  contarPorUf,
+  filtrarPorUf,
+  lerFiltroUf,
   montarResumo,
   ROTULO_REGIAO,
+  ufsDoFiltro,
   type ItemPipeline,
 } from "@/components/pipeline/tipos";
 import type { Regiao } from "@/core/types";
@@ -57,40 +58,43 @@ const ITENS = [
   item("d", "fora-rj", 400),
 ];
 
-describe("região no pipeline", () => {
+describe("filtro por UF no pipeline", () => {
+  const SP = item("e", "fora-rj", 50);
+
   it("todas não filtra", () => {
-    expect(filtrarPorRegiao(ITENS, "todas")).toHaveLength(4);
+    expect(filtrarPorUf(ITENS, "todas")).toHaveLength(4);
   });
 
-  it("filtra só a região pedida", () => {
-    expect(filtrarPorRegiao(ITENS, "baixada").map((i) => i.id)).toEqual(["b", "c"]);
-    expect(filtrarPorRegiao(ITENS, "capital")).toEqual([]);
+  it("filtra só a UF pedida", () => {
+    expect(filtrarPorUf(ITENS, "RJ").map((i) => i.id)).toEqual(["a", "b", "c"]);
+    expect(filtrarPorUf(ITENS, "SP").map((i) => i.id)).toEqual(["d"]);
+    expect(filtrarPorUf(ITENS, "MG")).toEqual([]);
   });
 
-  it("conta por região", () => {
-    expect(contarPorRegiao(ITENS)).toEqual({
-      todas: 4,
-      "nova-iguacu": 1,
-      baixada: 2,
-      capital: 0,
-      rj: 0,
-      "fora-rj": 1,
-    });
+  it("conta por UF, com o total em todas", () => {
+    expect(contarPorUf([...ITENS, SP])).toEqual({ todas: 5, RJ: 3, SP: 2 });
   });
 
   it("valida o filtro vindo da URL", () => {
-    expect(ehFiltroRegiao("capital")).toBe(true);
-    expect(ehFiltroRegiao("todas")).toBe(true);
-    expect(ehFiltroRegiao("marte")).toBe(false);
-    expect(ehFiltroRegiao(undefined)).toBe(false);
+    expect(lerFiltroUf("rj")).toBe("RJ");
+    expect(lerFiltroUf("SP")).toBe("SP");
+    expect(lerFiltroUf("todas")).toBe("todas");
+    expect(lerFiltroUf("marte")).toBe("todas");
+    expect(lerFiltroUf("capital")).toBe("todas");
+    expect(lerFiltroUf(undefined)).toBe("todas");
   });
 
-  it("o resumo do filtro soma só os itens da região", () => {
-    const filtrados = filtrarPorRegiao(ITENS, "baixada");
+  it("junta as UFs das áreas com as dos itens, sem repetir e em ordem", () => {
+    expect(ufsDoFiltro(["RJ", "MG"], ITENS)).toEqual(["MG", "RJ", "SP"]);
+    expect(ufsDoFiltro([], [])).toEqual([]);
+  });
+
+  it("o resumo do filtro soma só os itens da UF", () => {
+    const filtrados = filtrarPorUf(ITENS, "RJ");
     const resumo = montarResumo(filtrados.map((i) => ({ etapa: i.etapa, quantidade: 1, valor: i.item.valorEstimado })));
-    expect(resumo.ativas).toBe(1);
-    expect(resumo.valorAtivo).toBe(200);
-    expect(resumo.porEtapa.radar.quantidade).toBe(1);
+    expect(resumo.ativas).toBe(2);
+    expect(resumo.valorAtivo).toBe(300);
+    expect(resumo.porEtapa.radar.quantidade).toBe(2);
     expect(resumo.ganhas).toBe(1);
   });
 
