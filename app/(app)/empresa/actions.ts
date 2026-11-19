@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { normalizarAreas, ufsDeColeta } from "@/core/areas";
-import { ufDoCodigoIbge } from "@/core/ufs";
-import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema } from "@/db/empresas";
+import { acharUf, ufDoCodigoIbge } from "@/core/ufs";
+import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema, lerEmpresa } from "@/db/empresas";
+import { atualizarRadar } from "@/lib/radar-dados";
 import { META_LIMITE } from "@/core/meta";
 import { gravarMetaDisputas } from "@/db/meta";
 import { exigirDono } from "@/lib/sessao";
@@ -57,6 +59,41 @@ export async function salvarEmpresaAction(entrada: unknown): Promise<ResultadoEm
     return { ok: false, erro: "Não foi possível salvar agora. Tente de novo em instantes." };
   }
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * "+ Estado" do filtro do Radar: acrescenta a UF às áreas da empresa e agenda a primeira coleta dela.
+ * Só o dono edita, e sempre a empresa da própria sessão.
+ */
+export async function adicionarUfAoRadarAction(uf: unknown): Promise<ResultadoEmpresa> {
+  let empresaId: string;
+  try {
+    empresaId = (await exigirDono()).empresaId;
+  } catch {
+    return { ok: false, erro: "Só o dono pode fazer isso." };
+  }
+  const achada = typeof uf === "string" ? acharUf(uf) : null;
+  if (!achada) return { ok: false, erro: "Estado inválido." };
+  try {
+    const empresa = await lerEmpresa(empresaId);
+    if (!empresa) return { ok: false, erro: "Empresa não encontrada." };
+    if (!empresa.areas.ufs.includes(achada.sigla)) {
+      const areas = normalizarAreas({ ...empresa.areas, ufs: [...empresa.areas.ufs, achada.sigla] });
+      const gravou = await atualizarPerfilEmpresa(empresaId, {
+        nomeFantasia: empresa.nomeFantasia,
+        cnaes: empresa.cnaes,
+        areas,
+        radarTudoDoRamo: empresa.radarTudoDoRamo,
+      });
+      if (!gravou) return { ok: false, erro: "Empresa não encontrada." };
+    }
+  } catch (e) {
+    console.error("[empresa] adicionar estado falhou:", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível adicionar agora. Tente de novo em instantes." };
+  }
+  revalidatePath("/", "layout");
+  after(() => atualizarRadar({ ufs: [achada.sigla] }).then(() => undefined));
   return { ok: true };
 }
 

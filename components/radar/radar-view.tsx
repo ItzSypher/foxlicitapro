@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { atualizarRadarAgora, definirFrente } from "@/app/(app)/actions";
+import { adicionarUfAoRadarAction } from "@/app/(app)/empresa/actions";
 import { Button } from "@/components/ui/button";
 import type { Fonte } from "@/core/fonte";
 import type { Frente, ModalidadeId, OportunidadeComScore } from "@/core/types";
@@ -35,6 +36,7 @@ import { DetalheSheet } from "./detalhe-sheet";
 import { AvisoFalhaParcial, EstadoErro, EstadoVazio } from "./estados";
 import { BarraFiltros } from "./filtros";
 import { BuscaPalavras } from "./busca-palavras";
+import { BuscaPncp } from "./busca-pncp";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
 import { Paginacao } from "./paginacao";
 import type { PainelMeta } from "@/core/meta";
@@ -79,9 +81,20 @@ interface Props {
   palavrasSalvas?: string[];
   /** Meta da semana; null quando não foi possível ler */
   meta?: PainelMeta | null;
+  /** UFs das áreas da empresa (as que entram na busca diária) */
+  ufsAtendidas?: string[];
 }
 
-export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaInicial, renderAcoes, palavrasSalvas = [], meta = null }: Props) {
+export function RadarView({
+  frente,
+  pagina: dados,
+  visao: visaoInicial,
+  buscaInicial,
+  renderAcoes,
+  palavrasSalvas = [],
+  meta = null,
+  ufsAtendidas = [],
+}: Props) {
   const router = useRouter();
   const caminho = usePathname();
   const parametrosUrl = useSearchParams().toString();
@@ -332,6 +345,32 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
     [navegar, rolarParaLista],
   );
 
+  const [ufsAdicionadas, setUfsAdicionadas] = useState<string[]>([]);
+  const [ufEmAdicao, setUfEmAdicao] = useState<string | null>(null);
+  const [erroUf, setErroUf] = useState<string | null>(null);
+
+  /** Estado que a empresa ainda não atende: entra nas áreas, vira filtro e a coleta roda em segundo plano. */
+  const adicionarUf = useCallback(
+    async (uf: string) => {
+      setErroUf(null);
+      setUfEmAdicao(uf);
+      try {
+        const r = await adicionarUfAoRadarAction(uf);
+        if (!r.ok) {
+          setErroUf(r.erro);
+          return;
+        }
+        setUfsAdicionadas((atual) => (atual.includes(uf) ? atual : [...atual, uf]));
+        mudarUfs(filtros.ufs.includes(uf) ? filtros.ufs : [...filtros.ufs, uf]);
+      } catch {
+        setErroUf("Não foi possível adicionar o estado agora. Tente de novo.");
+      } finally {
+        setUfEmAdicao(null);
+      }
+    },
+    [mudarUfs, filtros.ufs],
+  );
+
   const escolherUfDoPainel = useCallback(
     (uf: string) => {
       // Tocar no estado já escolhido tira o filtro dele.
@@ -366,7 +405,7 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
   const filtrosPadrao = contarFiltrosAtivos(filtros, false) === 0;
   const aviso = dados ? textoAviso(dados.falhas, dados.ufsPendentes) : null;
   const total = dados?.total ?? 0;
-  const ufsDisponiveis = useMemo(() => Object.keys(dados?.contagensUf ?? {}).sort(), [dados]);
+  const ufsDaEmpresa = useMemo(() => [...new Set([...ufsAtendidas, ...ufsAdicionadas])], [ufsAtendidas, ufsAdicionadas]);
   const chaveLista = `${aba}|${frenteOtimista}|${visao}|${dados?.pagina ?? 1}|${dados?.porPagina ?? 0}|${total}`;
 
   return (
@@ -436,9 +475,14 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
             aoGuardar={marcarGuardada}
           />
 
+          <BuscaPncp texto={buscaNaUrl} ufs={filtros.ufs.length > 0 ? filtros.ufs : ufsDaEmpresa} />
+
           <BarraFiltros
             filtros={filtros}
-            ufsDisponiveis={ufsDisponiveis}
+            ufsAtendidas={ufsDaEmpresa}
+            ufEmAdicao={ufEmAdicao}
+            erroUf={erroUf}
+            onAdicionarUf={adicionarUf}
             contagensUf={dados.contagensUf}
             contagensFonte={dados.contagensFonte}
             tudoDoRamo={dados.tudoDoRamo}

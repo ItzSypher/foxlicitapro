@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import type { LimitesCaixa } from "@/core/caixa";
 import type { RespostaRadar } from "@/core/types";
 import { RadarComPipeline } from "@/components/pipeline/radar-com-pipeline";
+import { ufsDeColeta } from "@/core/areas";
 import { temPermissao } from "@/core/permissoes";
 import { carregarPainelMeta } from "@/db/meta";
 import { idsNoPipeline, resumoPipeline, type ResumoPipeline } from "@/db/pipeline";
@@ -79,6 +80,7 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
       idsSalvos={[...ids]}
       palavrasSalvas={palavras}
       meta={meta}
+      ufsAtendidas={ufsDeColeta(perfil.areas)}
       podeSalvar={sessao !== null && temPermissao(sessao, "mover_pipeline")}
     />
   );

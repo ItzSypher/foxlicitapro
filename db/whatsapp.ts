@@ -106,6 +106,70 @@ export async function listarVinculosAtivos(empresaId: string): Promise<VinculoWa
   return linhas.map(paraVinculo);
 }
 
+/** Pessoas ativas da empresa com WhatsApp ligado (com os alertas pausados ou não), para a tela de situação. */
+export async function listarVinculosDaEmpresa(empresaId: string): Promise<VinculoWa[]> {
+  const linhas = await sql`
+    select ${colunasVinculo()} from usuarios
+    where empresa_id = ${empresaId} and ativo and whatsapp is not null
+    order by (papel = 'dono') desc, lower(nome) asc
+  `;
+  return linhas.map(paraVinculo);
+}
+
+const resumoSchema = z.object({ usuario_id: z.string(), valor: z.string() });
+
+/** Quando saiu o último resumo da manhã de cada pessoa da empresa (ISO). Quem nunca recebeu não aparece. */
+export async function lerUltimosResumos(empresaId: string): Promise<Map<string, string>> {
+  const linhas = await sql`
+    select distinct on (u.id) u.id as usuario_id, c.valor
+    from usuarios u
+    join wa_config c on c.chave like 'manha:' || u.id::text || ':%'
+    where u.empresa_id = ${empresaId}
+    order by u.id, c.chave desc
+  `;
+  const mapa = new Map<string, string>();
+  for (const linha of linhas) {
+    const l = resumoSchema.safeParse(linha);
+    if (l.success) mapa.set(l.data.usuario_id, l.data.valor);
+  }
+  return mapa;
+}
+
+export interface AvisoRecente {
+  id: string;
+  usuarioNome: string;
+  tipo: string;
+  status: string;
+  /** Quando saiu; sem envio, quando entrou na fila */
+  quando: Date;
+}
+
+const avisoRecenteSchema = z.object({
+  id: z.string(),
+  nome: z.string(),
+  tipo: z.string(),
+  status: z.string(),
+  quando: z.date(),
+});
+
+/** Os avisos mais recentes da empresa. Licitações novas do resumo (uma linha por item) ficam de fora. */
+export async function listarAvisosRecentes(empresaId: string, limite: number): Promise<AvisoRecente[]> {
+  const linhas = await sql`
+    select a.id, u.nome, a.tipo, a.status, coalesce(a.enviado_em, a.criado_em) as quando
+    from wa_alertas a
+    join usuarios u on u.id = a.usuario_id
+    where a.empresa_id = ${empresaId} and a.tipo <> 'radar'
+    order by coalesce(a.enviado_em, a.criado_em) desc
+    limit ${Math.max(1, Math.trunc(limite))}
+  `;
+  const avisos: AvisoRecente[] = [];
+  for (const linha of linhas) {
+    const l = avisoRecenteSchema.safeParse(linha);
+    if (l.success) avisos.push({ id: l.data.id, usuarioNome: l.data.nome, tipo: l.data.tipo, status: l.data.status, quando: l.data.quando });
+  }
+  return avisos;
+}
+
 /** Guarda o código de ativação da pessoa. Falso se a pessoa não é desta empresa ou o código já está em uso. */
 export async function definirCodigo(empresaId: string, usuarioId: string, codigo: string, expira: Date): Promise<boolean> {
   if (!FORMATO_ID.test(usuarioId)) return false;

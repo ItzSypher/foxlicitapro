@@ -1,11 +1,20 @@
 import { connection } from "next/server";
 import { formatarWhatsapp } from "@/core/whatsapp";
 import { janelaAberta, lerEscolhas, tituloAtribuir } from "@/core/whatsapp-alertas";
-import { lerResponsavelPadrao, lerVinculoPorUsuario } from "@/db/whatsapp";
+import {
+  lerResponsavelPadrao,
+  lerUltimosResumos,
+  lerVinculoPorUsuario,
+  listarAvisosRecentes,
+  listarVinculosDaEmpresa,
+} from "@/db/whatsapp";
 import { exigirSessao } from "@/lib/sessao";
 import { ControlesWhatsapp } from "./controles";
 import { LigarWhatsapp } from "./ligar-whatsapp";
 import { PerfilAlertaForm } from "./perfil-alerta";
+import { SituacaoWhatsapp } from "./situacao-whatsapp";
+
+const AVISOS_RECENTES = 5;
 
 export const metadata = { title: "Alertas · FoxLicita Pro" };
 
@@ -22,7 +31,16 @@ export default async function AlertasPage() {
   const botaoAtribuir = tituloAtribuir(padrao?.nome ?? null);
   const numero = vinculo?.whatsapp ?? null;
   const recebendo = vinculo !== null && vinculo.avisoWhatsapp;
-  const conversaAtiva = vinculo !== null && janelaAberta(vinculo.ultimaEntrada, new Date());
+  const agora = new Date();
+  const conversaAtiva = vinculo !== null && janelaAberta(vinculo.ultimaEntrada, agora);
+  const verSituacao = sessao.papel === "dono" || sessao.papel === "gestor";
+  const situacao = verSituacao
+    ? await Promise.all([
+        listarVinculosDaEmpresa(sessao.empresaId),
+        lerUltimosResumos(sessao.empresaId),
+        listarAvisosRecentes(sessao.empresaId, AVISOS_RECENTES),
+      ]).catch(() => null)
+    : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-5">
@@ -77,6 +95,10 @@ export default async function AlertasPage() {
         </div>
         <PerfilAlertaForm inicial={escolhas} />
       </section>
+
+      {situacao !== null ? (
+        <SituacaoWhatsapp pessoas={situacao[0]} ultimosResumos={situacao[1]} avisos={situacao[2]} agora={agora} />
+      ) : null}
 
       <section className={CARTAO}>
         <h2 className="text-base font-semibold text-ink">O que você pode pedir</h2>

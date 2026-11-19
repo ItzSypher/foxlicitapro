@@ -41,6 +41,23 @@ export function acharUf(sigla: string): UfBrasil | null {
   return UFS.find((u) => u.sigla === s) ?? null;
 }
 
+const SUDESTE: ReadonlyArray<string> = ["RJ", "SP", "MG", "ES"];
+
+/**
+ * As 27 siglas na ordem do filtro de estado: as UFs que a empresa atende primeiro (em ordem alfabética),
+ * depois o Sudeste (RJ, SP, MG, ES) e por fim as demais em ordem alfabética. Siglas inválidas em
+ * `atendidas` são ignoradas.
+ */
+export function ordenarUfsParaFiltro(atendidas: ReadonlyArray<string>): string[] {
+  const todas = UFS.map((u) => u.sigla);
+  const primeiras = [...new Set(atendidas.map((s) => s.trim().toUpperCase()))].filter((s) => todas.includes(s)).sort();
+  const usadas = new Set(primeiras);
+  const sudeste = SUDESTE.filter((s) => !usadas.has(s));
+  for (const s of sudeste) usadas.add(s);
+  const resto = todas.filter((s) => !usadas.has(s)).sort();
+  return [...primeiras, ...sudeste, ...resto];
+}
+
 /** UF a que um código IBGE de município (7 dígitos) pertence, pelos 2 primeiros dígitos. */
 export function ufDoCodigoIbge(codigoIbge: string): UfBrasil | null {
   const prefixo = codigoIbge.trim().slice(0, 2);

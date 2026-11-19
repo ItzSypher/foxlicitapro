@@ -16,8 +16,8 @@ import { gravarModalidade, lerCacheRadar, marcarFalha, pegarTrava, soltarTrava, 
 /** Depois desse tempo o cache é servido, mas uma nova coleta começa em segundo plano. */
 const VALIDADE_MS = 30 * 60 * 1000;
 
-/** Páginas (de 50) por UF e modalidade; mantém a coleta de várias UFs dentro do tempo da função. */
-export const MAX_PAGINAS_POR_UF = 10;
+/** Páginas (de 50) por UF e modalidade: até 3.000 itens, o bastante para MG (2.242 pregões abertos em 19/11). */
+export const MAX_PAGINAS_POR_UF = 60;
 
 /** Depois deste tempo a coleta não começa outra UF (a função do cron tem 300 s). As que sobram ficam para a próxima. */
 const ORCAMENTO_COLETA_MS = 230_000;

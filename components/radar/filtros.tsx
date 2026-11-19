@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -21,6 +21,7 @@ import {
   type Visao,
 } from "@/lib/radar-filtros";
 import { FONTES, type Fonte } from "@/core/fonte";
+import { ordenarUfsParaFiltro } from "@/core/ufs";
 import { Interruptor } from "@/components/ui/interruptor";
 import { Segmentado } from "@/components/ui/segmentado";
 import { Seletor, type OpcaoSeletor } from "@/components/ui/seletor";
@@ -128,8 +129,13 @@ function FaixaDeValor({
 
 interface Props {
   filtros: Filtros;
-  /** UFs das áreas da empresa, para os chips */
-  ufsDisponiveis: ReadonlyArray<string>;
+  /** UFs das áreas da empresa (as que entram na busca diária) */
+  ufsAtendidas: ReadonlyArray<string>;
+  /** UF sendo adicionada às áreas agora, para travar o chip */
+  ufEmAdicao: string | null;
+  /** Erro curto da última tentativa de adicionar um estado */
+  erroUf: string | null;
+  onAdicionarUf: (uf: string) => void;
   contagensUf: Record<string, number>;
   contagensFonte: Record<string, number>;
   /** "Tudo do meu ramo" valendo agora (URL ou padrão do perfil) */
@@ -156,7 +162,10 @@ interface Props {
  */
 export function BarraFiltros({
   filtros,
-  ufsDisponiveis,
+  ufsAtendidas,
+  ufEmAdicao,
+  erroUf,
+  onAdicionarUf,
   contagensUf,
   contagensFonte,
   tudoDoRamo,
@@ -174,7 +183,9 @@ export function BarraFiltros({
 }: Props) {
   const [painelAberto, setPainelAberto] = useState(false);
   const ativos = contarFiltrosAtivos(filtros, !semOrdem);
-  const ufs = [...new Set([...ufsDisponiveis, ...filtros.ufs])];
+  // Linha do topo: só os estados atendidos e os escolhidos. O painel lista os 27.
+  const todasUfs = ordenarUfsParaFiltro(ufsAtendidas);
+  const ufsDaLinha = todasUfs.filter((uf) => ufsAtendidas.includes(uf) || filtros.ufs.includes(uf));
 
   return (
     <div className="flex items-center gap-2 lg:gap-3">
@@ -182,12 +193,16 @@ export function BarraFiltros({
         <Chip ativo={filtros.ufs.length === 0} aoAlternar={() => onUfs([])}>
           Todos
         </Chip>
-        {ufs.map((uf) => (
+        {ufsDaLinha.map((uf) => (
           <Chip key={uf} ativo={filtros.ufs.includes(uf)} aoAlternar={() => onUfs(alternar(filtros.ufs, uf))}>
             {uf}
             <ContagemDoChip ativo={filtros.ufs.includes(uf)} valor={contagensUf[uf] ?? 0} />
           </Chip>
         ))}
+        <Chip ativo={false} aoAlternar={() => setPainelAberto(true)}>
+          <Plus className="size-3.5" aria-hidden="true" />
+          Estados
+        </Chip>
       </div>
 
       <Button type="button" variant="outline" onClick={() => setPainelAberto(true)} className="h-11 shrink-0 gap-2 px-3 lg:h-9">
@@ -239,15 +254,46 @@ export function BarraFiltros({
           </SheetHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain p-4">
-            <GrupoDoPainel titulo="Estado">
-              <div className="flex flex-wrap gap-2">
-                {ufs.map((uf) => (
-                  <Chip key={uf} ativo={filtros.ufs.includes(uf)} aoAlternar={() => onUfs(alternar(filtros.ufs, uf))}>
-                    {uf}
-                    <ContagemDoChip ativo={filtros.ufs.includes(uf)} valor={contagensUf[uf] ?? 0} />
-                  </Chip>
-                ))}
+            <GrupoDoPainel titulo="Estados">
+              <p className="text-xs text-muted-foreground">Toque para filtrar. Estados com + entram na busca diária.</p>
+              <div role="group" aria-label="Estados" className="flex flex-wrap gap-2">
+                <Chip ativo={filtros.ufs.length === 0} aoAlternar={() => onUfs([])}>
+                  Todos
+                </Chip>
+                {todasUfs.map((uf) => {
+                  const atendida = ufsAtendidas.includes(uf);
+                  const marcada = filtros.ufs.includes(uf);
+                  if (atendida || marcada) {
+                    return (
+                      <Chip key={uf} ativo={marcada} aoAlternar={() => onUfs(alternar(filtros.ufs, uf))}>
+                        {uf}
+                        <ContagemDoChip ativo={marcada} valor={contagensUf[uf] ?? 0} />
+                      </Chip>
+                    );
+                  }
+                  return (
+                    <button
+                      key={uf}
+                      type="button"
+                      disabled={ufEmAdicao !== null}
+                      aria-label={`Adicionar ${uf} à busca diária`}
+                      onClick={() => onAdicionarUf(uf)}
+                      className={cn(
+                        "inline-flex h-10 shrink-0 items-center gap-1 rounded-full border border-dashed border-control px-3 text-sm whitespace-nowrap text-faint outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60 lg:h-8",
+                        ufEmAdicao === uf && "motion-safe:animate-pulse",
+                      )}
+                    >
+                      {uf}
+                      <Plus className="size-3.5" aria-hidden="true" />
+                    </button>
+                  );
+                })}
               </div>
+              {erroUf ? (
+                <p role="alert" className="text-xs text-negative">
+                  {erroUf}
+                </p>
+              ) : null}
             </GrupoDoPainel>
 
             <GrupoDoPainel titulo="Faixa de valor">

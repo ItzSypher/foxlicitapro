@@ -23,10 +23,12 @@ interface Props {
   palavrasSalvas?: string[];
   /** Meta da semana; null quando não foi possível ler */
   meta?: PainelMeta | null;
+  /** UFs das áreas da empresa */
+  ufsAtendidas?: string[];
 }
 
 /** Radar com o botão "Salvar no pipeline" no detalhe de cada oportunidade. */
-export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvos, podeSalvar = true, palavrasSalvas, meta }: Props) {
+export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvos, podeSalvar = true, palavrasSalvas, meta, ufsAtendidas }: Props) {
   const salvos = useMemo(() => new Set(idsSalvos), [idsSalvos]);
   return (
     <RadarView
@@ -36,6 +38,7 @@ export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvo
       buscaInicial={buscaInicial}
       palavrasSalvas={palavrasSalvas}
       meta={meta}
+      ufsAtendidas={ufsAtendidas}
       renderAcoes={(item: OportunidadeComScore) =>
         podeSalvar || salvos.has(item.id) ? (
           <BotaoSalvarPipeline key={item.id} item={item} salvo={salvos.has(item.id)} />
