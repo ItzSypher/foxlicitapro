@@ -20,10 +20,19 @@ declare global {
 /** Sem uso por mais que isso, a conexão pode estar morta: abre outra. */
 const RENOVAR_APOS_MS = 30_000;
 
+/**
+ * Modo sessão do pooler (porta 5432) em vez do modo transação (6543): no modo transação, duas consultas
+ * na mesma conexão ao mesmo tempo (o driver faz isso quando o pool enche) travam sem resposta, e cada tela
+ * esperava 10 s. Poucas conexões por instância, porque o modo sessão tem limite de conexões no pooler.
+ */
+export function urlModoSessao(url: string): string {
+  return url.replace(/(pooler\.supabase\.com):6543\//, "$1:5432/");
+}
+
 function criar(url: string): postgres.Sql {
-  return postgres(url, {
+  return postgres(urlModoSessao(url), {
     prepare: false,
-    max: 5,
+    max: 3,
     idle_timeout: 5,
     max_lifetime: 60 * 5,
     connect_timeout: 8,
