@@ -10,6 +10,7 @@ import type { PerfilEmpresa } from "@/core/perfil";
 import type { Frente, ModalidadeId, Oportunidade, RespostaRadar } from "@/core/types";
 import { montarPaginaRadar, type ConsultaRadar, type PaginaRadar } from "@/lib/radar-pagina";
 import { listarAreasEmpresasAtivas } from "@/db/empresas";
+import { pedirColeta } from "@/lib/coleta-separada";
 import { coletarAlertaLicitacao, type ResumoAlerta } from "@/lib/portais/alerta-licitacao";
 import { gravarModalidade, lerCacheRadar, marcarFalha, pegarTrava, soltarTrava, type LinhaCache } from "@/db/radar-cache";
 
@@ -157,7 +158,7 @@ export async function obterRadar(frente: Frente, limites: LimitesCaixa | undefin
   const recoletar = ufsParaRecoletar(cache, ufs, agora);
   if (recoletar.length > 0) {
     try {
-      after(() => atualizarRadar({ ufs: recoletar }).then(() => undefined));
+      after(() => pedirColeta(recoletar));
     } catch {
       // Fora de um pedido (rotinas do cron) não há como agendar: a próxima coleta do cron cobre.
     }

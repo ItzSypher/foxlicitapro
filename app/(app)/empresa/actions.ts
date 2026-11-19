@@ -6,7 +6,7 @@ import { z } from "zod";
 import { normalizarAreas, ufsDeColeta } from "@/core/areas";
 import { acharUf, ufDoCodigoIbge } from "@/core/ufs";
 import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema, lerEmpresa } from "@/db/empresas";
-import { atualizarRadar } from "@/lib/radar-dados";
+import { pedirColeta } from "@/lib/coleta-separada";
 import { META_LIMITE } from "@/core/meta";
 import { gravarMetaDisputas } from "@/db/meta";
 import { exigirDono } from "@/lib/sessao";
@@ -93,7 +93,7 @@ export async function adicionarUfAoRadarAction(uf: unknown): Promise<ResultadoEm
     return { ok: false, erro: "Não foi possível adicionar agora. Tente de novo em instantes." };
   }
   revalidatePath("/", "layout");
-  after(() => atualizarRadar({ ufs: [achada.sigla] }).then(() => undefined));
+  after(() => pedirColeta([achada.sigla]));
   return { ok: true };
 }
 

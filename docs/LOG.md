@@ -3,3 +3,4 @@
 - 2026-11-18: migrations 017 (eventos da proposta), 018 (perfil de alerta), 019 (histórico do conselheiro) e 020 (áreas do Radar e cache por UF) aplicadas. Publicadas as fases F2, F3, F4 e F8.
 - 2026-11-18: migrations 021 (meta semanal) e 022 (desertas, aplicada junto sem ok explícito, só tabelas novas vazias) aplicadas. F7 em andamento sem commit (core/desertas*, core/pncp/desertas*, core/semelhantes*, core/propostas-prontas.ts, db/desertas.ts).
 - 19/11/2026: coleta do PNCP sobe de 10 para 60 páginas por UF/modalidade (cortava em 500; MG tem 2.242 pregões abertos). Filtro com os 27 estados (+ adiciona à coleta), busca direta no PNCP pelo texto e card Situação do WhatsApp em Alertas (resumo só sai com a conversa aberta nas últimas 24 h).
+- 19/11/2026: lentidão do Radar (10-25 s): a coleta rodava dentro da visita e travava as conexões do banco (watchdog derrubava o pool). Agora a visita só pede a coleta em /api/cron/coleta, chamada separada.
