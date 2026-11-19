@@ -1,6 +1,7 @@
 import { normalizarTexto, regexDoTermo, removerSetorDeSistemas } from "./cnae-keywords";
 import { PERFIL_ORIGEM } from "./empresa";
-import { atendeRegiao, cnaePrincipal, ehMei, frenteDoCnae, type PerfilEmpresa } from "./perfil";
+import { dentroDasAreas, pontuacaoLocal } from "./areas";
+import { cnaePrincipal, ehMei, frenteDoCnae, type PerfilEmpresa } from "./perfil";
 import { MS_POUCO_TEMPO, TETO_MEI_ANO_CHEIO, VALOR_MINIMO, limiteMeiAnual } from "./score";
 import type { Frente, OportunidadeComScore } from "./types";
 import type { Preferencias } from "./types-equipe";
@@ -92,8 +93,9 @@ function pistas(
     lista.push({ bonus: BONUS_AREA_TI, motivo: "Tecnologia da informação: seu foco" });
   }
 
-  if (item.regiao === "nova-iguacu" && atendeRegiao(perfil, item.regiao)) lista.push({ bonus: 8, motivo: "Na sua cidade" });
-  else if (item.regiao === "baixada" && atendeRegiao(perfil, item.regiao)) lista.push({ bonus: 5, motivo: "Na Baixada, perto de casa" });
+  const { nivel } = pontuacaoLocal(item, perfil.areas);
+  if (nivel === "municipio-base") lista.push({ bonus: 8, motivo: "Na sua cidade" });
+  else if (nivel === "mesma-rm") lista.push({ bonus: 5, motivo: "Perto de casa, na sua região metropolitana" });
 
   const principal = cnaePrincipal(perfil)?.codigo;
   if (principal && frente === frenteDoCnae(perfil, principal) && item.score.cnaesCasados.includes(principal)) {
@@ -138,7 +140,7 @@ export function recomendar(
     if (item.score.faixa === "nogo") continue;
     if (item.score.frenteCasada !== frente) continue;
     if (ehMei(perfil) && item.valorEstimado !== null && item.valorEstimado > TETO_MEI_ANO_CHEIO) continue;
-    if (frente === "servicos" && !atendeRegiao(perfil, item.regiao)) continue;
+    if (frente === "servicos" && !dentroDasAreas(item, perfil.areas)) continue;
 
     const restante = Date.parse(item.dataEncerramento) - agora.getTime();
     if (Number.isNaN(restante) || restante < MS_POUCO_TEMPO) continue;

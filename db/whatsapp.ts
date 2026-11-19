@@ -3,10 +3,13 @@ import { z } from "zod";
 import { sql } from "@/db/client";
 import {
   TIPOS_ALERTA_WA,
+  TIPOS_AVULSOS_ANTIGOS,
+  lerEscolhas,
   lerPayload,
   payloadDoBotao,
   type AcaoBotao,
   type AlertaWa,
+  type EscolhasAlerta,
   type MudancaEtapa,
   type TipoAlertaWa,
 } from "@/core/whatsapp-alertas";
@@ -27,6 +30,8 @@ export interface VinculoWa {
   ultimaEntrada: Date | null;
   /** Dia (AAAA-MM-DD, São Paulo) do último template enviado */
   ultimoTemplate: string | null;
+  /** Perfil de alerta e o que a pessoa escolheu receber */
+  escolhas: EscolhasAlerta;
 }
 
 export interface AlertaPendente {
@@ -47,10 +52,11 @@ const vinculoSchema = z.object({
   wa_conversa_id: z.string().nullable(),
   wa_ultima_entrada: z.date().nullable(),
   wa_ultimo_template: z.string().nullable(),
+  wa_perfil_alerta: z.unknown(),
 });
 
 const colunasVinculo = () => sql`
-  id, empresa_id, nome, papel, permissoes, whatsapp, aviso_whatsapp, wa_conversa_id, wa_ultima_entrada,
+  id, empresa_id, nome, papel, permissoes, whatsapp, aviso_whatsapp, wa_conversa_id, wa_ultima_entrada, wa_perfil_alerta,
   to_char(wa_ultimo_template, 'YYYY-MM-DD') as wa_ultimo_template
 `;
 
@@ -67,6 +73,7 @@ function paraVinculo(linha: unknown): VinculoWa {
     conversaId: l.wa_conversa_id,
     ultimaEntrada: l.wa_ultima_entrada,
     ultimoTemplate: l.wa_ultimo_template,
+    escolhas: lerEscolhas(l.wa_perfil_alerta, l.papel),
   };
 }
 
@@ -172,6 +179,45 @@ export async function marcarTemplateEnviado(usuarioId: string, dia: string): Pro
   await sql`update usuarios set wa_ultimo_template = ${dia}::date where id = ${usuarioId}`;
 }
 
+/* ---------- perfil de alerta e responsável padrão ---------- */
+
+/** Grava o perfil de alerta e as escolhas da pessoa. */
+export async function salvarEscolhasAlerta(empresaId: string, usuarioId: string, escolhas: EscolhasAlerta): Promise<boolean> {
+  if (!FORMATO_ID.test(usuarioId)) return false;
+  const dados = { ...escolhas };
+  const r = await sql`
+    update usuarios set wa_perfil_alerta = ${sql.json(dados)}
+    where id = ${usuarioId} and empresa_id = ${empresaId}
+  `;
+  return r.count > 0;
+}
+
+export interface ResponsavelPadrao {
+  id: string;
+  nome: string;
+}
+
+/** Quem recebe o item no "Atribuir a ..." dos alertas; null se não definido ou a pessoa não está ativa. */
+export async function lerResponsavelPadrao(empresaId: string): Promise<ResponsavelPadrao | null> {
+  const linhas = await sql<{ id: string; nome: string }[]>`
+    select u.id::text as id, u.nome from empresas e
+    join usuarios u on u.id = e.wa_responsavel_padrao and u.empresa_id = e.id and u.ativo
+    where e.id = ${empresaId}
+  `;
+  return linhas[0] ?? null;
+}
+
+/** Define (ou limpa, com null) o responsável padrão. Falso se a pessoa não é ativa desta empresa. */
+export async function definirResponsavelPadrao(empresaId: string, usuarioId: string | null): Promise<boolean> {
+  if (usuarioId !== null) {
+    if (!FORMATO_ID.test(usuarioId)) return false;
+    const pessoa = await sql`select 1 from usuarios where id = ${usuarioId} and empresa_id = ${empresaId} and ativo`;
+    if (pessoa.length === 0) return false;
+  }
+  const r = await sql`update empresas set wa_responsavel_padrao = ${usuarioId} where id = ${empresaId}`;
+  return r.count > 0;
+}
+
 /* ---------- fila de alertas ---------- */
 
 /** Grava os alertas; o que a pessoa já recebeu (mesma chave) é ignorado. Devolve só os novos. */
@@ -231,6 +277,37 @@ export async function descartarVencidos(agora: Date): Promise<number> {
     where status = 'pendente' and validade is not null and validade <= ${agora.toISOString()}::timestamptz
   `;
   return r.count;
+}
+
+/** Pendentes de tipos que não saem mais avulsos (Radar, sem responsável, etapa, 48 h) viram descartados. */
+export async function descartarAvulsosAntigos(): Promise<number> {
+  const r = await sql`
+    update wa_alertas set status = 'descartado'
+    where status = 'pendente' and tipo in ${sql([...TIPOS_AVULSOS_ANTIGOS])}
+  `;
+  return r.count;
+}
+
+/** Grava como já enviados (o resumo da manhã mostrou). Mesma chave para a mesma pessoa é ignorada. */
+export async function registrarEnviados(empresaId: string, alertas: ReadonlyArray<AlertaWa>, agora: Date): Promise<void> {
+  for (const a of alertas) {
+    if (!FORMATO_ID.test(a.usuarioId)) continue;
+    await sql`
+      insert into wa_alertas (empresa_id, usuario_id, tipo, chave, texto, item_id, validade, status, enviado_em)
+      values (${empresaId}, ${a.usuarioId}, ${a.tipo}, ${a.chave}, ${a.texto}, ${a.itemId},
+              ${a.validade === null ? null : a.validade.toISOString()}::timestamptz, 'enviado', ${agora.toISOString()}::timestamptz)
+      on conflict (usuario_id, chave) do nothing
+    `;
+  }
+}
+
+/** Das chaves dadas, as que esta pessoa já tem (enviadas, pendentes ou descartadas). */
+export async function chavesRegistradas(usuarioId: string, chaves: ReadonlyArray<string>): Promise<Set<string>> {
+  if (!FORMATO_ID.test(usuarioId) || chaves.length === 0) return new Set();
+  const linhas = await sql<{ chave: string }[]>`
+    select chave from wa_alertas where usuario_id = ${usuarioId} and chave in ${sql([...chaves])}
+  `;
+  return new Set(linhas.map((l) => l.chave));
 }
 
 /* ---------- eventos do webhook ---------- */

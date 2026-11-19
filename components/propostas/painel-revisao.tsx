@@ -111,7 +111,7 @@ export function PainelRevisao({ status, autor, criadoPor, usuarioId, acessos, pe
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[13px] text-muted-foreground">
-          {acessos.editar ? "Aprovada. Use Enviar para gerar o link." : "Aprovada."}
+          {acessos.editar ? "Aprovada. Use Enviar para gerar o link e, depois de enviar no portal, registrar o comprovante." : "Aprovada."}
         </p>
         {acessos.aprovar ? (
           <button type="button" onClick={() => aoAgir("reabrir")} disabled={pendente} className={cn(BOTAO_SECUNDARIO, largo)}>

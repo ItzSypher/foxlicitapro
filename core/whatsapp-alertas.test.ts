@@ -1,25 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
-  alertasDeEtapa,
+  VALOR_GRANDE_PADRAO,
+  aceitaAlerta,
   alertasDePrazo,
-  alertasDeRadar,
-  alertasSemResponsavel,
   botoesDoAlerta,
   dentroDoHorario,
+  escolhasDoPerfil,
   faixaDoPrazo,
   gerarCodigoAtivacao,
+  inicioDaSemana,
   janelaAberta,
   lerComando,
+  lerEscolhas,
   lerEventoRecebido,
   lerPayload,
   linkAtivacao,
   mesDeSaoPaulo,
   payloadDoBotao,
+  quandoFecha,
   textoDoResumo,
   textoResumoManha,
+  tituloAtribuir,
   type AcaoBotao,
+  type DadosResumoManha,
   type ItemAlerta,
-  type MudancaEtapa,
+  type MovimentoEquipe,
+  type NovaDoRamo,
   type PessoaWa,
   type TipoAlertaWa,
 } from "./whatsapp-alertas";
@@ -30,9 +36,10 @@ const MIN = 60_000;
 const AGORA = new Date("2026-05-12T15:00:00Z");
 const depois = (ms: number): string => new Date(AGORA.getTime() + ms).toISOString();
 
-const ana: PessoaWa = { id: "ana", ativa: true };
-const beto: PessoaWa = { id: "beto", ativa: true };
-const caio: PessoaWa = { id: "caio", ativa: false };
+const ana: PessoaWa = { id: "ana", ativa: true, prazos: true };
+const beto: PessoaWa = { id: "beto", ativa: true, prazos: true };
+const caio: PessoaWa = { id: "caio", ativa: false, prazos: true };
+const dora: PessoaWa = { id: "dora", ativa: true, prazos: false };
 
 function item(parcial: Partial<ItemAlerta> & { id: string }): ItemAlerta {
   return { etapa: "analisando", objeto: "Aquisição de material de escritório", dataEncerramento: depois(10 * HORA), responsavelId: null, ...parcial };
@@ -78,6 +85,37 @@ describe("faixaDoPrazo", () => {
   });
 });
 
+describe("perfil de alerta", () => {
+  it("sem escolha gravada: dono acompanha, gestor e jurídico operam", () => {
+    expect(lerEscolhas(null, "dono")).toEqual(escolhasDoPerfil("acompanhamento"));
+    expect(lerEscolhas(null, "gestor")).toEqual(escolhasDoPerfil("operacional"));
+    expect(lerEscolhas(undefined, "juridico").perfil).toBe("operacional");
+  });
+  it("operacional recebe o dia a dia; acompanhamento só o placar", () => {
+    const op = escolhasDoPerfil("operacional");
+    expect(op).toMatchObject({ prazos: true, novas: true, fechando: true, aguardando: true, pendencias: true, movimentos: false, grandes: false, meta: true });
+    const ac = escolhasDoPerfil("acompanhamento");
+    expect(ac).toMatchObject({ prazos: false, novas: false, pendencias: false, movimentos: true, disputa: true, grandes: true, meta: true });
+  });
+  it("campo gravado vence o padrão do perfil; lixo volta ao padrão", () => {
+    const e = lerEscolhas({ perfil: "acompanhamento", prazos: true, valorGrande: 50_000 }, "gestor");
+    expect(e).toMatchObject({ perfil: "acompanhamento", prazos: true, movimentos: true, valorGrande: 50_000 });
+    expect(lerEscolhas({ perfil: "chefe" }, "gestor")).toEqual(escolhasDoPerfil("operacional"));
+    expect(lerEscolhas("texto", "dono")).toEqual(escolhasDoPerfil("acompanhamento"));
+    expect(lerEscolhas({ valorGrande: -5 }, "dono").valorGrande).toBe(VALOR_GRANDE_PADRAO);
+  });
+  it("na fila só entra prazo urgente e aviso, conforme a escolha", () => {
+    const op = escolhasDoPerfil("operacional");
+    const ac = escolhasDoPerfil("acompanhamento");
+    expect(aceitaAlerta(op, "prazo2")).toBe(true);
+    expect(aceitaAlerta(op, "prazo24")).toBe(true);
+    expect(aceitaAlerta(op, "aviso")).toBe(true);
+    for (const tipo of ["prazo48", "radar", "sem_responsavel", "etapa"] as const) expect(aceitaAlerta(op, tipo)).toBe(false);
+    expect(aceitaAlerta(ac, "prazo2")).toBe(false);
+    expect(aceitaAlerta(ac, "aviso")).toBe(false);
+  });
+});
+
 describe("alertasDePrazo", () => {
   it("vai ao responsável quando ele está ativo", () => {
     const r = alertasDePrazo([item({ id: "i1", responsavelId: "ana", dataEncerramento: depois(HORA) })], [ana, beto], AGORA);
@@ -86,13 +124,17 @@ describe("alertasDePrazo", () => {
     expect(r[0]?.texto).toContain("⏰ Prazo em 1 h");
     expect(r[0]?.validade?.toISOString()).toBe(depois(HORA));
   });
-  it("não envia se o responsável não está ativo", () => {
-    expect(alertasDePrazo([item({ id: "i1", responsavelId: "caio" })], [ana, caio], AGORA)).toHaveLength(0);
+  it("responsável inativo ou que não quer prazos: vai a quem quer", () => {
+    expect(alertasDePrazo([item({ id: "i1", responsavelId: "caio" })], [ana, caio], AGORA).map((a) => a.usuarioId)).toEqual(["ana"]);
+    expect(alertasDePrazo([item({ id: "i1", responsavelId: "dora" })], [ana, dora], AGORA).map((a) => a.usuarioId)).toEqual(["ana"]);
   });
-  it("sem responsável vai a todas as pessoas ativas", () => {
-    const r = alertasDePrazo([item({ id: "i1" })], [ana, beto, caio], AGORA);
+  it("sem responsável vai a todas as pessoas ativas que querem prazos", () => {
+    const r = alertasDePrazo([item({ id: "i1" })], [ana, beto, caio, dora], AGORA);
     expect(r.map((a) => a.usuarioId)).toEqual(["ana", "beto"]);
     expect(r[0]?.tipo).toBe("prazo24");
+  });
+  it("só 24 h e 2 h: o de 48 h fica para o resumo", () => {
+    expect(alertasDePrazo([item({ id: "i1", dataEncerramento: depois(30 * HORA) })], [ana], AGORA)).toHaveLength(0);
   });
   it("ignora etapas encerradas e prazos fora da janela", () => {
     const itens = [item({ id: "a", etapa: "ganha" }), item({ id: "b", etapa: "perdida" }), item({ id: "c", dataEncerramento: depois(72 * HORA) })];
@@ -105,74 +147,6 @@ describe("alertasDePrazo", () => {
   });
 });
 
-describe("alertasDeRadar", () => {
-  const base = { id: "o1", objeto: "Compra de notebooks", nota: 85, dataEncerramento: depois(72 * HORA), link: "https://x/l/1" };
-  it("avisa as pessoas ativas com nota, objeto e link", () => {
-    const r = alertasDeRadar([base], [ana, caio], new Set(), AGORA);
-    expect(r).toHaveLength(1);
-    expect(r[0]).toMatchObject({ usuarioId: "ana", tipo: "radar", chave: "radar:o1", itemId: null });
-    expect(r[0]?.texto).toContain("85");
-    expect(r[0]?.texto).toContain("https://x/l/1");
-  });
-  it("ignora nota baixa, encerrada e quem já está no pipeline", () => {
-    const r = alertasDeRadar(
-      [
-        { ...base, id: "baixa", nota: 79 },
-        { ...base, id: "velha", dataEncerramento: depois(-HORA) },
-        { ...base, id: "no-pipeline" },
-      ],
-      [ana],
-      new Set(["no-pipeline"]),
-      AGORA,
-    );
-    expect(r).toHaveLength(0);
-  });
-  it("não repete a mesma oportunidade", () => {
-    expect(alertasDeRadar([base, base], [ana], new Set(), AGORA)).toHaveLength(1);
-  });
-});
-
-describe("alertasSemResponsavel", () => {
-  it("um por dia por pessoa, só itens abertos e sem responsável", () => {
-    const itens = [item({ id: "a" }), item({ id: "b", responsavelId: "ana" }), item({ id: "c", etapa: "ganha" })];
-    const r = alertasSemResponsavel(itens, [ana, beto, caio], AGORA);
-    expect(r.map((x) => x.chave)).toEqual(["semresp:a:2026-05-12", "semresp:a:2026-05-12"]);
-    expect(r.map((x) => x.usuarioId)).toEqual(["ana", "beto"]);
-    expect(r[0]?.itemId).toBe("a");
-  });
-  it("no dia seguinte a chave muda", () => {
-    const r = alertasSemResponsavel([item({ id: "a" })], [ana], new Date(AGORA.getTime() + 24 * HORA));
-    expect(r[0]?.chave).toBe("semresp:a:2026-05-13");
-  });
-});
-
-describe("alertasDeEtapa", () => {
-  const mudanca: MudancaEtapa = {
-    historicoId: "7",
-    itemId: "i1",
-    objeto: "Aquisição de cadeiras",
-    de: "cotando",
-    para: "proposta",
-    porId: "ana",
-    responsavelId: "ana",
-  };
-  it("avisa responsável e donos, menos quem moveu", () => {
-    const r = alertasDeEtapa([{ ...mudanca, porId: "beto" }], [ana, beto, caio], new Set(["beto", "caio"]));
-    expect(r.map((a) => a.usuarioId)).toEqual(["ana"]);
-    expect(r[0]?.chave).toBe("etapa:7");
-    expect(r[0]?.validade).toBeNull();
-    expect(r[0]?.texto).toContain("Cotando fornecedor → Proposta pronta");
-  });
-  it("quem moveu não recebe", () => {
-    const r = alertasDeEtapa([mudanca], [ana, beto], new Set(["beto"]));
-    expect(r.map((a) => a.usuarioId)).toEqual(["beto"]);
-  });
-  it("dono que também é responsável recebe uma vez", () => {
-    const r = alertasDeEtapa([{ ...mudanca, porId: null }], [ana], new Set(["ana"]));
-    expect(r).toHaveLength(1);
-  });
-});
-
 describe("textoDoResumo", () => {
   it("lista vazia gera texto vazio", () => {
     expect(textoDoResumo([])).toBe("");
@@ -181,37 +155,140 @@ describe("textoDoResumo", () => {
     const itens: Array<{ tipo: TipoAlertaWa; texto: string }> = [
       { tipo: "prazo2", texto: "p1" },
       { tipo: "prazo24", texto: "p2" },
-      { tipo: "prazo48", texto: "p3" },
-      { tipo: "radar", texto: "r1" },
+      { tipo: "aviso", texto: "a1" },
     ];
     const t = textoDoResumo(itens);
-    expect(t).toContain("Enquanto você estava fora: 3 prazos, 1 licitação nova");
+    expect(t).toContain("Urgente: 2 prazos, 1 aviso");
     expect(t).toContain("p1");
     expect(t).not.toContain("+");
     expect(t).toContain("Responda *prazos* ou *pipeline* para ver mais.");
   });
   it("mostra no máximo 8 e resume o resto", () => {
-    const itens = Array.from({ length: 11 }, (_, i) => ({ tipo: "aviso" as const, texto: `t${i}` }));
+    const itens = Array.from({ length: 11 }, (_, i) => ({ tipo: "prazo24" as const, texto: `t${i}` }));
     const t = textoDoResumo(itens);
-    expect(t).toContain("11 avisos");
+    expect(t).toContain("11 prazos");
     expect(t).toContain("t7");
     expect(t).not.toContain("t8");
     expect(t).toContain("+3");
   });
 });
 
+function nova(parcial: Partial<NovaDoRamo> & { id: string }): NovaDoRamo {
+  return {
+    objeto: "Aquisição de toner para impressoras",
+    valor: 12_500,
+    municipio: "Nova Iguaçu",
+    uf: "RJ",
+    modalidade: "Dispensa",
+    // 20/05 às 14h em São Paulo
+    dataEncerramento: "2026-05-20T17:00:00Z",
+    bateu: "Equipamentos e suprimentos de informática: toner",
+    ...parcial,
+  };
+}
+
+function dados(parcial: Partial<DadosResumoManha> = {}): DadosResumoManha {
+  return {
+    usuarioId: "ana",
+    nome: "Ana Souza",
+    escolhas: escolhasDoPerfil("operacional"),
+    novas: [],
+    itens: [],
+    movimentos: [],
+    pendencias: [],
+    disputasNaSemana: 0,
+    ...parcial,
+  };
+}
+
 describe("textoResumoManha", () => {
-  it("conta itens, prazos de 48 h e sem responsável", () => {
-    const t = textoResumoManha(
-      [item({ id: "a", responsavelId: "ana", dataEncerramento: depois(30 * HORA) }), item({ id: "b", dataEncerramento: depois(100 * HORA) }), item({ id: "c", etapa: "perdida" })],
+  it("novas do ramo com valor, cidade/UF, modalidade, quando fecha e o que bateu", () => {
+    const r = textoResumoManha(dados({ novas: [nova({ id: "n1" }), nova({ id: "n2", valor: null, objeto: "Papel A4" })] }), AGORA);
+    expect(r.texto).toContain("☀️ Bom dia, Ana!");
+    expect(r.texto).toContain("🆕 2 novas do seu ramo");
+    expect(r.texto).toContain("1. *Aquisição de toner para impressoras*");
+    expect(r.texto).toContain("R$ 12.500 · Nova Iguaçu/RJ · Dispensa");
+    expect(r.texto).toContain("Fecha 20/05 às 14h · Bateu: Equipamentos e suprimentos de informática: toner");
+    expect(r.texto).toContain("Valor sigiloso");
+    expect(r.novasMostradas).toEqual(["n1", "n2"]);
+  });
+  it("lista até 8 novas e conta o resto", () => {
+    const novas = Array.from({ length: 11 }, (_, i) => nova({ id: `n${i}` }));
+    const r = textoResumoManha(dados({ novas }), AGORA);
+    expect(r.texto).toContain("🆕 11 novas do seu ramo");
+    expect(r.texto).toContain("8. *");
+    expect(r.texto).not.toContain("9. *");
+    expect(r.texto).toContain("+3");
+    expect(r.novasMostradas).toHaveLength(8);
+  });
+  it("fecham em 48 h, aguardando resultado, pendências e meta", () => {
+    const itens = [
+      item({ id: "a", dataEncerramento: depois(30 * HORA) }),
+      item({ id: "b", dataEncerramento: depois(100 * HORA) }),
+      item({ id: "c", etapa: "disputa", objeto: "Cadeiras", dataEncerramento: depois(-5 * HORA) }),
+      item({ id: "d", etapa: "perdida", dataEncerramento: depois(-5 * HORA) }),
+    ];
+    const r = textoResumoManha(dados({ itens, pendencias: ["📝 Proposta para revisar\nDetalhe"], disputasNaSemana: 2 }), AGORA);
+    expect(r.texto).toContain("⏰ Fecham em 48 h: 1");
+    expect(r.texto).toContain("(em 1 d 6 h)");
+    expect(r.texto).toContain("⌛ Aguardando resultado: 1\n• Cadeiras");
+    expect(r.texto).toContain("📌 Para você: 1\n• 📝 Proposta para revisar");
+    expect(r.texto).not.toContain("Detalhe");
+    expect(r.texto).toContain("🎯 Meta da semana: 2 de 5 em disputa (ideal 10). Faltam 3.");
+  });
+  it("acompanhamento: movimentos da equipe, disputas, grandes e meta; sem o operacional", () => {
+    const movimentos: MovimentoEquipe[] = [
+      { itemId: "i1", objeto: "Notebooks", de: "proposta", para: "disputa", porId: "paulo", porNome: "Paulo Henrique" },
+      { itemId: "i2", objeto: "Toner", de: "radar", para: "analisando", porId: "paulo", porNome: "Paulo Henrique" },
+      { itemId: "i3", objeto: "Feito por mim", de: "radar", para: "cotando", porId: "dono", porNome: "Dono" },
+    ];
+    const r = textoResumoManha(
+      dados({
+        usuarioId: "dono",
+        nome: "Dono",
+        escolhas: escolhasDoPerfil("acompanhamento"),
+        movimentos,
+        novas: [nova({ id: "g1", valor: 250_000, objeto: "Servidores" }), nova({ id: "p1", valor: 9_000 })],
+        itens: [item({ id: "a", dataEncerramento: depois(30 * HORA) })],
+        pendencias: ["não deve aparecer"],
+        disputasNaSemana: 5,
+      }),
       AGORA,
     );
-    expect(t).toContain("2 itens em jogo");
-    expect(t).toContain("Fecham em 48 h: 1");
-    expect(t).toContain("Sem responsável: 1");
+    expect(r.texto).toContain("👥 A equipe moveu 2 itens nas últimas 24 h");
+    expect(r.texto).toContain("• Paulo: Notebooks → Em disputa");
+    expect(r.texto).not.toContain("Feito por mim");
+    expect(r.texto).toContain("🏁 Entraram em disputa: 1\n• Notebooks");
+    expect(r.texto).toContain("💰 Acima de R$ 100 mil: 1");
+    expect(r.texto).toContain("*Servidores*");
+    expect(r.texto).not.toContain("novas do seu ramo");
+    expect(r.texto).not.toContain("Fecham em 48 h");
+    expect(r.texto).not.toContain("não deve aparecer");
+    expect(r.texto).toContain("Meta batida!");
+    expect(r.novasMostradas).toEqual(["g1"]);
   });
-  it("sem itens em jogo, vazio", () => {
-    expect(textoResumoManha([item({ id: "c", etapa: "ganha" })], AGORA)).toBe("");
+  it("ideal batido", () => {
+    expect(textoResumoManha(dados({ disputasNaSemana: 10 }), AGORA).texto).toContain("Ideal batido!");
+  });
+  it("nada escolhido ou nada a dizer: vazio", () => {
+    const nada = { ...escolhasDoPerfil("operacional"), meta: false };
+    expect(textoResumoManha(dados({ escolhas: nada }), AGORA)).toEqual({ texto: "", novasMostradas: [] });
+  });
+});
+
+describe("datas do resumo", () => {
+  it("quandoFecha no horário de São Paulo", () => {
+    expect(quandoFecha("2026-05-20T17:00:00Z")).toBe("20/05 às 14h");
+    expect(quandoFecha("2026-05-20T17:30:00Z")).toBe("20/05 às 14h30");
+    expect(quandoFecha("lixo")).toBe("sem data");
+  });
+  it("início da semana é segunda 0h em São Paulo", () => {
+    // 12/05/2026 é terça
+    expect(inicioDaSemana(AGORA).toISOString()).toBe("2026-05-11T03:00:00.000Z");
+    // domingo 17/05 às 23h em São Paulo ainda é a semana de 11/05
+    expect(inicioDaSemana(new Date("2026-05-18T02:00:00Z")).toISOString()).toBe("2026-05-11T03:00:00.000Z");
+    // segunda 18/05 às 0h30 em São Paulo
+    expect(inicioDaSemana(new Date("2026-05-18T03:30:00Z")).toISOString()).toBe("2026-05-18T03:00:00.000Z");
   });
 });
 
@@ -262,8 +339,10 @@ describe("botões", () => {
     expect(lerPayload("qualquer")).toBeNull();
   });
   it("botões por tipo, com título de até 20 caracteres", () => {
-    const b = botoesDoAlerta("prazo24", "i1");
-    expect(b.map((x) => x.titulo)).toEqual(["Vou participar", "Atribuir a mim", "Descartar"]);
+    expect(botoesDoAlerta("prazo24", "i1").map((x) => x.titulo)).toEqual(["Vou participar", "Atribuir a mim", "Descartar"]);
+    const b = botoesDoAlerta("prazo24", "i1", "Paulo Henrique");
+    expect(b.map((x) => x.titulo)).toEqual(["Vou participar", "Atribuir a Paulo", "Descartar"]);
+    expect(b[1]?.payload).toBe("atr:i1");
     for (const x of b) {
       expect(x.titulo.length).toBeLessThanOrEqual(20);
       expect(x.payload.length).toBeLessThanOrEqual(256);
@@ -271,6 +350,13 @@ describe("botões", () => {
     expect(botoesDoAlerta("radar", null)).toEqual([]);
     expect(botoesDoAlerta("aviso", "i1")).toEqual([]);
     expect(botoesDoAlerta("etapa", null)).toEqual([]);
+  });
+  it("título do atribuir corta nome longo em 20 caracteres", () => {
+    expect(tituloAtribuir(null)).toBe("Atribuir a mim");
+    expect(tituloAtribuir("  ")).toBe("Atribuir a mim");
+    const longo = tituloAtribuir("Maximiliano de Souza");
+    expect(longo.length).toBeLessThanOrEqual(20);
+    expect(longo.startsWith("Atribuir a Maximil")).toBe(true);
   });
 });
 

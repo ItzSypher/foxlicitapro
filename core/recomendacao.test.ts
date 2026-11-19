@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { recomendar } from "./recomendacao";
 import { calcularScore } from "./score";
+import { LOCAL_DA_REGIAO } from "./teste-local";
 import type { Frente, Oportunidade, OportunidadeComScore } from "./types";
 
 const AGORA = new Date("2026-11-10T12:00:00-03:00");
@@ -28,6 +29,7 @@ function item(parcial: Partial<Oportunidade> = {}, frente: Frente = "servicos"):
     sequencialCompra: contador,
     linkPncp: "https://pncp.gov.br/app/editais/00000000000000/2026/1",
     linkOrigem: null,
+    ...(parcial.regiao ? LOCAL_DA_REGIAO[parcial.regiao] : {}),
     ...parcial,
   };
   return { ...base, score: calcularScore(base, frente, AGORA) };
@@ -84,24 +86,24 @@ describe("recomendar: prioridade e motivos", () => {
 
   it("cita o limite MEI do ano e os dias para cotar quando sobra espaço", () => {
     const [r] = recomendar(
-      [item({ regiao: "capital", modalidadeId: 6, objeto: "Instalação de CFTV", dataEncerramento: "2026-11-13T08:00:00-03:00" })],
+      [item({ regiao: "rj", modalidadeId: 6, objeto: "Instalação de CFTV", dataEncerramento: "2026-11-13T08:00:00-03:00" })],
       "servicos",
       AGORA,
     );
     expect(r.motivos).toEqual(["Cabe no limite do MEI de 2026", "2 dias para cotar"]);
   });
 
-  it("baixada vale 5 e capital não ganha bônus de local", () => {
+  it("mesma região metropolitana vale 5 e o interior do estado não ganha bônus de local", () => {
     const baixada = recomendar([item({ regiao: "baixada" })], "servicos", AGORA)[0];
-    const capital = recomendar([item({ regiao: "capital" })], "servicos", AGORA)[0];
-    expect(baixada.motivos[0]).toBe("Na Baixada, perto de casa");
+    const interior = recomendar([item({ regiao: "rj" })], "servicos", AGORA)[0];
+    expect(baixada.motivos[0]).toBe("Perto de casa, na sua região metropolitana");
     expect(baixada.prioridade - baixada.item.score.total).toBe(5 + 4 + 4 + 3 + 3);
-    expect(capital.prioridade - capital.item.score.total).toBe(4 + 4 + 3 + 3);
+    expect(interior.prioridade - interior.item.score.total).toBe(4 + 4 + 3 + 3);
   });
 
   it("sem nenhum bônus, explica pela atividade", () => {
     const base = item({
-      regiao: "capital",
+      regiao: "rj",
       modalidadeId: 6,
       valorEstimado: null,
       objeto: "Instalação de CFTV",

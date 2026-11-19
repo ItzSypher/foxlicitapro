@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { FiltroRegiao } from "@/lib/radar-filtros";
 import { formatarValorCompacto, type PainelDia } from "@/lib/radar-painel";
 import { cn } from "@/lib/utils";
 import { COLUNAS_PIPELINE, COLUNAS_REGIAO, GRADE_PAINEL } from "./painel-esqueleto";
@@ -144,30 +143,29 @@ function CelulaBotao({
   );
 }
 
-const BARRAS_REGIAO: ReadonlyArray<{ id: FiltroRegiao; rotulo: string }> = [
-  { id: "nova-iguacu", rotulo: "Nova Iguaçu" },
-  { id: "baixada", rotulo: "Baixada" },
-  { id: "capital", rotulo: "Capital" },
-  { id: "interior", rotulo: "Interior RJ" },
-];
+const MAX_BARRAS_UF = 4;
 
 function CelulaRegiao({
   contagens,
-  ativa,
+  ativas,
   aoEscolher,
 }: {
-  contagens: Record<FiltroRegiao, number>;
-  ativa: FiltroRegiao;
-  aoEscolher: (regiao: FiltroRegiao) => void;
+  contagens: Record<string, number>;
+  ativas: ReadonlyArray<string>;
+  aoEscolher: (uf: string) => void;
 }) {
-  const maior = Math.max(1, ...BARRAS_REGIAO.map((b) => contagens[b.id]));
+  const barras = Object.entries(contagens)
+    .map(([id, quantidade]) => ({ id, rotulo: id, quantidade }))
+    .sort((a, b) => b.quantidade - a.quantidade || a.id.localeCompare(b.id))
+    .slice(0, MAX_BARRAS_UF);
+  const maior = Math.max(1, ...barras.map((b) => b.quantidade));
   return (
-    <div role="group" aria-label="Oportunidades por região" className={cn(CELULA, "gap-2", COLUNAS_REGIAO)}>
-      <span className="truncate text-sm text-muted-foreground">Por região</span>
+    <div role="group" aria-label="Oportunidades por estado" className={cn(CELULA, "gap-2", COLUNAS_REGIAO)}>
+      <span className="truncate text-sm text-muted-foreground">Por estado</span>
       <ul className="-mx-2 flex flex-col">
-        {BARRAS_REGIAO.map((barra) => {
-          const quantidade = contagens[barra.id];
-          const selecionada = ativa === barra.id;
+        {barras.map((barra) => {
+          const quantidade = barra.quantidade;
+          const selecionada = ativas.includes(barra.id);
           const largura = quantidade === 0 ? 0 : Math.max(4, Math.round((quantidade / maior) * 100));
           return (
             <li key={barra.id}>
@@ -204,28 +202,28 @@ function CelulaRegiao({
 
 interface Props {
   painel: PainelDia;
-  contagensRegiao: Record<FiltroRegiao, number>;
-  regiaoAtiva: FiltroRegiao;
+  contagensUf: Record<string, number>;
+  ufsAtivas: ReadonlyArray<string>;
   /** Uma navegação está em andamento: o painel fica esmaecido */
   ocupado?: boolean;
   aoVerNovas: () => void;
   aoVerEncerrando: () => void;
   aoVerSinalAlto: () => void;
   aoVerValor: () => void;
-  aoEscolherRegiao: (regiao: FiltroRegiao) => void;
+  aoEscolherUf: (uf: string) => void;
 }
 
 /** Resumo do dia que abre o Radar: faixa de indicadores clicáveis que aplicam o filtro ou a ordem correspondente na lista. */
 export function PainelDiaView({
   painel,
-  contagensRegiao,
-  regiaoAtiva,
+  contagensUf,
+  ufsAtivas,
   ocupado = false,
   aoVerNovas,
   aoVerEncerrando,
   aoVerSinalAlto,
   aoVerValor,
-  aoEscolherRegiao,
+  aoEscolherUf,
 }: Props) {
   const { oculto, alternar } = useResumoOculto();
   const novasDisponiveis = painel.temPublicacao;
@@ -298,7 +296,7 @@ export function PainelDiaView({
             />
           </CelulaBotao>
 
-          <CelulaRegiao contagens={contagensRegiao} ativa={regiaoAtiva} aoEscolher={aoEscolherRegiao} />
+          <CelulaRegiao contagens={contagensUf} ativas={ufsAtivas} aoEscolher={aoEscolherUf} />
 
           <Link href="/pipeline" className={cn(CELULA, CELULA_CLICAVEL, COLUNAS_PIPELINE)}>
             <Indicador

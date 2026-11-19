@@ -1,9 +1,11 @@
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { listarUsuarios } from "@/db/usuarios";
+import { lerResponsavelPadrao } from "@/db/whatsapp";
 import { exigirSessao } from "@/lib/sessao";
 import type { Usuario } from "@/core/types-equipe";
 import { ListaEquipe } from "./lista-equipe";
+import { ResponsavelPadrao } from "./responsavel-padrao";
 
 export const metadata = { title: "Equipe · FoxLicita Pro" };
 
@@ -19,6 +21,7 @@ export default async function EquipePage() {
     console.error("[equipe] leitura falhou:", e instanceof Error ? e.message : e);
     usuarios = null;
   }
+  const padrao = await lerResponsavelPadrao(sessao.empresaId).catch(() => null);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-4 lg:gap-6">
@@ -31,7 +34,13 @@ export default async function EquipePage() {
           Não foi possível carregar a equipe agora.
         </p>
       ) : (
-        <ListaEquipe usuarios={usuarios} usuarioId={sessao.usuarioId} />
+        <>
+          <ListaEquipe usuarios={usuarios} usuarioId={sessao.usuarioId} />
+          <ResponsavelPadrao
+            pessoas={usuarios.filter((u) => u.ativo).map((u) => ({ id: u.id, nome: u.nome }))}
+            atual={padrao?.id ?? null}
+          />
+        </>
       )}
     </div>
   );

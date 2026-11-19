@@ -6,12 +6,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { atualizarRadarAgora, definirFrente } from "@/app/(app)/actions";
 import { Button } from "@/components/ui/button";
+import type { Fonte } from "@/core/fonte";
 import type { Frente, ModalidadeId, OportunidadeComScore } from "@/core/types";
 import { formatarHora } from "@/lib/formato";
 import {
   COOKIE_VISAO,
   ABA_PADRAO,
   FILTROS_PADRAO,
+  contarFiltrosAtivos,
+  fraseRamo,
   fraseRecomendadas,
   fraseResumo,
   fraseVazio,
@@ -22,7 +25,6 @@ import {
   normalizarBusca,
   type Aba,
   type FiltroModalidade,
-  type FiltroRegiao,
   type Ordem,
   type Visao,
 } from "@/lib/radar-filtros";
@@ -32,13 +34,22 @@ import { CardOportunidade } from "./card-oportunidade";
 import { DetalheSheet } from "./detalhe-sheet";
 import { AvisoFalhaParcial, EstadoErro, EstadoVazio } from "./estados";
 import { BarraFiltros } from "./filtros";
-import { BuscaForaRjSheet } from "./busca-fora-rj";
 import { BuscaPalavras } from "./busca-palavras";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
 import { Paginacao } from "./paginacao";
 import { PainelDiaView } from "./painel-dia";
 import { SeletorAba } from "./seletor-aba";
 import { SeletorFrente } from "./seletor-frente";
+
+/** Aviso acima da lista: coleta parcial do PNCP e UFs que ainda não foram coletadas. */
+function textoAviso(falhas: ReadonlyArray<ModalidadeId>, ufsPendentes: ReadonlyArray<string>): string | null {
+  const falha = textoFalhas(falhas);
+  const pendentes =
+    ufsPendentes.length > 0
+      ? `Ainda estamos buscando as oportunidades de ${ufsPendentes.join(", ")}; elas aparecem aqui em alguns minutos.`
+      : null;
+  return [falha, pendentes].filter((t): t is string => t !== null).join(" ") || null;
+}
 
 function textoFalhas(falhas: ReadonlyArray<ModalidadeId>): string | null {
   const pregao = falhas.includes(6);
@@ -49,7 +60,7 @@ function textoFalhas(falhas: ReadonlyArray<ModalidadeId>): string | null {
   return null;
 }
 
-type ChaveParametro = "regiao" | "modalidade" | "ordem" | "ver" | "pagina" | "aba" | "q" | "pc" | "por";
+type ChaveParametro = "uf" | "modalidade" | "ordem" | "vmin" | "vmax" | "fonte" | "ramo" | "ver" | "pagina" | "aba" | "q" | "pc" | "por";
 
 const ATRASO_BUSCA_MS = 300;
 
@@ -146,7 +157,7 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
   );
 
   const mudarFiltro = useCallback(
-    (chave: "regiao" | "modalidade" | "ordem", valor: string, padrao: string) => {
+    (chave: "modalidade" | "ordem", valor: string, padrao: string) => {
       navegar([
         [chave, valor === padrao ? null : valor],
         ["pagina", null],
@@ -242,22 +253,60 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
     window.history.replaceState(null, "", `?${proximos.toString()}`);
   }, []);
 
-  const limparPainel = useCallback(() => {
+  const limparFiltros = useCallback(() => {
     navegar([
+      ["uf", null],
       ["modalidade", null],
       ["ordem", null],
+      ["vmin", null],
+      ["vmax", null],
+      ["fonte", null],
+      ["ramo", null],
       ["pagina", null],
     ]);
   }, [navegar]);
 
-  const limparFiltros = useCallback(() => {
-    navegar([
-      ["regiao", null],
-      ["modalidade", null],
-      ["ordem", null],
-      ["pagina", null],
-    ]);
-  }, [navegar]);
+  const mudarUfs = useCallback(
+    (ufs: string[]) => {
+      navegar([
+        ["uf", ufs.length === 0 ? null : ufs.join(",")],
+        ["pagina", null],
+      ]);
+    },
+    [navegar],
+  );
+
+  const mudarValor = useCallback(
+    (min: number | null, max: number | null) => {
+      navegar([
+        ["vmin", min === null ? null : String(min)],
+        ["vmax", max === null ? null : String(max)],
+        ["pagina", null],
+      ]);
+    },
+    [navegar],
+  );
+
+  const mudarFontes = useCallback(
+    (fontes: Fonte[]) => {
+      navegar([
+        ["fonte", fontes.length === 0 ? null : fontes.join(",")],
+        ["pagina", null],
+      ]);
+    },
+    [navegar],
+  );
+
+  /** Ligar ou desligar vale só nesta consulta (o padrão fica em Empresa > Onde atender). */
+  const mudarTudoDoRamo = useCallback(
+    (ligado: boolean) => {
+      navegar([
+        ["ramo", ligado ? "1" : "0"],
+        ["pagina", null],
+      ]);
+    },
+    [navegar],
+  );
 
   /** Leva a pessoa à lista depois de um clique no resumo; sem animação se ela pediu menos movimento. */
   const rolarParaLista = useCallback(() => {
@@ -280,13 +329,13 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
     [navegar, rolarParaLista],
   );
 
-  const escolherRegiaoDoPainel = useCallback(
-    (valor: FiltroRegiao) => {
-      // Tocar na região já escolhida volta para todo o RJ.
-      mudarFiltro("regiao", valor === filtros.regiao ? FILTROS_PADRAO.regiao : valor, FILTROS_PADRAO.regiao);
+  const escolherUfDoPainel = useCallback(
+    (uf: string) => {
+      // Tocar no estado já escolhido tira o filtro dele.
+      mudarUfs(filtros.ufs.includes(uf) ? filtros.ufs.filter((u) => u !== uf) : [...filtros.ufs, uf]);
       rolarParaLista();
     },
-    [mudarFiltro, filtros.regiao, rolarParaLista],
+    [mudarUfs, filtros.ufs, rolarParaLista],
   );
 
   const abrirDetalhe = useCallback((item: OportunidadeComScore) => {
@@ -311,10 +360,10 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
   }
 
   const filtroTextoAtivo = normalizarBusca(buscaNaUrl) !== "" || selecionadas.length > 0;
-  const filtrosPadrao =
-    filtros.regiao === FILTROS_PADRAO.regiao && filtros.modalidade === FILTROS_PADRAO.modalidade;
-  const aviso = dados ? textoFalhas(dados.falhas) : null;
+  const filtrosPadrao = contarFiltrosAtivos(filtros, false) === 0;
+  const aviso = dados ? textoAviso(dados.falhas, dados.ufsPendentes) : null;
   const total = dados?.total ?? 0;
+  const ufsDisponiveis = useMemo(() => Object.keys(dados?.contagensUf ?? {}).sort(), [dados]);
   const chaveLista = `${aba}|${frenteOtimista}|${visao}|${dados?.pagina ?? 1}|${dados?.porPagina ?? 0}|${total}`;
 
   return (
@@ -358,14 +407,14 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
         <>
           <PainelDiaView
             painel={dados.painel}
-            contagensRegiao={dados.contagensRegiao}
-            regiaoAtiva={filtros.regiao}
+            contagensUf={dados.contagensUf}
+            ufsAtivas={filtros.ufs}
             ocupado={pendente}
             aoVerNovas={() => verLista("todas", "recentes")}
             aoVerEncerrando={() => verLista("todas", "prazo")}
             aoVerSinalAlto={() => verLista("todas", "sinal")}
             aoVerValor={() => verLista("todas", "valor")}
-            aoEscolherRegiao={escolherRegiaoDoPainel}
+            aoEscolherUf={escolherUfDoPainel}
           />
           <div ref={aposPainelRef} aria-hidden="true" className="-mt-4 scroll-mt-[68px] lg:-mt-5 lg:scroll-mt-6" />
 
@@ -385,22 +434,24 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
 
           <BarraFiltros
             filtros={filtros}
-            contagens={dados.contagensRegiao}
+            ufsDisponiveis={ufsDisponiveis}
+            contagensUf={dados.contagensUf}
+            contagensFonte={dados.contagensFonte}
+            tudoDoRamo={dados.tudoDoRamo}
             visao={visao}
             totalResultados={total}
             semOrdem={paraVoce}
-            onRegiao={(valor: FiltroRegiao) => mudarFiltro("regiao", valor, FILTROS_PADRAO.regiao)}
+            onUfs={mudarUfs}
+            onValor={mudarValor}
+            onFontes={mudarFontes}
+            onTudoDoRamo={mudarTudoDoRamo}
             onModalidade={(valor: FiltroModalidade) =>
               mudarFiltro("modalidade", valor, FILTROS_PADRAO.modalidade)
             }
             onOrdem={(valor: Ordem) => mudarFiltro("ordem", valor, FILTROS_PADRAO.ordem)}
             onVisao={mudarVisao}
-            onLimparPainel={limparPainel}
+            onLimparPainel={limparFiltros}
           />
-
-          <div className="-mt-2 flex justify-end lg:-mt-3">
-            <BuscaForaRjSheet />
-          </div>
 
           {aviso ? <AvisoFalhaParcial texto={aviso} /> : null}
 
@@ -422,7 +473,10 @@ export function RadarView({ frente, pagina: dados, visao: visaoInicial, buscaIni
             <div ref={topoRef} className="scroll-mt-[68px] lg:scroll-mt-6">
               {paraVoce ? (
                 <p className="mb-3 text-sm text-muted-foreground">
-                  {fraseRecomendadas(dados.contagensAbas["para-voce"], dados.baseRecomendacao)}.{" "}
+                  {dados.tudoDoRamo
+                    ? fraseRamo(dados.contagensAbas["para-voce"], dados.baseRecomendacao)
+                    : fraseRecomendadas(dados.contagensAbas["para-voce"], dados.baseRecomendacao)}
+                  .{" "}
                   <Link
                     href="/preferencias"
                     className="inline-flex min-h-11 items-center text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"

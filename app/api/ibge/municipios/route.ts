@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { listarMunicipios } from "@/lib/ibge";
-import { acharUf } from "@/lib/fora-rj-busca";
+import { acharUf } from "@/core/ufs";
 
 export async function GET(request: NextRequest): Promise<Response> {
   const uf = request.nextUrl.searchParams.get("uf") ?? "";

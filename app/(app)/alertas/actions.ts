@@ -3,8 +3,9 @@
 import { randomInt } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { gerarCodigoAtivacao, linkAtivacao } from "@/core/whatsapp-alertas";
-import { definirAvisoWhatsapp, definirCodigo, desligarWhatsapp } from "@/db/whatsapp";
+import { z } from "zod";
+import { PERFIS_ALERTA, VALOR_GRANDE_MAXIMO, gerarCodigoAtivacao, linkAtivacao, type EscolhasAlerta } from "@/core/whatsapp-alertas";
+import { definirAvisoWhatsapp, definirCodigo, desligarWhatsapp, salvarEscolhasAlerta } from "@/db/whatsapp";
 import { lerSessao } from "@/lib/sessao";
 import { garantirWebhookConfigurado } from "@/lib/whatsapp-alertas-cron";
 
@@ -74,6 +75,52 @@ export async function desligarAction(): Promise<ResultadoSimples> {
     await desligarWhatsapp(sessao.empresaId, sessao.usuarioId);
     revalidatePath("/alertas");
     return { ok: true };
+  } catch (e) {
+    console.error("[alertas]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: ERRO_GERAL };
+  }
+}
+
+export interface EstadoPerfil {
+  erro: string | null;
+  ok: boolean;
+}
+
+const ValorSchema = z
+  .string()
+  .transform((v) => v.replace(/\D/g, ""))
+  .refine((v) => v !== "")
+  .transform(Number)
+  .pipe(z.number().int().min(1).max(VALOR_GRANDE_MAXIMO));
+
+/** Grava o perfil de alerta e as caixinhas da própria pessoa. */
+export async function salvarPerfilAlertaAction(_anterior: EstadoPerfil, dados: FormData): Promise<EstadoPerfil> {
+  const sessao = await lerSessao();
+  if (!sessao) return { ok: false, erro: ERRO_SESSAO };
+  const perfil = z.enum(PERFIS_ALERTA).safeParse(dados.get("perfil"));
+  if (!perfil.success) return { ok: false, erro: "Escolha o perfil." };
+  const bruto = dados.get("valorGrande");
+  const valor = ValorSchema.safeParse(typeof bruto === "string" ? bruto : "");
+  if (!valor.success) return { ok: false, erro: "Informe o valor em reais, só números." };
+  const marcado = (campo: keyof EscolhasAlerta) => dados.get(campo) === "on";
+  const escolhas: EscolhasAlerta = {
+    perfil: perfil.data,
+    prazos: marcado("prazos"),
+    novas: marcado("novas"),
+    fechando: marcado("fechando"),
+    aguardando: marcado("aguardando"),
+    pendencias: marcado("pendencias"),
+    movimentos: marcado("movimentos"),
+    disputa: marcado("disputa"),
+    grandes: marcado("grandes"),
+    meta: marcado("meta"),
+    valorGrande: valor.data,
+  };
+  try {
+    const ok = await salvarEscolhasAlerta(sessao.empresaId, sessao.usuarioId, escolhas);
+    if (!ok) return { ok: false, erro: ERRO_GERAL };
+    revalidatePath("/alertas");
+    return { ok: true, erro: null };
   } catch (e) {
     console.error("[alertas]", e instanceof Error ? e.message : e);
     return { ok: false, erro: ERRO_GERAL };

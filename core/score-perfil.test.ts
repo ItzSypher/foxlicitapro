@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PERFIL_ORIGEM } from "./empresa";
 import type { PerfilEmpresa } from "./perfil";
 import { calcularScore } from "./score";
+import { LOCAL_DA_REGIAO } from "./teste-local";
 import type { Oportunidade } from "./types";
 
 const AGORA = new Date("2026-11-10T12:00:00-03:00");
@@ -26,6 +27,7 @@ function oportunidade(parcial: Partial<Oportunidade> = {}): Oportunidade {
     sequencialCompra: 1,
     linkPncp: "https://pncp.gov.br/app/editais/00000000000000/2026/1",
     linkOrigem: null,
+    ...(parcial.regiao ? LOCAL_DA_REGIAO[parcial.regiao] : {}),
     ...parcial,
   };
 }
@@ -49,8 +51,11 @@ describe("score com o perfil da empresa", () => {
     expect(calcularScore(o, "servicos", AGORA)).toEqual(calcularScore(o, "servicos", AGORA, undefined, PERFIL_ORIGEM));
   });
 
-  it("serviço fora das regiões da empresa perde os pontos de local", () => {
-    const soCapital: PerfilEmpresa = { ...EMPRESA_ME, regioes: ["capital"] };
+  it("serviço fora das áreas da empresa perde os pontos de local", () => {
+    const soCapital: PerfilEmpresa = {
+      ...EMPRESA_ME,
+      areas: { ufs: [], municipiosIbge: ["3304557"], base: { uf: "RJ", municipioIbge: "3304557" } },
+    };
     const o = oportunidade({ valorEstimado: 5000 });
     const local = calcularScore(o, "servicos", AGORA, undefined, soCapital).criterios.find((c) => c.id === "local");
     const origem = calcularScore(o, "servicos", AGORA, undefined, PERFIL_ORIGEM).criterios.find((c) => c.id === "local");

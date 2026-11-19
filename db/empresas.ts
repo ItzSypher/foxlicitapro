@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "@/db/client";
 import { formatarCnpj, somenteDigitos, type EmpresaConsultada } from "@/core/brasilapi";
+import { areasDasRegioes, normalizarAreas, regioesDasAreas, type Areas } from "@/core/areas";
 import { ehPorte, ehRegiao, type CnaePerfil, type PerfilEmpresa } from "@/core/perfil";
 import type { Regiao } from "@/core/types";
 import { criarUsuario } from "@/db/usuarios";
@@ -36,6 +37,8 @@ interface LinhaEmpresa {
   municipio: string;
   cnaes: unknown;
   regioes: unknown;
+  areas: unknown;
+  radar_tudo_do_ramo: boolean;
   ativa: boolean;
   criada_em: Date;
   data_abertura: string | null;
@@ -50,7 +53,7 @@ interface LinhaEmpresa {
   teste: boolean;
 }
 
-const colunas = () => sql`id, cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, ativa, criada_em,
+const colunas = () => sql`id, cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, areas, radar_tudo_do_ramo, ativa, criada_em,
   to_char(data_abertura, 'YYYY-MM-DD') as data_abertura, endereco, cep, telefone, email_contato, responsavel,
   representante_cpf, representante_rg, dados_bancarios, teste`;
 
@@ -63,8 +66,15 @@ function lerRegioes(bruto: unknown): Regiao[] {
   return Array.isArray(bruto) ? bruto.filter(ehRegiao) : [];
 }
 
+/** Áreas gravadas; sem elas (empresa anterior à migration), valem as equivalentes às regiões antigas. */
+function lerAreas(l: LinhaEmpresa, regioes: Regiao[]): Areas {
+  if (l.areas === null || l.areas === undefined) return areasDasRegioes(regioes, l.uf, l.municipio);
+  return normalizarAreas(l.areas);
+}
+
 function converter(l: LinhaEmpresa): Empresa {
   const cnaes = cnaesSchema.safeParse(l.cnaes);
+  const regioes = lerRegioes(l.regioes);
   return {
     id: l.id,
     cnpj: formatarCnpj(l.cnpj),
@@ -75,7 +85,9 @@ function converter(l: LinhaEmpresa): Empresa {
     municipio: l.municipio,
     dataAbertura: l.data_abertura,
     cnaes: cnaes.success ? cnaes.data : [],
-    regioes: lerRegioes(l.regioes),
+    regioes,
+    areas: lerAreas(l, regioes),
+    radarTudoDoRamo: l.radar_tudo_do_ramo === true,
     endereco: l.endereco,
     cep: l.cep,
     telefone: l.telefone,
@@ -107,6 +119,15 @@ export async function listarEmpresas(): Promise<Array<Empresa & { usuarios: numb
   return linhas.map((l) => ({ ...converter(l), usuarios: l.usuarios }));
 }
 
+/** Áreas de cada empresa ativa: base da coleta do Radar (união das UFs). */
+export async function listarAreasEmpresasAtivas(): Promise<Areas[]> {
+  const linhas = await sql<{ regioes: unknown; areas: unknown; uf: string; municipio: string }[]>`
+    select regioes, areas, uf, municipio from empresas where ativa`;
+  return linhas.map((l) =>
+    l.areas === null || l.areas === undefined ? areasDasRegioes(lerRegioes(l.regioes), l.uf, l.municipio) : normalizarAreas(l.areas),
+  );
+}
+
 export async function listarIdsEmpresasAtivas(): Promise<string[]> {
   const linhas = await sql<{ id: string }[]>`select id from empresas where ativa order by criada_em asc`;
   return linhas.map((l) => l.id);
@@ -126,14 +147,15 @@ export async function criarEmpresaComDono(
   const cnaes = cnaesSchema.parse(nova.cnaes);
   const cnaesJson = JSON.parse(JSON.stringify(cnaes)) as postgres.JSONValue;
   const regioesJson = JSON.parse(JSON.stringify(nova.regioes.filter(ehRegiao))) as postgres.JSONValue;
+  const areasJson = JSON.parse(JSON.stringify(areasDasRegioes(nova.regioes.filter(ehRegiao), nova.uf, nova.municipio))) as postgres.JSONValue;
   const digitos = somenteDigitos(nova.cnpj);
   try {
     return await sql.begin(async (tx) => {
       const linhas = await tx<LinhaEmpresa[]>`
-        insert into empresas (cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, data_abertura,
+        insert into empresas (cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, areas, data_abertura,
                               endereco, cep, telefone, email_contato, teste)
         values (${digitos}, ${nova.razaoSocial}, ${nova.nomeFantasia}, ${nova.porte}, ${nova.uf}, ${nova.municipio},
-                ${tx.json(cnaesJson)}, ${tx.json(regioesJson)}, ${nova.dataAbertura}, ${nova.endereco}, ${nova.cep},
+                ${tx.json(cnaesJson)}, ${tx.json(regioesJson)}, ${tx.json(areasJson)}, ${nova.dataAbertura}, ${nova.endereco}, ${nova.cep},
                 ${nova.telefone}, ${nova.email}, ${teste})
         returning ${colunas()}
       `;
@@ -163,19 +185,24 @@ export async function definirEmpresaAtiva(id: string, ativa: boolean): Promise<b
 export interface EdicaoEmpresa {
   nomeFantasia: string | null;
   cnaes: CnaePerfil[];
-  regioes: Regiao[];
+  areas: Areas;
+  radarTudoDoRamo: boolean;
 }
 
-/** Tela "Empresa" do dono: nome fantasia, CNAEs/frentes e regiões. O id é o da sessão. */
+/** Tela "Empresa" do dono: nome fantasia, CNAEs/frentes e onde atender. O id é o da sessão. */
 export async function atualizarPerfilEmpresa(empresaId: string, dados: EdicaoEmpresa): Promise<boolean> {
   if (!FORMATO_ID.test(empresaId)) return false;
   const cnaes = cnaesSchema.parse(dados.cnaes);
   const cnaesJson = JSON.parse(JSON.stringify(cnaes)) as postgres.JSONValue;
-  const regioesJson = JSON.parse(JSON.stringify(dados.regioes.filter(ehRegiao))) as postgres.JSONValue;
+  const areas = normalizarAreas(dados.areas);
+  const areasJson = JSON.parse(JSON.stringify(areas)) as postgres.JSONValue;
+  // As regiões antigas seguem coerentes com as áreas para quem ainda as lê (conselheiro).
+  const regioesJson = JSON.parse(JSON.stringify(regioesDasAreas(areas))) as postgres.JSONValue;
   const fantasia = dados.nomeFantasia?.trim() ? dados.nomeFantasia.trim().slice(0, 120) : null;
   const r = await sql`
     update empresas
-       set nome_fantasia = ${fantasia}, cnaes = ${sql.json(cnaesJson)}, regioes = ${sql.json(regioesJson)}
+       set nome_fantasia = ${fantasia}, cnaes = ${sql.json(cnaesJson)}, regioes = ${sql.json(regioesJson)},
+           areas = ${sql.json(areasJson)}, radar_tudo_do_ramo = ${dados.radarTudoDoRamo}
      where id = ${empresaId}
   `;
   return r.count > 0;

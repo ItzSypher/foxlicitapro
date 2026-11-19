@@ -83,7 +83,7 @@ export const ESQUEMA_JSON_CONSELHEIRO: { [chave: string]: unknown } = {
       },
     },
     precoComentario: { type: "string", description: "Comentário sobre o preço sugerido, usando só os números do sistema." },
-    riscos: LISTA_TEXTOS("Riscos a conferir antes de participar.", 0, 8),
+    riscos: LISTA_TEXTOS("Riscos concretos deste item, cada um com a saída (\"o risco: a saída\"). Vazio quando não houver.", 0, 8),
     proximosPassos: LISTA_TEXTOS("O que o gestor e o jurídico fazem a seguir.", 1, 6),
     modalidade: {
       type: "object",

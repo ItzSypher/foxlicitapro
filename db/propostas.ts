@@ -5,6 +5,8 @@ import { z } from "zod";
 import { sql } from "@/db/client";
 import { DadosPropostaSchema } from "@/core/proposta";
 import { ehModeloId, type ModeloId } from "@/core/proposta-modelos";
+import { ehSituacaoResultado, type SituacaoResultado } from "@/core/proposta-resultado";
+import { inserirEvento, type EventoNovo } from "@/db/proposta-eventos";
 import { ehStatusEquipe } from "@/core/revisao";
 import type { DadosProposta } from "@/core/types-detalhe";
 import type { AnaliseAssistente, AutorProposta, StatusPropostaEquipe } from "@/core/types-equipe";
@@ -32,6 +34,15 @@ export interface Proposta {
   /** ISO 8601 */
   revisadoEm: string | null;
   analise: AnaliseAssistente | null;
+  /** ISO 8601 */
+  enviadaEm: string | null;
+  /** Registrada depois de enviada fora do sistema: sem documento para editar */
+  externa: boolean;
+  portal: string | null;
+  resultado: SituacaoResultado | null;
+  resultadoVencedor: string | null;
+  /** Em reais */
+  resultadoValor: number | null;
 }
 
 export interface ResumoProposta {
@@ -46,6 +57,10 @@ export interface ResumoProposta {
   criadoPor: string | null;
   criadoPorNome: string | null;
   revisadoPor: string | null;
+  /** ISO 8601 */
+  enviadaEm: string | null;
+  externa: boolean;
+  resultado: SituacaoResultado | null;
 }
 
 export interface NovaProposta {
@@ -120,6 +135,12 @@ interface LinhaProposta {
   revisao_nota: string | null;
   revisado_em: Date | null;
   analise: unknown;
+  enviada_em: Date | null;
+  externa: boolean;
+  portal: string | null;
+  resultado: string | null;
+  resultado_vencedor: string | null;
+  resultado_valor: string | null;
 }
 
 function converter(l: LinhaProposta): Proposta | null {
@@ -145,6 +166,12 @@ function converter(l: LinhaProposta): Proposta | null {
     revisaoNota: l.revisao_nota,
     revisadoEm: l.revisado_em ? l.revisado_em.toISOString() : null,
     analise: lerAnalise(l.analise),
+    enviadaEm: l.enviada_em ? l.enviada_em.toISOString() : null,
+    externa: l.externa,
+    portal: l.portal,
+    resultado: ehSituacaoResultado(l.resultado) ? l.resultado : null,
+    resultadoVencedor: l.resultado_vencedor,
+    resultadoValor: l.resultado_valor === null ? null : Number(l.resultado_valor),
   };
 }
 
@@ -153,26 +180,30 @@ export async function criarProposta(empresaId: string, nova: NovaProposta): Prom
   const analise = nova.analise
     ? sql.json(JSON.parse(JSON.stringify(nova.analise)) as postgres.JSONValue)
     : null;
-  const linhas = await sql<{ id: string }[]>`
-    insert into propostas (empresa_id, compra_id, pipeline_id, modelo, titulo, dados, total, criado_por, autor, analise, status)
-    values (
-      ${empresaId},
-      ${nova.compraId},
-      (select id from pipeline_itens where empresa_id = ${empresaId} and id = ${nova.compraId}),
-      ${nova.modelo},
-      ${nova.titulo},
-      ${sql.json(dados)},
-      ${paraReais(nova.totalCentavos)},
-      ${nova.criadoPor ?? null},
-      ${nova.autor ?? "usuario"},
-      ${analise},
-      ${nova.status ?? "rascunho"}
-    )
-    returning id
-  `;
-  const id = linhas[0]?.id;
-  if (!id) throw new Error("A proposta não foi gravada");
-  return id;
+  return sql.begin(async (tx) => {
+    const linhas = await tx<{ id: string }[]>`
+      insert into propostas (empresa_id, compra_id, pipeline_id, modelo, titulo, dados, total, criado_por, autor, analise, status)
+      values (
+        ${empresaId},
+        ${nova.compraId},
+        (select id from pipeline_itens where empresa_id = ${empresaId} and id = ${nova.compraId}),
+        ${nova.modelo},
+        ${nova.titulo},
+        ${tx.json(dados)},
+        ${paraReais(nova.totalCentavos)},
+        ${nova.criadoPor ?? null},
+        ${nova.autor ?? "usuario"},
+        ${analise},
+        ${nova.status ?? "rascunho"}
+      )
+      returning id
+    `;
+    const id = linhas[0]?.id;
+    if (!id) throw new Error("A proposta não foi gravada");
+    await inserirEvento(tx, empresaId, id, { tipo: "criada", por: nova.criadoPor ?? null });
+    if (nova.status === "em_revisao") await inserirEvento(tx, empresaId, id, { tipo: "revisao", por: nova.criadoPor ?? null });
+    return id;
+  });
 }
 
 /** Id da proposta mais recente que o assistente criou para a compra nos últimos `minutos`; null se não houver. */
@@ -227,7 +258,8 @@ export interface RevisaoGravada {
 /**
  * Muda o status. `revisao`: objeto grava quem revisou e a nota; null apaga os dados da revisão;
  * sem o argumento, mantém o que já está gravado. `esperado`: só muda se o status atual ainda for esse
- * (evita duas pessoas decidirem a mesma proposta ao mesmo tempo).
+ * (evita duas pessoas decidirem a mesma proposta ao mesmo tempo). `evento`: entra na linha do tempo na mesma
+ * transação, só quando o status mudou de fato. Marcar como enviada tem função própria (`marcarEnviada`), com comprovante.
  */
 export async function definirStatus(
   empresaId: string,
@@ -235,21 +267,26 @@ export async function definirStatus(
   status: StatusPropostaEquipe,
   revisao?: RevisaoGravada | null,
   esperado?: StatusPropostaEquipe,
+  evento?: EventoNovo,
 ): Promise<boolean> {
   if (!FORMATO_ID.test(id)) return false;
-  const condicao = esperado ? sql`and status = ${esperado}` : sql``;
-  const campos =
-    revisao === undefined
-      ? sql``
-      : revisao === null
-        ? sql`, revisado_por = null, revisao_nota = null, revisado_em = null`
-        : sql`, revisado_por = ${revisao.revisadoPor}, revisao_nota = ${revisao.nota}, revisado_em = now()`;
-  const linhas = await sql<{ id: string }[]>`
-    update propostas set status = ${status}, atualizado_em = now() ${campos}
-    where empresa_id = ${empresaId} and id = ${id} ${condicao}
-    returning id
-  `;
-  return linhas.length > 0;
+  return sql.begin(async (tx) => {
+    const condicao = esperado ? tx`and status = ${esperado}` : tx``;
+    const campos =
+      revisao === undefined
+        ? tx``
+        : revisao === null
+          ? tx`, revisado_por = null, revisao_nota = null, revisado_em = null`
+          : tx`, revisado_por = ${revisao.revisadoPor}, revisao_nota = ${revisao.nota}, revisado_em = now()`;
+    const linhas = await tx<{ id: string }[]>`
+      update propostas set status = ${status}, atualizado_em = now() ${campos}
+      where empresa_id = ${empresaId} and id = ${id} ${condicao}
+      returning id
+    `;
+    if (linhas.length === 0) return false;
+    if (evento) await inserirEvento(tx, empresaId, id, evento);
+    return true;
+  });
 }
 
 /** Null quando não existe ou quando o jsonb está inválido. */
@@ -258,7 +295,8 @@ export async function lerProposta(empresaId: string, id: string): Promise<Propos
   const linhas = await sql<LinhaProposta[]>`
     select p.id, p.compra_id, p.modelo, p.titulo, p.dados, p.total, p.status, p.token_publico, p.token_expira,
            p.criado_em, p.atualizado_em, p.autor, p.criado_por, c.nome as criado_por_nome,
-           p.revisado_por, r.nome as revisado_por_nome, p.revisao_nota, p.revisado_em, p.analise
+           p.revisado_por, r.nome as revisado_por_nome, p.revisao_nota, p.revisado_em, p.analise,
+           p.enviada_em, p.externa, p.portal, p.resultado, p.resultado_vencedor, p.resultado_valor
     from propostas p
     left join usuarios c on c.id = p.criado_por
     left join usuarios r on r.id = p.revisado_por
@@ -280,13 +318,16 @@ interface LinhaResumo {
   criado_por: string | null;
   criado_por_nome: string | null;
   revisado_por: string | null;
+  enviada_em: Date | null;
+  externa: boolean;
+  resultado: string | null;
 }
 
 /** Mais recentes primeiro; com compraId, só as daquela compra. */
 export async function listarPropostas(empresaId: string, filtro?: { compraId?: string }): Promise<ResumoProposta[]> {
   const linhas = await sql<LinhaResumo[]>`
     select p.id, p.compra_id, p.titulo, p.dados->>'orgao' as orgao, p.total, p.status, p.atualizado_em,
-           p.autor, p.criado_por, c.nome as criado_por_nome, p.revisado_por
+           p.autor, p.criado_por, c.nome as criado_por_nome, p.revisado_por, p.enviada_em, p.externa, p.resultado
     from propostas p
     left join usuarios c on c.id = p.criado_por
     where p.empresa_id = ${empresaId} and ${filtro?.compraId ? sql`p.compra_id = ${filtro.compraId}` : sql`true`}
@@ -308,6 +349,9 @@ export async function listarPropostas(empresaId: string, filtro?: { compraId?: s
       criadoPor: l.criado_por,
       criadoPorNome: l.criado_por_nome,
       revisadoPor: l.revisado_por,
+      enviadaEm: l.enviada_em ? l.enviada_em.toISOString() : null,
+      externa: l.externa,
+      resultado: ehSituacaoResultado(l.resultado) ? l.resultado : null,
     });
   }
   return resumos;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Faixa, OportunidadeComScore, Regiao } from "@/core/types";
+import type { Faixa, OportunidadeComScore } from "@/core/types";
 import { FILTROS_PADRAO } from "./radar-filtros";
 import { lerPorPagina, montarPaginaRadar, paginar, type ConsultaRadar } from "./radar-pagina";
 
@@ -8,9 +8,9 @@ const EM_3_DIAS = "2026-11-17T12:00:00-03:00";
 
 function oportunidade(
   n: number,
-  extra: Partial<OportunidadeComScore> & { total?: number; faixa?: Faixa; regiao?: Regiao } = {},
+  extra: Partial<OportunidadeComScore> & { total?: number; faixa?: Faixa } = {},
 ): OportunidadeComScore {
-  const { total = 50, faixa = "go", regiao = "capital", ...resto } = extra;
+  const { total = 50, faixa = "go", ...resto } = extra;
   return {
     id: `id-${n}`,
     objeto: `Objeto ${n}`,
@@ -21,7 +21,7 @@ function oportunidade(
     municipio: "Rio de Janeiro",
     codigoIbge: "3304557",
     uf: "RJ",
-    regiao,
+    regiao: "capital",
     modalidadeId: 8,
     modalidadeNome: "Dispensa",
     dataAbertura: null,
@@ -99,16 +99,16 @@ describe("página do Radar montada no servidor", () => {
     expect(montar(consulta({ porPagina: 18, pagina: 2 })).itens).toHaveLength(12);
   });
 
-  it("filtra por região e modalidade antes de paginar", () => {
+  it("filtra por UF e modalidade antes de paginar", () => {
     const mista = [
-      oportunidade(1, { regiao: "nova-iguacu" }),
-      oportunidade(2, { regiao: "capital" }),
-      oportunidade(3, { regiao: "fora-rj" }),
-      oportunidade(4, { regiao: "baixada", modalidadeId: 6 }),
+      oportunidade(1, { uf: "MG" }),
+      oportunidade(2),
+      oportunidade(3, { uf: "ES" }),
+      oportunidade(4, { uf: "MG", modalidadeId: 6 }),
     ];
-    const p = montar(consulta({ filtros: { ...FILTROS_PADRAO, regiao: "baixada" } }), mista);
+    const p = montar(consulta({ filtros: { ...FILTROS_PADRAO, ufs: ["MG"] } }), mista);
     expect(p.itens.map((i) => i.id).sort()).toEqual(["id-1", "id-4"]);
-    expect(p.contagensRegiao).toEqual({ todo: 3, "nova-iguacu": 1, baixada: 2, capital: 1, interior: 0 });
+    expect(p.contagensUf).toEqual({ MG: 2, RJ: 1, ES: 1 });
     const pregoes = montar(consulta({ filtros: { ...FILTROS_PADRAO, modalidade: "pregao" } }), mista);
     expect(pregoes.itens.map((i) => i.id)).toEqual(["id-4"]);
   });
@@ -159,14 +159,51 @@ describe("página do Radar montada no servidor", () => {
     expect(Object.keys(p2.motivos)).toHaveLength(3);
   });
 
-  it("resumo conta abertas, quem fecha em 24 h e as boas, fora do RJ não entra", () => {
+  it("resumo conta abertas e quem fecha em 24 h", () => {
     const base = [
       oportunidade(1, { dataEncerramento: "2026-11-14T20:00:00-03:00" }),
       oportunidade(2, { faixa: "atencao" }),
-      oportunidade(3, { regiao: "fora-rj" }),
     ];
     const p = montar(consulta(), base);
     expect(p.resumo.abertas).toBe(2);
     expect(p.resumo.encerram24h).toBe(1);
+  });
+
+  it("faixa de valor tira o que está fora e os sem valor", () => {
+    const base = [oportunidade(1), oportunidade(5), oportunidade(9), oportunidade(10, { valorEstimado: null })];
+    const ids = (min: number | null, max: number | null) =>
+      montar(consulta({ filtros: { ...FILTROS_PADRAO, valorMin: min, valorMax: max } }), base).itens.map((i) => i.id).sort();
+    expect(ids(2000, 6000)).toEqual(["id-5"]);
+    expect(ids(5000, null)).toEqual(["id-5", "id-9"]);
+    expect(ids(null, 1000)).toEqual(["id-1"]);
+  });
+
+  it("filtra por fonte do link de origem", () => {
+    const base = [
+      oportunidade(1, { linkOrigem: "https://bnccompras.com/x" }),
+      oportunidade(2, { linkOrigem: "https://bllcompras.com/y" }),
+      oportunidade(3),
+    ];
+    const p = montar(consulta({ filtros: { ...FILTROS_PADRAO, fontes: ["BNC", "Outro portal"] } }), base);
+    expect(p.itens.map((i) => i.id).sort()).toEqual(["id-1", "id-3"]);
+    expect(p.contagensFonte).toEqual({ BNC: 1, BLL: 1, "Outro portal": 1 });
+  });
+
+  it("'Tudo do meu ramo' mostra o que casa com CNAE ou palavra-chave, mesmo nogo, ordenado pela nota", () => {
+    const base = [
+      oportunidade(1, { total: 20, faixa: "nogo", score: { total: 20, faixa: "nogo", criterios: [], cnaesCasados: ["95.11-8-00"], frenteCasada: "servicos" } }),
+      oportunidade(2, { total: 80, faixa: "go", score: { total: 80, faixa: "go", criterios: [], cnaesCasados: ["95.11-8-00"], frenteCasada: "servicos" } }),
+      oportunidade(3, { objeto: "Aquisição de cadeiras", score: { total: 60, faixa: "atencao", criterios: [], cnaesCasados: [], frenteCasada: null } }),
+      oportunidade(4, { objeto: "Compra de toner", score: { total: 10, faixa: "nogo", criterios: [], cnaesCasados: [], frenteCasada: null } }),
+    ];
+    const c = consulta({
+      aba: "para-voce",
+      filtros: { ...FILTROS_PADRAO, tudoDoRamo: true },
+      palavrasSalvas: ["cadeiras"],
+    });
+    const p = montar(c, base);
+    expect(p.tudoDoRamo).toBe(true);
+    expect(p.itens.map((i) => i.id)).toEqual(["id-2", "id-3", "id-1"]);
+    expect(p.motivos["id-3"]).toEqual(["Palavra-chave: cadeiras"]);
   });
 });

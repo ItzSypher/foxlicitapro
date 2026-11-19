@@ -1,8 +1,8 @@
 /**
  * Regras dos alertas de WhatsApp pelo Zernio (funções puras, sem banco nem rede; o relógio entra por parâmetro).
- * Janela de 24 h, horário permitido, faixas de prazo, destinatários, comandos, botões e leitura do webhook.
+ * Janela de 24 h, horário permitido, perfil de alerta, prazos urgentes, resumo da manhã, comandos, botões e leitura do webhook.
  */
-import { NOTA_ALTA, diaDeSaoPaulo, textoRestante } from "@/core/avisos";
+import { diaDeSaoPaulo, textoRestante } from "@/core/avisos";
 import { resumirObjeto } from "@/core/objeto";
 import { ROTULO_ETAPA, ehEtapa } from "@/components/pipeline/tipos";
 import { z } from "zod";
@@ -62,10 +62,102 @@ export function faixaDoPrazo(encerramento: Date, agora: Date): FaixaPrazo | null
   return null;
 }
 
+/* ---------- perfil de alerta ---------- */
+
+/** Operacional: quem toca o dia a dia (prazos, pendências). Acompanhamento: quem só quer saber como vai. */
+export const PERFIS_ALERTA = ["operacional", "acompanhamento"] as const;
+export type PerfilAlerta = (typeof PERFIS_ALERTA)[number];
+
+export interface EscolhasAlerta {
+  perfil: PerfilAlerta;
+  /** Prazo urgente (2 h e 24 h) dos itens do Pipeline, na hora */
+  prazos: boolean;
+  /** Resumo: licitações novas do ramo */
+  novas: boolean;
+  /** Resumo: itens que fecham em 48 h */
+  fechando: boolean;
+  /** Resumo: itens em disputa já encerrados, esperando o resultado */
+  aguardando: boolean;
+  /** Resumo: avisos para a pessoa (item atribuído, revisão de proposta...) */
+  pendencias: boolean;
+  /** Resumo: o que a equipe movimentou no Pipeline */
+  movimentos: boolean;
+  /** Resumo: itens que entraram em disputa */
+  disputa: boolean;
+  /** Resumo: licitações novas acima de `valorGrande` */
+  grandes: boolean;
+  /** Resumo: placar da meta da semana */
+  meta: boolean;
+  /** Em reais */
+  valorGrande: number;
+}
+
+export const VALOR_GRANDE_PADRAO = 100_000;
+export const VALOR_GRANDE_MAXIMO = 100_000_000;
+/** Meta da semana: itens que chegaram em disputa (mínimo e ideal). */
+export const META_MINIMA = 5;
+export const META_IDEAL = 10;
+
+/** Escolhas de cada perfil: o operacional recebe o dia a dia; o acompanhamento, só o placar. */
+export function escolhasDoPerfil(perfil: PerfilAlerta, valorGrande: number = VALOR_GRANDE_PADRAO): EscolhasAlerta {
+  const operacional = perfil === "operacional";
+  return {
+    perfil,
+    prazos: operacional,
+    novas: operacional,
+    fechando: operacional,
+    aguardando: operacional,
+    pendencias: operacional,
+    movimentos: !operacional,
+    disputa: !operacional,
+    grandes: !operacional,
+    meta: true,
+    valorGrande,
+  };
+}
+
+/** Sem escolha gravada: o dono acompanha, gestor e jurídico operam. */
+export function perfilPadrao(papel: string): PerfilAlerta {
+  return papel === "dono" ? "acompanhamento" : "operacional";
+}
+
+const EscolhasGravadas = z
+  .object({
+    perfil: z.enum(PERFIS_ALERTA),
+    prazos: z.boolean(),
+    novas: z.boolean(),
+    fechando: z.boolean(),
+    aguardando: z.boolean(),
+    pendencias: z.boolean(),
+    movimentos: z.boolean(),
+    disputa: z.boolean(),
+    grandes: z.boolean(),
+    meta: z.boolean(),
+    valorGrande: z.number().finite().min(0).max(VALOR_GRANDE_MAXIMO),
+  })
+  .partial();
+
+/** Lê o que está gravado; campo que falta ou veio errado usa o padrão do perfil (ou do papel). */
+export function lerEscolhas(gravado: unknown, papel: string): EscolhasAlerta {
+  const lido = EscolhasGravadas.safeParse(gravado);
+  const parcial = lido.success ? lido.data : {};
+  const base = escolhasDoPerfil(parcial.perfil ?? perfilPadrao(papel), parcial.valorGrande ?? VALOR_GRANDE_PADRAO);
+  return { ...base, ...parcial, perfil: base.perfil, valorGrande: base.valorGrande };
+}
+
+/** O alerta entra na fila desta pessoa? Prazo urgente e aviso dependem da escolha; o resto não vai mais avulso. */
+export function aceitaAlerta(escolhas: EscolhasAlerta, tipo: TipoAlertaWa): boolean {
+  if (tipo === "prazo2" || tipo === "prazo24") return escolhas.prazos;
+  if (tipo === "aviso") return escolhas.pendencias;
+  return false;
+}
+
 /* ---------- alertas ---------- */
 
 export const TIPOS_ALERTA_WA = ["prazo48", "prazo24", "prazo2", "radar", "sem_responsavel", "etapa", "aviso"] as const;
 export type TipoAlertaWa = (typeof TIPOS_ALERTA_WA)[number];
+/** Tipos que não saem mais avulsos; pendentes antigos destes tipos são descartados. */
+export const TIPOS_AVULSOS_ANTIGOS: ReadonlyArray<TipoAlertaWa> = ["prazo48", "radar", "sem_responsavel", "etapa"];
 
 export interface AlertaWa {
   usuarioId: string;
@@ -92,15 +184,8 @@ export interface PessoaWa {
   id: string;
   /** aviso_whatsapp ligado e conversa vinculada */
   ativa: boolean;
-}
-
-export interface OportunidadeAlta {
-  id: string;
-  objeto: string;
-  nota: number;
-  /** ISO 8601 */
-  dataEncerramento: string;
-  link: string;
+  /** Quer o prazo urgente na hora */
+  prazos: boolean;
 }
 
 export interface MudancaEtapa {
@@ -118,90 +203,35 @@ function cortar(texto: string, max: number): string {
   return texto.length <= max ? texto : `${texto.slice(0, max - 1).trimEnd()}…`;
 }
 
-function objetoCurto(objeto: string): string {
-  return cortar(resumirObjeto(objeto), MAX_OBJETO);
+function objetoCurto(objeto: string, max: number = MAX_OBJETO): string {
+  return cortar(resumirObjeto(objeto), max);
 }
 
 function rotuloDaEtapa(etapa: string): string {
   return ehEtapa(etapa) ? ROTULO_ETAPA[etapa] : etapa;
 }
 
-function ativas(pessoas: ReadonlyArray<PessoaWa>): string[] {
-  return pessoas.filter((p) => p.ativa).map((p) => p.id);
+function primeiroNome(nome: string): string {
+  return nome.trim().split(/\s+/)[0] ?? "";
 }
 
-/** Item em jogo que fecha em até 48 h. Vai ao responsável (se ativo); sem responsável, a todas as pessoas ativas. */
+/**
+ * Item em jogo que fecha em até 24 h (faixas de 24 h e 2 h). Vai ao responsável, se ele quer prazos;
+ * sem responsável (ou com um que não quer prazos), a todas as pessoas ativas que querem.
+ */
 export function alertasDePrazo(itens: ReadonlyArray<ItemAlerta>, pessoas: ReadonlyArray<PessoaWa>, agora: Date): AlertaWa[] {
-  const ativos = ativas(pessoas);
+  const querem = pessoas.filter((p) => p.ativa && p.prazos).map((p) => p.id);
   const alertas: AlertaWa[] = [];
   for (const item of itens) {
     if (ETAPAS_ENCERRADAS.includes(item.etapa)) continue;
     const encerramento = new Date(item.dataEncerramento);
     const faixa = faixaDoPrazo(encerramento, agora);
-    if (faixa === null) continue;
-    const destinos = item.responsavelId === null ? ativos : ativos.filter((id) => id === item.responsavelId);
+    if (faixa !== "prazo2" && faixa !== "prazo24") continue;
+    const responsavel = item.responsavelId === null ? null : querem.find((id) => id === item.responsavelId);
+    const destinos = responsavel ? [responsavel] : querem;
     const texto = `⏰ Prazo em ${textoRestante(encerramento.getTime() - agora.getTime())}\n${objetoCurto(item.objeto)}`;
     for (const usuarioId of destinos) {
       alertas.push({ usuarioId, tipo: faixa, chave: `${faixa}:${item.id}`, texto, itemId: item.id, validade: encerramento });
-    }
-  }
-  return alertas;
-}
-
-/** Oportunidade com nota alta, ainda aberta e fora do pipeline: todas as pessoas ativas. */
-export function alertasDeRadar(
-  oportunidades: ReadonlyArray<OportunidadeAlta>,
-  pessoas: ReadonlyArray<PessoaWa>,
-  jaNoPipeline: ReadonlySet<string>,
-  agora: Date,
-): AlertaWa[] {
-  const ativos = ativas(pessoas);
-  const vistos = new Set<string>();
-  const alertas: AlertaWa[] = [];
-  for (const o of oportunidades) {
-    if (vistos.has(o.id) || jaNoPipeline.has(o.id)) continue;
-    vistos.add(o.id);
-    const encerramento = new Date(o.dataEncerramento);
-    if (o.nota < NOTA_ALTA || Number.isNaN(encerramento.getTime()) || encerramento.getTime() <= agora.getTime()) continue;
-    const texto = `🆕 Licitação nova, nota ${Math.round(o.nota)}\n${objetoCurto(o.objeto)}\n${o.link}`;
-    for (const usuarioId of ativos) {
-      alertas.push({ usuarioId, tipo: "radar", chave: `radar:${o.id}`, texto, itemId: null, validade: encerramento });
-    }
-  }
-  return alertas;
-}
-
-/** Item em jogo sem responsável: lembrete para todas as pessoas ativas, no máximo um por dia. */
-export function alertasSemResponsavel(itens: ReadonlyArray<ItemAlerta>, pessoas: ReadonlyArray<PessoaWa>, agora: Date): AlertaWa[] {
-  const ativos = ativas(pessoas);
-  const dia = diaDeSaoPaulo(agora);
-  const alertas: AlertaWa[] = [];
-  for (const item of itens) {
-    if (ETAPAS_ENCERRADAS.includes(item.etapa) || item.responsavelId !== null) continue;
-    const texto = `👤 Sem responsável\n${objetoCurto(item.objeto)}`;
-    for (const usuarioId of ativos) {
-      alertas.push({ usuarioId, tipo: "sem_responsavel", chave: `semresp:${item.id}:${dia}`, texto, itemId: item.id, validade: null });
-    }
-  }
-  return alertas;
-}
-
-/** Mudança de etapa: avisa o responsável e os donos, menos quem moveu, só pessoas ativas. */
-export function alertasDeEtapa(
-  mudancas: ReadonlyArray<MudancaEtapa>,
-  pessoas: ReadonlyArray<PessoaWa>,
-  donoIds: ReadonlySet<string>,
-): AlertaWa[] {
-  const ativos = new Set(ativas(pessoas));
-  const alertas: AlertaWa[] = [];
-  for (const m of mudancas) {
-    const destinos = new Set<string>(donoIds);
-    if (m.responsavelId !== null) destinos.add(m.responsavelId);
-    const de = m.de === null ? "Novo" : rotuloDaEtapa(m.de);
-    const texto = `🔄 ${objetoCurto(m.objeto)}\n${de} → ${rotuloDaEtapa(m.para)}`;
-    for (const usuarioId of destinos) {
-      if (usuarioId === m.porId || !ativos.has(usuarioId)) continue;
-      alertas.push({ usuarioId, tipo: "etapa", chave: `etapa:${m.historicoId}`, texto, itemId: m.itemId, validade: null });
     }
   }
   return alertas;
@@ -223,7 +253,7 @@ function grupoDoTipo(tipo: TipoAlertaWa): Grupo {
   return tipo === "prazo48" || tipo === "prazo24" || tipo === "prazo2" ? "prazo" : tipo;
 }
 
-/** Resumo da fila de quem voltou a falar: contagem por tipo, até 8 textos e "+N". Vazio se não há nada. */
+/** Vários alertas numa mensagem só: contagem por tipo, até 8 textos e "+N". Vazio se não há nada. */
 export function textoDoResumo(alertas: ReadonlyArray<{ tipo: TipoAlertaWa; texto: string }>): string {
   if (alertas.length === 0) return "";
   const contagens = GRUPOS.map((g) => {
@@ -233,32 +263,214 @@ export function textoDoResumo(alertas: ReadonlyArray<{ tipo: TipoAlertaWa; texto
   const lista = alertas.slice(0, MAX_LISTA_RESUMO).map((a) => a.texto);
   const resto = alertas.length - lista.length;
   return [
-    `Enquanto você estava fora: ${contagens.join(", ")}.`,
+    `Urgente: ${contagens.join(", ")}.`,
     lista.join("\n\n"),
     ...(resto > 0 ? [`+${resto}`] : []),
     "Responda *prazos* ou *pipeline* para ver mais.",
   ].join("\n\n");
 }
 
-/** Resumo das 7h: itens em jogo, os que fecham em 48 h (até 5) e os sem responsável. Vazio se não há item em jogo. */
-export function textoResumoManha(itens: ReadonlyArray<ItemAlerta>, agora: Date): string {
-  const emJogo = itens.filter((i) => !ETAPAS_ENCERRADAS.includes(i.etapa));
-  if (emJogo.length === 0) return "";
-  const fechando = emJogo
-    .map((i) => ({ item: i, encerramento: new Date(i.dataEncerramento) }))
-    .filter((x) => faixaDoPrazo(x.encerramento, agora) !== null)
-    .sort((a, b) => a.encerramento.getTime() - b.encerramento.getTime());
-  const semResponsavel = emJogo.filter((i) => i.responsavelId === null).length;
-  const linhas = [`☀️ Bom dia! ${emJogo.length} ${emJogo.length === 1 ? "item em jogo" : "itens em jogo"}.`];
-  if (fechando.length > 0) {
-    linhas.push(`Fecham em 48 h: ${fechando.length}`);
-    for (const x of fechando.slice(0, MAX_LISTA_MANHA)) {
-      linhas.push(`• ${objetoCurto(x.item.objeto)} (${textoRestante(x.encerramento.getTime() - agora.getTime())})`);
-    }
-    if (fechando.length > MAX_LISTA_MANHA) linhas.push(`+${fechando.length - MAX_LISTA_MANHA}`);
+/** Licitação nova do ramo, com o que o resumo mostra. */
+export interface NovaDoRamo {
+  id: string;
+  objeto: string;
+  /** null: sigiloso ou não informado */
+  valor: number | null;
+  municipio: string;
+  uf: string;
+  modalidade: string;
+  /** ISO 8601 */
+  dataEncerramento: string;
+  /** O que casou com o ramo, ex.: "Equipamentos e suprimentos de informática: toner" */
+  bateu: string | null;
+}
+
+/** Movimento no Pipeline, com o nome de quem moveu. */
+export interface MovimentoEquipe {
+  itemId: string;
+  objeto: string;
+  de: string | null;
+  para: string;
+  porId: string | null;
+  porNome: string | null;
+}
+
+export interface DadosResumoManha {
+  usuarioId: string;
+  nome: string;
+  escolhas: EscolhasAlerta;
+  /** Novas do ramo que esta pessoa ainda não viu, da mais indicada para a menos */
+  novas: ReadonlyArray<NovaDoRamo>;
+  itens: ReadonlyArray<ItemAlerta>;
+  /** Movimentos das últimas 24 h */
+  movimentos: ReadonlyArray<MovimentoEquipe>;
+  /** Avisos que esperam esta pessoa */
+  pendencias: ReadonlyArray<string>;
+  /** Itens distintos que chegaram em disputa desde segunda-feira */
+  disputasNaSemana: number;
+}
+
+export interface ResumoManha {
+  /** Vazio: nada a dizer */
+  texto: string;
+  /** Novas que apareceram no texto (não voltam no próximo resumo) */
+  novasMostradas: string[];
+}
+
+const MAX_TEXTO_WA = 4000;
+const MAX_OBJETO_LISTA = 90;
+
+const formatoReais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+function reais(valor: number): string {
+  return formatoReais.format(valor).replace(/ /g, " ");
+}
+
+/** "100 mil", "1,5 milhão" */
+function reaisCurto(valor: number): string {
+  if (valor >= 1_000_000) {
+    const milhoes = (valor / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+    return `R$ ${milhoes} ${valor >= 2_000_000 ? "milhões" : "milhão"}`;
   }
-  if (semResponsavel > 0) linhas.push(`Sem responsável: ${semResponsavel}`);
-  return linhas.join("\n");
+  if (valor >= 1_000) return `R$ ${(valor / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil`;
+  return reais(valor);
+}
+
+const formatoQuando = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** "20/11 às 14h" ou "20/11 às 14h30", em São Paulo. */
+export function quandoFecha(iso: string): string {
+  const data = new Date(iso);
+  if (Number.isNaN(data.getTime())) return "sem data";
+  const partes = formatoQuando.formatToParts(data);
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) => partes.find((p) => p.type === tipo)?.value ?? "";
+  const minuto = parte("minute");
+  return `${parte("day")}/${parte("month")} às ${parte("hour")}h${minuto === "00" ? "" : minuto}`;
+}
+
+/** Segunda-feira 0h (São Paulo) da semana de `agora`. */
+export function inicioDaSemana(agora: Date): Date {
+  const dia = diaDeSaoPaulo(agora);
+  const semana = new Date(`${dia}T12:00:00Z`).getUTCDay();
+  const voltar = (semana + 6) % 7;
+  return new Date(new Date(`${dia}T00:00:00-03:00`).getTime() - voltar * 24 * MS_HORA);
+}
+
+function linhaDaNova(n: NovaDoRamo, posicao: number): string {
+  const onde = [n.municipio, n.uf].filter((p) => p !== "").join("/");
+  const detalhes = [n.valor === null ? "Valor sigiloso" : reais(n.valor), onde, cortar(n.modalidade, 30)].filter((p) => p !== "");
+  const fecha = `Fecha ${quandoFecha(n.dataEncerramento)}${n.bateu ? ` · Bateu: ${n.bateu}` : ""}`;
+  return `${posicao}. *${objetoCurto(n.objeto, MAX_OBJETO_LISTA)}*\n${detalhes.join(" · ")}\n${fecha}`;
+}
+
+function linhaDoMovimento(m: MovimentoEquipe): string {
+  const quem = m.porNome ? `${primeiroNome(m.porNome)}: ` : "";
+  return `• ${quem}${objetoCurto(m.objeto, MAX_OBJETO_LISTA)} → ${rotuloDaEtapa(m.para)}`;
+}
+
+function comResto(linhas: string[], total: number): string[] {
+  return total > linhas.length ? [...linhas, `+${total - linhas.length}`] : linhas;
+}
+
+function textoDaMeta(feitas: number): string {
+  const placar = `🎯 Meta da semana: ${feitas} de ${META_MINIMA} em disputa (ideal ${META_IDEAL})`;
+  if (feitas >= META_IDEAL) return `${placar}. Ideal batido!`;
+  if (feitas >= META_MINIMA) return `${placar}. Meta batida!`;
+  const faltam = META_MINIMA - feitas;
+  return `${placar}. ${faltam === 1 ? "Falta 1" : `Faltam ${faltam}`}.`;
+}
+
+/**
+ * Resumo das 7h, montado pelas escolhas da pessoa. Cada parte só entra se tiver o que dizer;
+ * a meta entra sempre que escolhida. Sem nenhuma parte, texto vazio.
+ */
+export function textoResumoManha(d: DadosResumoManha, agora: Date): ResumoManha {
+  const e = d.escolhas;
+  const partes: string[] = [];
+  const mostradas = new Set<string>();
+
+  if (e.novas && d.novas.length > 0) {
+    const lista = d.novas.slice(0, MAX_LISTA_RESUMO);
+    for (const n of lista) mostradas.add(n.id);
+    const titulo = `🆕 ${d.novas.length} ${d.novas.length === 1 ? "nova do seu ramo" : "novas do seu ramo"}`;
+    partes.push([titulo, ...comResto(lista.map((n, i) => linhaDaNova(n, i + 1)), d.novas.length)].join("\n\n"));
+  }
+
+  if (e.grandes) {
+    const grandes = d.novas.filter((n) => n.valor !== null && n.valor >= e.valorGrande);
+    if (grandes.length > 0) {
+      const lista = grandes.slice(0, MAX_LISTA_MANHA);
+      for (const n of lista) mostradas.add(n.id);
+      const titulo = `💰 Acima de ${reaisCurto(e.valorGrande)}: ${grandes.length}`;
+      partes.push([titulo, ...comResto(lista.map((n, i) => linhaDaNova(n, i + 1)), grandes.length)].join("\n\n"));
+    }
+  }
+
+  const emJogo = d.itens.filter((i) => !ETAPAS_ENCERRADAS.includes(i.etapa));
+
+  if (e.fechando) {
+    const fechando = emJogo
+      .map((i) => ({ item: i, encerramento: new Date(i.dataEncerramento) }))
+      .filter((x) => faixaDoPrazo(x.encerramento, agora) !== null)
+      .sort((a, b) => a.encerramento.getTime() - b.encerramento.getTime());
+    if (fechando.length > 0) {
+      const linhas = fechando
+        .slice(0, MAX_LISTA_MANHA)
+        .map((x) => `• ${objetoCurto(x.item.objeto, MAX_OBJETO_LISTA)} (em ${textoRestante(x.encerramento.getTime() - agora.getTime())})`);
+      partes.push([`⏰ Fecham em 48 h: ${fechando.length}`, ...comResto(linhas, fechando.length)].join("\n"));
+    }
+  }
+
+  if (e.aguardando) {
+    const aguardando = emJogo.filter((i) => {
+      const fim = new Date(i.dataEncerramento).getTime();
+      return i.etapa === "disputa" && !Number.isNaN(fim) && fim <= agora.getTime();
+    });
+    if (aguardando.length > 0) {
+      const linhas = aguardando.slice(0, MAX_LISTA_MANHA).map((i) => `• ${objetoCurto(i.objeto, MAX_OBJETO_LISTA)}`);
+      partes.push([`⌛ Aguardando resultado: ${aguardando.length}`, ...comResto(linhas, aguardando.length)].join("\n"));
+    }
+  }
+
+  if (e.pendencias && d.pendencias.length > 0) {
+    const linhas = d.pendencias.slice(0, MAX_LISTA_MANHA).map((t) => `• ${cortar(t.split("\n")[0] ?? t, MAX_OBJETO)}`);
+    partes.push([`📌 Para você: ${d.pendencias.length}`, ...comResto(linhas, d.pendencias.length)].join("\n"));
+  }
+
+  if (e.movimentos) {
+    const daEquipe = d.movimentos.filter((m) => m.porId !== d.usuarioId);
+    if (daEquipe.length > 0) {
+      const linhas = daEquipe.slice(0, MAX_LISTA_RESUMO).map(linhaDoMovimento);
+      const titulo = `👥 A equipe moveu ${daEquipe.length} ${daEquipe.length === 1 ? "item" : "itens"} nas últimas 24 h`;
+      partes.push([titulo, ...comResto(linhas, daEquipe.length)].join("\n"));
+    }
+  }
+
+  if (e.disputa) {
+    const vistos = new Set<string>();
+    const entraram = d.movimentos.filter((m) => {
+      if (m.para !== "disputa" || vistos.has(m.itemId)) return false;
+      vistos.add(m.itemId);
+      return true;
+    });
+    if (entraram.length > 0) {
+      const linhas = entraram.slice(0, MAX_LISTA_MANHA).map((m) => `• ${objetoCurto(m.objeto, MAX_OBJETO_LISTA)}`);
+      partes.push([`🏁 Entraram em disputa: ${entraram.length}`, ...comResto(linhas, entraram.length)].join("\n"));
+    }
+  }
+
+  if (e.meta) partes.push(textoDaMeta(d.disputasNaSemana));
+
+  if (partes.length === 0) return { texto: "", novasMostradas: [] };
+  const saudacao = primeiroNome(d.nome) === "" ? "☀️ Bom dia!" : `☀️ Bom dia, ${primeiroNome(d.nome)}!`;
+  return { texto: cortar([saudacao, ...partes].join("\n\n"), MAX_TEXTO_WA), novasMostradas: [...mostradas] };
 }
 
 /* ---------- comandos ---------- */
@@ -360,13 +572,28 @@ export function lerPayload(payload: string): AcaoBotao | null {
   return null;
 }
 
-/** Botões do alerta (título de até 20 caracteres). Só alertas ligados a um item têm botões. */
-export function botoesDoAlerta(tipo: TipoAlertaWa, itemId: string | null): Array<{ titulo: string; payload: string }> {
+const MAX_TITULO_BOTAO = 20;
+
+/** "Atribuir a Paulo" com o responsável padrão da empresa; sem ele, "Atribuir a mim". Até 20 caracteres. */
+export function tituloAtribuir(responsavelPadrao: string | null): string {
+  const nome = responsavelPadrao === null ? "" : primeiroNome(responsavelPadrao);
+  return nome === "" ? "Atribuir a mim" : cortar(`Atribuir a ${nome}`, MAX_TITULO_BOTAO);
+}
+
+/**
+ * Botões do alerta (título de até 20 caracteres). Só alertas ligados a um item têm botões.
+ * `responsavelPadrao`: nome de quem recebe o item no "Atribuir a ..." (null: quem tocou).
+ */
+export function botoesDoAlerta(
+  tipo: TipoAlertaWa,
+  itemId: string | null,
+  responsavelPadrao: string | null = null,
+): Array<{ titulo: string; payload: string }> {
   if (itemId === null) return [];
   if (tipo === "radar" || tipo === "aviso") return [];
   return [
     { titulo: "Vou participar", payload: payloadDoBotao({ tipo: "participar", itemId }) },
-    { titulo: "Atribuir a mim", payload: payloadDoBotao({ tipo: "atribuir", itemId }) },
+    { titulo: tituloAtribuir(responsavelPadrao), payload: payloadDoBotao({ tipo: "atribuir", itemId }) },
     { titulo: "Descartar", payload: payloadDoBotao({ tipo: "descartar", itemId }) },
   ];
 }

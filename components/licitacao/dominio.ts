@@ -1,5 +1,6 @@
 import { PERFIL_ORIGEM } from "@/core/empresa";
-import { atendeRegiao, ehMei, type PerfilEmpresa } from "@/core/perfil";
+import { pontuacaoLocal } from "@/core/areas";
+import { ehMei, type PerfilEmpresa } from "@/core/perfil";
 import { limiteMeiAnual, TETO_MEI_ANO_CHEIO } from "@/core/score";
 import { regiaoDe } from "@/core/regioes";
 import type { Frente, ModalidadeId, Oportunidade } from "@/core/types";
@@ -160,27 +161,20 @@ function sinalValor(d: DetalheCompra, perfil: PerfilEmpresa): Sinal {
 }
 
 function sinalLocal(d: DetalheCompra, frente: Frente, perfil: PerfilEmpresa): Sinal {
-  const regiao = regiaoDe(d.codigoIbge, d.uf);
+  const { nivel } = pontuacaoLocal({ uf: d.uf, codigoIbge: d.codigoIbge }, perfil.areas);
   const onde = `${d.municipio}${d.uf ? `/${d.uf}` : ""}`;
-  const atende = atendeRegiao(perfil, regiao);
-  if (!atende && regiao !== "fora-rj") {
-    return {
-      id: "local",
-      tom: frente === "servicos" ? "negative" : "warning",
-      texto: `${onde}, fora das suas regiões de interesse.`,
-    };
-  }
-  if (regiao === "nova-iguacu") return { id: "local", tom: "positive", texto: `Em ${onde}: sem deslocamento.` };
-  if (regiao === "baixada") return { id: "local", tom: "positive", texto: `${onde}, na Baixada Fluminense: deslocamento curto.` };
-  if (regiao === "capital") return { id: "local", tom: "warning", texto: `${onde}, na capital: deslocamento médio.` };
-  if (regiao === "rj") return { id: "local", tom: "warning", texto: `${onde}, no interior do estado: deslocamento longo.` };
+  if (nivel === "municipio-base") return { id: "local", tom: "positive", texto: `Em ${onde}: sem deslocamento.` };
+  if (nivel === "mesma-rm") return { id: "local", tom: "positive", texto: `${onde}, na sua região metropolitana: deslocamento curto.` };
+  if (nivel === "capital-ou-rm") return { id: "local", tom: "warning", texto: `${onde}, na capital ou região metropolitana do seu estado: deslocamento médio.` };
+  if (nivel === "mesma-uf") return { id: "local", tom: "warning", texto: `${onde}, no interior do seu estado: deslocamento longo.` };
+  if (nivel === "outra-uf") return { id: "local", tom: "warning", texto: `${onde}, em outro estado que você atende: deslocamento muito longo.` };
   return {
     id: "local",
     tom: frente === "servicos" ? "negative" : "warning",
     texto:
       frente === "servicos"
-        ? `${onde}, fora do estado do Rio: inviável para serviço presencial.`
-        : `${onde}, fora do estado do Rio: o frete pesa.`,
+        ? `${onde}, fora das suas áreas de atendimento: inviável para serviço presencial.`
+        : `${onde}, fora das suas áreas de atendimento: o frete pesa.`,
   };
 }
 

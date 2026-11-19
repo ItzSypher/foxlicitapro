@@ -10,6 +10,7 @@ import { TEXTO_FAIXA } from "./faixa";
 import { DicaNota } from "./dicas";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { PrazoDoCard } from "./prazo";
+import { SeloFonte } from "./selo-fonte";
 
 interface Props {
   item: OportunidadeComScore;
@@ -57,8 +58,11 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }: 
         <span className="line-clamp-3">{resumirObjeto(item.objeto)}</span>
       </button>
 
-      <span className="truncate text-[13px] text-muted-foreground">
-        {item.municipio}/{item.uf} · {nomeModalidade(item.modalidadeId)}
+      <span className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
+        <span className="min-w-0 truncate">
+          {item.municipio}/{item.uf} · {nomeModalidade(item.modalidadeId)}
+        </span>
+        <SeloFonte linkOrigem={item.linkOrigem} className="shrink-0" />
       </span>
 
       {motivos && motivos.length > 0 ? <Motivos motivos={motivos.slice(0, 1)} className="mt-auto" /> : null}

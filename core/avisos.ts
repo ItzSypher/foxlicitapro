@@ -27,7 +27,8 @@ export type TipoAviso =
   | "proposta_revisao"
   | "proposta_revisada"
   | "item_atribuido"
-  | "juridico_pendente";
+  | "juridico_pendente"
+  | "proposta_resultado";
 
 /** Quem deve receber o aviso. */
 export type AlvoAviso =

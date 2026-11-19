@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { OportunidadeComScore } from "@/core/types";
-import { filtrarPorTexto, lerBusca, lerPalavras, normalizarBusca, temFiltroTexto } from "./radar-filtros";
+import {
+  FILTROS_PADRAO,
+  contarFiltrosAtivos,
+  filtrarPorTexto,
+  lerBusca,
+  lerFiltros,
+  lerPalavras,
+  normalizarBusca,
+  temFiltroTexto,
+} from "./radar-filtros";
 
 function item(id: string, objeto: string, orgao: string, municipio: string): OportunidadeComScore {
   return { id, objeto, orgao, unidade: "", municipio } as OportunidadeComScore;
@@ -49,5 +58,31 @@ describe("filtro de texto e palavras-chave do Radar", () => {
     expect(lerBusca(params)).toBe("Nova Iguaçu");
     expect(lerPalavras(params)).toEqual(["software", "gestao"]);
     expect(lerPalavras(new URLSearchParams(""))).toEqual([]);
+  });
+});
+
+describe("lerFiltros: UF, valor, fonte e ramo", () => {
+  const params = (texto: string) => new URLSearchParams(texto);
+
+  it("lê UFs válidas, faixa de valor, fontes e o ramo", () => {
+    const f = lerFiltros(params("uf=rj,MG,XX&vmin=1000&vmax=50000&fonte=BNC,Inexistente&ramo=1"));
+    expect(f.ufs).toEqual(["RJ", "MG"]);
+    expect([f.valorMin, f.valorMax]).toEqual([1000, 50000]);
+    expect(f.fontes).toEqual(["BNC"]);
+    expect(f.tudoDoRamo).toBe(true);
+    expect(lerFiltros(params("ramo=0")).tudoDoRamo).toBe(false);
+    expect(lerFiltros(params("")).tudoDoRamo).toBeNull();
+  });
+
+  it("troca mínimo e máximo invertidos e ignora valor inválido", () => {
+    const f = lerFiltros(params("vmin=9000&vmax=100"));
+    expect([f.valorMin, f.valorMax]).toEqual([100, 9000]);
+    const g = lerFiltros(params("vmin=abc&vmax=-5"));
+    expect([g.valorMin, g.valorMax]).toEqual([null, null]);
+  });
+
+  it("conta os filtros fora do padrão", () => {
+    expect(contarFiltrosAtivos(FILTROS_PADRAO)).toBe(0);
+    expect(contarFiltrosAtivos({ ...FILTROS_PADRAO, ufs: ["MG"], valorMin: 1, fontes: ["BLL"], tudoDoRamo: false })).toBe(4);
   });
 });

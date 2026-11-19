@@ -1,14 +1,23 @@
-import type { Faixa, ModalidadeId, OportunidadeComScore, Regiao } from "@/core/types";
+import type { Faixa, ModalidadeId, OportunidadeComScore } from "@/core/types";
 import { normalizarTexto } from "@/core/cnae-keywords";
+import { acharUf } from "@/core/ufs";
+import { FONTES, fonteDaOportunidade, type Fonte } from "@/core/fonte";
 
-export type FiltroRegiao = "todo" | "nova-iguacu" | "baixada" | "capital" | "interior";
 export type FiltroModalidade = "todas" | "dispensa" | "pregao";
 export type Ordem = "sinal" | "prazo" | "valor" | "recentes";
 
 export interface Filtros {
-  regiao: FiltroRegiao;
+  /** Siglas das UFs marcadas; vazio mostra todas as áreas da empresa */
+  ufs: string[];
   modalidade: FiltroModalidade;
   ordem: Ordem;
+  /** Faixa de valor estimado em reais; null não limita. Itens sem valor saem quando há limite. */
+  valorMin: number | null;
+  valorMax: number | null;
+  /** Portais marcados; vazio mostra todos */
+  fontes: Fonte[];
+  /** "Tudo do meu ramo" pedido na URL; null segue o padrão do perfil */
+  tudoDoRamo: boolean | null;
 }
 
 export type Visao = "cards" | "lista";
@@ -44,15 +53,15 @@ export function lerVisao(valor: string | null | undefined): Visao {
   return ehVisao(valor) ? valor : VISAO_PADRAO;
 }
 
-export const FILTROS_PADRAO: Filtros = { regiao: "todo", modalidade: "todas", ordem: "sinal" };
-
-export const REGIOES: ReadonlyArray<{ id: FiltroRegiao; rotulo: string }> = [
-  { id: "todo", rotulo: "Todo o RJ" },
-  { id: "nova-iguacu", rotulo: "Nova Iguaçu" },
-  { id: "baixada", rotulo: "Baixada Fluminense" },
-  { id: "capital", rotulo: "RJ Capital" },
-  { id: "interior", rotulo: "Interior RJ" },
-];
+export const FILTROS_PADRAO: Filtros = {
+  ufs: [],
+  modalidade: "todas",
+  ordem: "sinal",
+  valorMin: null,
+  valorMax: null,
+  fontes: [],
+  tudoDoRamo: null,
+};
 
 export const MODALIDADES: ReadonlyArray<{ id: FiltroModalidade; rotulo: string }> = [
   { id: "todas", rotulo: "Todas" },
@@ -82,34 +91,56 @@ function ehUmDe<T extends string>(valor: string | null, opcoes: ReadonlyArray<{ 
   return opcoes.some((opcao) => opcao.id === valor);
 }
 
+/** Lista separada por vírgula, sem repetir e com no máximo `limite` itens. */
+function lerLista(bruto: string | null, limite: number): string[] {
+  const vistos = new Set<string>();
+  for (const parte of (bruto ?? "").split(",")) {
+    const termo = parte.trim();
+    if (termo !== "") vistos.add(termo);
+    if (vistos.size >= limite) break;
+  }
+  return [...vistos];
+}
+
+function lerValor(bruto: string | null): number | null {
+  if (bruto === null || bruto.trim() === "") return null;
+  const n = Number(bruto);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+}
+
 export function lerFiltros(params: { get(nome: string): string | null }): Filtros {
-  const regiao = params.get("regiao");
   const modalidade = params.get("modalidade");
   const ordem = params.get("ordem");
+  const ramo = params.get("ramo");
+  let valorMin = lerValor(params.get("vmin"));
+  let valorMax = lerValor(params.get("vmax"));
+  if (valorMin !== null && valorMax !== null && valorMin > valorMax) [valorMin, valorMax] = [valorMax, valorMin];
   return {
-    regiao: ehUmDe(regiao, REGIOES) ? regiao : FILTROS_PADRAO.regiao,
+    ufs: lerLista(params.get("uf"), 27)
+      .map((u) => acharUf(u)?.sigla)
+      .filter((u): u is string => u !== undefined),
     modalidade: ehUmDe(modalidade, MODALIDADES) ? modalidade : FILTROS_PADRAO.modalidade,
     ordem: ehUmDe(ordem, ORDENS) ? ordem : FILTROS_PADRAO.ordem,
+    valorMin,
+    valorMax,
+    fontes: lerLista(params.get("fonte"), FONTES.length).filter((f): f is Fonte => (FONTES as readonly string[]).includes(f)),
+    tudoDoRamo: ramo === "1" ? true : ramo === "0" ? false : null,
   };
 }
 
-/** Regiões do RJ; "Baixada Fluminense" inclui Nova Iguaçu. */
-function pertenceARegiao(regiao: Regiao, filtro: FiltroRegiao): boolean {
-  if (regiao === "fora-rj") return false;
-  if (filtro === "todo") return true;
-  if (filtro === "baixada") return regiao === "baixada" || regiao === "nova-iguacu";
-  if (filtro === "interior") return regiao === "rj";
-  return regiao === filtro;
+/** Quantas oportunidades há em cada UF, para os chips do filtro e o resumo do dia. */
+export function contarPorUf(lista: ReadonlyArray<OportunidadeComScore>): Record<string, number> {
+  const contagem: Record<string, number> = {};
+  for (const item of lista) contagem[item.uf] = (contagem[item.uf] ?? 0) + 1;
+  return contagem;
 }
 
-export function contarPorRegiao(
-  lista: ReadonlyArray<OportunidadeComScore>,
-): Record<FiltroRegiao, number> {
-  const contagem: Record<FiltroRegiao, number> = { todo: 0, "nova-iguacu": 0, baixada: 0, capital: 0, interior: 0 };
+/** Quantas oportunidades há em cada fonte. */
+export function contarPorFonte(lista: ReadonlyArray<OportunidadeComScore>): Record<string, number> {
+  const contagem: Record<string, number> = {};
   for (const item of lista) {
-    for (const { id } of REGIOES) {
-      if (pertenceARegiao(item.regiao, id)) contagem[id] += 1;
-    }
+    const fonte = fonteDaOportunidade(item.linkOrigem);
+    contagem[fonte] = (contagem[fonte] ?? 0) + 1;
   }
   return contagem;
 }
@@ -130,12 +161,20 @@ function prazo(item: OportunidadeComScore): number {
   return Number.isNaN(valor) ? Number.POSITIVE_INFINITY : valor;
 }
 
-/** Aplica só os filtros de região e modalidade, sem ordenar. */
+function dentroDaFaixaDeValor(valor: number | null, filtros: Filtros): boolean {
+  if (filtros.valorMin === null && filtros.valorMax === null) return true;
+  if (valor === null) return false;
+  return (filtros.valorMin === null || valor >= filtros.valorMin) && (filtros.valorMax === null || valor <= filtros.valorMax);
+}
+
+/** Aplica os filtros de UF, modalidade, faixa de valor e fonte, sem ordenar. */
 export function filtrar(lista: ReadonlyArray<OportunidadeComScore>, filtros: Filtros): OportunidadeComScore[] {
   return lista.filter(
     (item) =>
-      pertenceARegiao(item.regiao, filtros.regiao) &&
-      pertenceAModalidade(item.modalidadeId, filtros.modalidade),
+      (filtros.ufs.length === 0 || filtros.ufs.includes(item.uf)) &&
+      pertenceAModalidade(item.modalidadeId, filtros.modalidade) &&
+      dentroDaFaixaDeValor(item.valorEstimado, filtros) &&
+      (filtros.fontes.length === 0 || filtros.fontes.includes(fonteDaOportunidade(item.linkOrigem))),
   );
 }
 
@@ -173,7 +212,6 @@ export function resumir(lista: ReadonlyArray<OportunidadeComScore>, agora: numbe
   let encerram24h = 0;
   let sinalVerde = 0;
   for (const item of lista) {
-    if (item.regiao === "fora-rj") continue;
     abertas += 1;
     const restante = prazo(item) - agora;
     if (restante > 0 && restante < 24 * 3_600_000) encerram24h += 1;
@@ -199,11 +237,15 @@ export function itensPaginacao(atual: number, total: number): ItemPaginacao[] {
 }
 
 /**
- * Quantos filtros do painel (modalidade e ordem) estão fora do padrão.
+ * Quantos filtros da folha (UF, valor, modalidade, fonte, "tudo do ramo" e ordem) estão fora do padrão.
  * Em "Para você" a ordem é a da recomendação e não conta.
  */
 export function contarFiltrosAtivos(filtros: Filtros, contarOrdem = true): number {
   let n = 0;
+  if (filtros.ufs.length > 0) n += 1;
+  if (filtros.valorMin !== null || filtros.valorMax !== null) n += 1;
+  if (filtros.fontes.length > 0) n += 1;
+  if (filtros.tudoDoRamo !== null) n += 1;
   if (filtros.modalidade !== FILTROS_PADRAO.modalidade) n += 1;
   if (contarOrdem && filtros.ordem !== FILTROS_PADRAO.ordem) n += 1;
   return n;
@@ -214,6 +256,12 @@ export function fraseRecomendadas(escolhidas: number, abertas: number): string {
   const e = escolhidas === 1 ? "escolhida" : "escolhidas";
   const a = abertas === 1 ? "aberta" : "abertas";
   return `${escolhidas} ${e} para o seu perfil de ${abertas} ${a}`;
+}
+
+/** "30 do seu ramo de 891 abertas" */
+export function fraseRamo(doRamo: number, abertas: number): string {
+  const a = abertas === 1 ? "aberta" : "abertas";
+  return `${doRamo} do seu ramo de ${abertas} ${a}`;
 }
 
 /** "880 abertas · 210 fecham em 24 h · 24 boas" */
@@ -228,18 +276,12 @@ export function frasePlural(n: number, singular: string, plural: string): string
   return `${n} ${n === 1 ? singular : plural}`;
 }
 
-/** Frase do estado vazio, por exemplo "Nenhuma oportunidade em Nova Iguaçu hoje." */
+/** Frase do estado vazio, por exemplo "Nenhuma oportunidade em MG hoje." */
 export function fraseVazio(filtros: Filtros): string {
   const tipo =
     filtros.modalidade === "dispensa" ? "dispensa" : filtros.modalidade === "pregao" ? "pregão" : "oportunidade";
-  const local: Record<FiltroRegiao, string> = {
-    todo: "no RJ",
-    "nova-iguacu": "em Nova Iguaçu",
-    baixada: "na Baixada Fluminense",
-    capital: "na capital do Rio de Janeiro",
-    interior: "no interior do RJ",
-  };
-  return `Nenhuma ${tipo} ${local[filtros.regiao]} hoje.`;
+  const local = filtros.ufs.length > 0 ? ` em ${filtros.ufs.join(", ")}` : "";
+  return `Nenhuma ${tipo}${local} hoje.`;
 }
 
 /** Busca por texto e palavras-chave do Radar. */

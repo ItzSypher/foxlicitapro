@@ -2,13 +2,15 @@ import type { PerfilEmpresa } from "@/core/perfil";
 import { recomendar, type PreferenciasDeRecomendacao } from "@/core/recomendacao";
 import type { Frente, ModalidadeId, OportunidadeComScore } from "@/core/types";
 import {
-  contarPorRegiao,
+  contarPorFonte,
+  contarPorUf,
   filtrar,
   filtrarEOrdenar,
   filtrarPorTexto,
   resumir,
+  textoDaOportunidade,
+  normalizarBusca,
   type Aba,
-  type FiltroRegiao,
   type Filtros,
   type Resumo,
 } from "./radar-filtros";
@@ -79,7 +81,14 @@ export interface PaginaRadar {
   porPagina: number;
   inicio: number;
   fim: number;
-  contagensRegiao: Record<FiltroRegiao, number>;
+  /** Oportunidades por UF (sem o filtro de UF), para os chips e o resumo */
+  contagensUf: Record<string, number>;
+  /** Oportunidades por portal de origem (sem o filtro de fonte) */
+  contagensFonte: Record<string, number>;
+  /** "Tudo do meu ramo" valendo nesta consulta (URL ou padrão do perfil) */
+  tudoDoRamo: boolean;
+  /** UFs das áreas que ainda não têm nenhuma coleta no cache */
+  ufsPendentes: string[];
   contagensAbas: Record<Aba, number>;
   /** Quantas abertas passaram pelos filtros, base da frase "escolhidas de N abertas" */
   baseRecomendacao: number;
@@ -90,6 +99,26 @@ export interface PaginaRadar {
   selecionadas: string[];
   atualizadoEm: string;
   falhas: ModalidadeId[];
+}
+
+/** Lista do ramo: casa com algum CNAE da empresa ou com uma palavra-chave guardada; só a nota ordena. */
+function listaDoRamo(
+  base: ReadonlyArray<OportunidadeComScore>,
+  palavrasSalvas: ReadonlyArray<string>,
+): Array<{ item: OportunidadeComScore; motivo: string }> {
+  const termos = palavrasSalvas.map(normalizarBusca).filter((t) => t !== "");
+  const achadas: Array<{ item: OportunidadeComScore; motivo: string }> = [];
+  for (const item of base) {
+    if (item.score.cnaesCasados.length > 0) {
+      achadas.push({ item, motivo: `Casa com o CNAE ${item.score.cnaesCasados[0]}` });
+      continue;
+    }
+    const texto = ` ${textoDaOportunidade(item)} `;
+    const termo = termos.find((t) => texto.includes(t));
+    if (termo !== undefined) achadas.push({ item, motivo: `Palavra-chave: ${termo}` });
+  }
+  const prazo = (o: OportunidadeComScore): number => Date.parse(o.dataEncerramento);
+  return achadas.sort((a, b) => b.item.score.total - a.item.score.total || prazo(a.item) - prazo(b.item));
 }
 
 /**
@@ -103,12 +132,16 @@ export function montarPaginaRadar(
   referencia: number,
   atualizadoEm: string,
   falhas: ModalidadeId[],
+  ufsPendentes: string[] = [],
 ): PaginaRadar {
   const selecionadas = consulta.palavras.filter((p) => consulta.palavrasSalvas.includes(p));
   const porTexto = filtrarPorTexto(oportunidades, { busca: consulta.busca, palavras: selecionadas });
   const todas = filtrarEOrdenar(porTexto, consulta.filtros);
   const base = filtrar(porTexto, consulta.filtros);
-  const recomendadas = recomendar(base, consulta.frente, new Date(referencia), undefined, consulta.preferencias, consulta.perfil);
+  const tudoDoRamo = consulta.filtros.tudoDoRamo ?? consulta.perfil?.radarTudoDoRamo ?? false;
+  const recomendadas: Array<{ item: OportunidadeComScore; motivos: string[] }> = tudoDoRamo
+    ? listaDoRamo(base, consulta.palavrasSalvas).map((r) => ({ item: r.item, motivos: [r.motivo] }))
+    : recomendar(base, consulta.frente, new Date(referencia), undefined, consulta.preferencias, consulta.perfil);
 
   const paraVoce = consulta.aba === "para-voce";
   const visiveis = paraVoce ? recomendadas.map((r) => r.item) : todas;
@@ -132,7 +165,10 @@ export function montarPaginaRadar(
     porPagina: consulta.porPagina,
     inicio: fatia.inicio,
     fim: fatia.fim,
-    contagensRegiao: contarPorRegiao(porTexto),
+    contagensUf: contarPorUf(filtrar(porTexto, { ...consulta.filtros, ufs: [] })),
+    contagensFonte: contarPorFonte(filtrar(porTexto, { ...consulta.filtros, fontes: [] })),
+    tudoDoRamo,
+    ufsPendentes,
     contagensAbas: { "para-voce": recomendadas.length, todas: todas.length },
     baseRecomendacao: base.length,
     resumo: resumir(oportunidades, agora),

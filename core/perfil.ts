@@ -1,3 +1,4 @@
+import type { Areas } from "./areas";
 import type { Frente, Regiao } from "./types";
 
 /** Porte da empresa no CNPJ. Só o MEI tem teto anual de faturamento. */
@@ -42,8 +43,12 @@ export interface PerfilEmpresa {
   /** AAAA-MM-DD; null quando não se sabe (tratada como empresa com ano cheio) */
   dataAbertura: string | null;
   cnaes: CnaePerfil[];
-  /** Regiões em que a empresa atende; serviço fora delas não é recomendado */
+  /** Regiões antigas, derivadas das áreas ao salvar; o que vale para o Radar e para a nota são as `areas` */
   regioes: Regiao[];
+  /** Onde a empresa atende (UFs, municípios avulsos e base); serviço fora das áreas não é recomendado */
+  areas: Areas;
+  /** Radar mostra toda oportunidade do ramo (CNAE ou palavra-chave), mesmo com nota baixa */
+  radarTudoDoRamo: boolean;
   endereco: string | null;
   cep: string | null;
   telefone: string | null;
@@ -91,9 +96,4 @@ export function cnaePrincipal(perfil: Pick<PerfilEmpresa, "cnaes">): CnaePerfil 
 /** Nome para exibir: fantasia quando houver, senão a razão social. */
 export function nomeExibicao(perfil: Pick<PerfilEmpresa, "nomeFantasia" | "razaoSocial">): string {
   return perfil.nomeFantasia?.trim() || perfil.razaoSocial;
-}
-
-/** O serviço presencial só vale dentro das regiões de interesse. */
-export function atendeRegiao(perfil: Pick<PerfilEmpresa, "regioes">, regiao: Regiao): boolean {
-  return perfil.regioes.includes(regiao);
 }

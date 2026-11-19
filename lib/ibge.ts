@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { acharUf } from "./fora-rj-busca";
+import { acharUf } from "@/core/ufs";
 
 const URL_BASE = "https://servicodados.ibge.gov.br/api/v1/localidades/estados";
 const TIMEOUT_MS = 6000;

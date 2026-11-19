@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ehRegiao } from "@/core/perfil";
+import { normalizarAreas, ufsDeColeta } from "@/core/areas";
 import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema } from "@/db/empresas";
 import { exigirDono } from "@/lib/sessao";
 
@@ -11,7 +11,12 @@ export type ResultadoEmpresa = { ok: true } | { ok: false; erro: string };
 const EdicaoSchema = z.object({
   nomeFantasia: z.string().trim().max(120).nullable(),
   cnaes: cnaesSchema,
-  regioes: z.array(z.string().refine(ehRegiao)).max(10),
+  areas: z.object({
+    ufs: z.array(z.string()).max(27),
+    municipiosIbge: z.array(z.string()).max(600),
+    base: z.object({ uf: z.string(), municipioIbge: z.string().nullable() }),
+  }),
+  radarTudoDoRamo: z.boolean(),
 });
 
 /** Só o dono edita, e sempre a empresa da própria sessão. */
@@ -24,10 +29,15 @@ export async function salvarEmpresaAction(entrada: unknown): Promise<ResultadoEm
   }
   const lido = EdicaoSchema.safeParse(entrada);
   if (!lido.success) return { ok: false, erro: "Confira os dados e tente de novo." };
-  const regioes = lido.data.regioes.filter(ehRegiao);
-  if (regioes.length === 0) return { ok: false, erro: "Marque pelo menos uma região de atendimento." };
+  const areas = normalizarAreas(lido.data.areas);
+  if (ufsDeColeta(areas).length === 0) return { ok: false, erro: "Marque pelo menos um estado ou município onde atender." };
   try {
-    const gravou = await atualizarPerfilEmpresa(empresaId, { ...lido.data, regioes });
+    const gravou = await atualizarPerfilEmpresa(empresaId, {
+      nomeFantasia: lido.data.nomeFantasia,
+      cnaes: lido.data.cnaes,
+      areas,
+      radarTudoDoRamo: lido.data.radarTudoDoRamo,
+    });
     if (!gravou) return { ok: false, erro: "Empresa não encontrada." };
   } catch (e) {
     console.error("[empresa] gravação falhou:", e instanceof Error ? e.message : e);

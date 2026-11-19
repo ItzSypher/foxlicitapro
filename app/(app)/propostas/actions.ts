@@ -7,10 +7,12 @@ import { z } from "zod";
 import { avisarPropostaEmRevisao, avisarPropostaRevisada } from "@/lib/avisos";
 import { podeAgirNaRevisao, type Permissao } from "@/core/permissoes";
 import { SEM_PERMISSAO, lerSessao, verificarPermissao } from "@/lib/sessao";
-import { DadosPropostaSchema, totalProposta, validarProposta } from "@/core/proposta";
+import { DadosPropostaSchema, dadosEmBranco, dataIsoBrasilia, totalProposta, validarProposta } from "@/core/proposta";
+import { validarEnvio, validarExterna, type TipoEvento } from "@/core/proposta-eventos";
 import { ehModeloId, type ModeloId } from "@/core/proposta-modelos";
 import { podeGerarLink, statusAposEdicao, podeEditar, transicao, type AcaoRevisao } from "@/core/revisao";
 import type { Sessao, StatusPropostaEquipe } from "@/core/types-equipe";
+import { criarPropostaExterna, marcarEnviada } from "@/db/proposta-eventos";
 import { criarRascunho } from "./rascunho";
 import {
   atualizarProposta,
@@ -59,6 +61,7 @@ export async function salvarPropostaAction(pedido: unknown): Promise<RespostaSal
   try {
     const atual = await lerProposta(empresaId, id);
     if (!atual) return { ok: false, mensagem: NAO_ENCONTRADA };
+    if (atual.externa) return { ok: false, mensagem: "Proposta enviada fora do sistema não tem documento para editar." };
     if (!podeEditar(atual.status)) {
       return { ok: false, mensagem: "A proposta está em revisão. Retire da revisão para editar." };
     }
@@ -85,6 +88,15 @@ export type RespostaRevisao =
   | { ok: false; mensagem: string };
 
 const AcaoSchema = z.enum(["enviar", "aprovar", "devolver", "retirar", "reabrir"]);
+
+/** O que entra na linha do tempo; retirar e reabrir só voltam para rascunho. */
+const EVENTO_DA_ACAO: Record<AcaoRevisao, TipoEvento | null> = {
+  enviar: "revisao",
+  aprovar: "aprovada",
+  devolver: "devolvida",
+  retirar: null,
+  reabrir: null,
+};
 
 /**
  * Enviar para revisão, aprovar, devolver (com nota), retirar da revisão ou reabrir uma aprovada.
@@ -115,7 +127,9 @@ export async function acaoRevisaoAction(id: string, acao: AcaoRevisao, nota?: st
       acaoLida.data === "aprovar" || acaoLida.data === "devolver"
         ? { revisadoPor: sessao.usuarioId, nota: notaFinal }
         : null;
-    const gravou = await definirStatus(sessao.empresaId, id, decisao.status, revisao, p.status);
+    const tipoEvento = EVENTO_DA_ACAO[acaoLida.data];
+    const evento = tipoEvento ? { tipo: tipoEvento, por: sessao.usuarioId, nota: notaFinal } : undefined;
+    const gravou = await definirStatus(sessao.empresaId, id, decisao.status, revisao, p.status, evento);
     if (!gravou) return { ok: false, mensagem: "A proposta mudou enquanto você olhava. Recarregue a página." };
 
     if (acaoLida.data === "enviar") {
@@ -154,7 +168,10 @@ export type RespostaLink =
   | { ok: true; token: string; expira: string; status: StatusPropostaEquipe }
   | { ok: false; mensagem: string };
 
-/** Gera um link novo de 15 dias e marca a proposta como enviada. Exige proposta aprovada (ou já enviada). */
+/**
+ * Gera um link novo de 15 dias. Exige proposta aprovada (ou já enviada).
+ * Gerar o link não marca como enviada: isso pede o comprovante (`marcarEnviadaAction`).
+ */
 export async function gerarLinkAction(id: string): Promise<RespostaLink> {
   const a = await acesso("editar_propostas");
   if (!a.ok) return { ok: false, mensagem: a.mensagem };
@@ -167,12 +184,83 @@ export async function gerarLinkAction(id: string): Promise<RespostaLink> {
     }
     const gerado = await gerarTokenPublico(a.sessao.empresaId, id, 15);
     if (!gerado) return { ok: false, mensagem: FALHA };
-    await definirStatus(a.sessao.empresaId, id, "enviada");
     revalidatePath("/propostas");
-    return { ok: true, token: gerado.token, expira: gerado.expira, status: "enviada" };
+    return { ok: true, token: gerado.token, expira: gerado.expira, status: p.status };
   } catch {
     return { ok: false, mensagem: "Não foi possível gerar o link agora. Tente de novo." };
   }
+}
+
+const EntradaEnvioSchema = z.object({
+  protocolo: z.string().max(500).nullish(),
+  comprovante: z.string().max(900_000).nullish(),
+  nota: z.string().max(5000).nullish(),
+});
+
+export type RespostaEnvio = { ok: true; status: StatusPropostaEquipe; enviadaEm: string } | { ok: false; mensagem: string };
+
+/**
+ * Marca como enviada com a prova do envio: número do protocolo no portal e/ou comprovante (print ou PDF).
+ * Vale para proposta aprovada; numa já enviada, registra mais um envio (reenvio ou complemento).
+ */
+export async function marcarEnviadaAction(id: string, entrada: unknown): Promise<RespostaEnvio> {
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
+  if (!IdSchema.safeParse(id).success) return { ok: false, mensagem: NAO_ENCONTRADA };
+  const lida = EntradaEnvioSchema.safeParse(entrada);
+  if (!lida.success) return { ok: false, mensagem: "O comprovante passou de 600 KB. Mande um print ou um PDF menor." };
+  const envio = validarEnvio(lida.data);
+  if (!envio.ok) return { ok: false, mensagem: envio.erro };
+  try {
+    const p = await lerProposta(a.sessao.empresaId, id);
+    if (!p) return { ok: false, mensagem: NAO_ENCONTRADA };
+    if (!podeGerarLink(p.status)) return { ok: false, mensagem: "A proposta precisa ser aprovada antes de ser enviada." };
+    const gravou = await marcarEnviada(a.sessao.empresaId, id, a.sessao.usuarioId, envio.valor, ["aprovada", "pronta", "enviada"]);
+    if (!gravou) return { ok: false, mensagem: "A proposta mudou enquanto você olhava. Recarregue a página." };
+    revalidatePath("/propostas");
+    return { ok: true, status: "enviada", enviadaEm: p.enviadaEm ?? new Date().toISOString() };
+  } catch {
+    return { ok: false, mensagem: FALHA };
+  }
+}
+
+const EntradaExternaSchema = EntradaEnvioSchema.extend({
+  orgao: z.string().max(1000),
+  numero: z.string().max(1000),
+  portal: z.string().max(1000),
+  valor: z.string().max(100),
+  enviadaEm: z.string().max(20).nullish(),
+  objeto: z.string().max(2000).nullish(),
+});
+
+/** Registra uma proposta que já foi enviada fora do sistema (órgão, número, portal, valor e prova do envio). */
+export async function registrarExternaAction(entrada: unknown): Promise<{ ok: false; mensagem: string }> {
+  const a = await acesso("editar_propostas");
+  if (!a.ok) return { ok: false, mensagem: a.mensagem };
+  const lida = EntradaExternaSchema.safeParse(entrada);
+  if (!lida.success) return { ok: false, mensagem: "Há um campo com valor inválido." };
+  const agora = new Date();
+  const externa = validarExterna(lida.data, dataIsoBrasilia(agora));
+  if (!externa.ok) return { ok: false, mensagem: externa.erro };
+  const v = externa.valor;
+  const dados = {
+    ...dadosEmBranco("cotacao-simples", agora),
+    orgao: v.orgao,
+    objeto: v.objeto,
+    numeroCompra: v.numero,
+    itens: [],
+    observacoes: "",
+    data: v.enviadaEm ?? dataIsoBrasilia(agora),
+  };
+  const titulo = `Proposta · ${v.orgao} · ${v.numero}`.slice(0, 160);
+  let id: string;
+  try {
+    id = await criarPropostaExterna(a.sessao.empresaId, a.sessao.usuarioId, v, dados, titulo);
+  } catch {
+    return { ok: false, mensagem: FALHA };
+  }
+  revalidatePath("/propostas");
+  redirect(`/propostas/${id}`);
 }
 
 export async function revogarLinkAction(id: string): Promise<{ ok: boolean; mensagem?: string }> {

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { registrarTroca } from "@/db/conselheiro-conversas";
 import { montarSistemaDoChat } from "@/lib/assistente/contexto";
 import { registrarMensagem } from "@/lib/assistente/limite";
 import { interpretarRota } from "@/lib/assistente/rota";
@@ -16,13 +17,18 @@ const PedidoSchema = z.object({
     .array(z.object({ papel: z.enum(["usuario", "assistente"]), texto: z.string().trim().min(1).max(2000) }))
     .min(1)
     .max(12),
+  /** Conversa em andamento; sem ela, a primeira troca abre uma nova no histórico. */
+  conversaId: z.uuid().nullable().optional(),
 });
 
 function erro(mensagem: string, status: number) {
   return NextResponse.json({ erro: mensagem }, { status });
 }
 
-/** Chat do assistente: histórico só no cliente; o contexto da página é montado aqui, no servidor. */
+/**
+ * Chat do assistente: as últimas mensagens vêm do cliente; o contexto da página é montado aqui, no servidor.
+ * Cada troca é gravada no histórico da pessoa. Se a gravação falhar, a resposta segue sem conversaId.
+ */
 export async function POST(request: Request) {
   const acesso = await verificarPermissao("usar_assistente");
   if (!acesso.ok) return erro(acesso.erro, acesso.semSessao ? 401 : 403);
@@ -50,8 +56,20 @@ export async function POST(request: Request) {
     const jar = await cookies();
     const frente = lerFrente(jar.get(COOKIE_FRENTE)?.value);
     const sistema = await montarSistemaDoChat(interpretarRota(lido.data.rota), frente, new Date(), sessao.empresaId);
-    const resposta = await gerarTexto({ sistema, historico: lido.data.mensagens, maxTokens: 4096 });
-    return NextResponse.json({ resposta });
+    const { mensagens } = lido.data;
+    const resposta = await gerarTexto({ sistema, historico: mensagens, maxTokens: 4096 });
+    let conversaId: string | null = null;
+    try {
+      conversaId = await registrarTroca(sessao.empresaId, sessao.usuarioId, {
+        conversaId: lido.data.conversaId ?? null,
+        pergunta: mensagens[mensagens.length - 1].texto,
+        resposta,
+        rota: lido.data.rota,
+      });
+    } catch (e) {
+      console.error("[assistente] não gravou a conversa:", e instanceof Error ? e.name : "erro");
+    }
+    return NextResponse.json({ resposta, conversaId });
   } catch (e) {
     if (e instanceof ErroAssistente) return erro(e.message, e.codigo === "limite" ? 429 : 502);
     console.error("[assistente] falha no chat:", e instanceof Error ? e.name : "erro");

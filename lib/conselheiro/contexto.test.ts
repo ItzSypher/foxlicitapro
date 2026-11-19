@@ -40,6 +40,8 @@ const PERFIL: PerfilEmpresa = {
   dataAbertura: "2020-01-01",
   cnaes: [{ codigo: "61.90-6-99", descricao: "Redes de computadores", frente: "servicos", principal: true }],
   regioes: ["nova-iguacu", "baixada"],
+  areas: { ufs: [], municipiosIbge: ["3303500"], base: { uf: "RJ", municipioIbge: "3303500" } },
+  radarTudoDoRamo: false,
   endereco: null,
   cep: null,
   telefone: null,

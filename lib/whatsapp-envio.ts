@@ -1,6 +1,7 @@
 import "server-only";
 import { diaDeSaoPaulo } from "@/core/avisos";
 import {
+  aceitaAlerta,
   botoesDoAlerta,
   dentroDoHorario,
   janelaAberta,
@@ -12,6 +13,7 @@ import {
 import {
   descartarVencidos,
   enfileirarAlertas,
+  lerResponsavelPadrao,
   lerVinculoPorUsuario,
   listarPendentes,
   marcarEnviados,
@@ -23,8 +25,8 @@ import { enviarTemplate, enviarTexto, zernioConfigurado, type BotaoZernio } from
 
 /**
  * Envio dos alertas de WhatsApp pelo Zernio, sempre em conversa individual.
- * Mensagem livre só com a janela de 24 h aberta; fechada, o alerta fica na fila e vai num resumo
- * quando a pessoa voltar a escrever. Template pago só para prazo crítico, desligado por padrão.
+ * Na hora só sai o prazo urgente (24 h e 2 h), e só com a janela de 24 h aberta. Aviso fica na fila
+ * para o resumo das 7h. Template pago só para prazo crítico, desligado por padrão.
  * Nunca lança: falha vira log curto (sem chave, sem número).
  */
 
@@ -41,9 +43,12 @@ function limiteMensal(): number {
   return limiteDaVariavel("WA_LIMITE_MENSAL", 900);
 }
 
-/** Teto de alertas por mês (prazos, Radar, etapa, avisos e resumos). Respostas a quem escreveu não entram aqui. */
+/**
+ * Teto de alertas por mês (prazos urgentes e resumos). Respostas a quem escreveu não entram aqui.
+ * Duas pessoas com um resumo por dia dão uns 60; o resto é folga para os prazos urgentes.
+ */
 function limiteAlertas(): number {
-  return limiteDaVariavel("WA_LIMITE_ALERTAS", 300);
+  return limiteDaVariavel("WA_LIMITE_ALERTAS", 150);
 }
 
 const CRITICOS: ReadonlySet<TipoAlertaWa> = new Set(["prazo2", "prazo24"]);
@@ -110,49 +115,77 @@ async function talvezTemplate(v: VinculoWa, alerta: AlertaWa, agora: Date): Prom
   return true;
 }
 
+async function nomeDoPadrao(empresaId: string): Promise<string | null> {
+  try {
+    return (await lerResponsavelPadrao(empresaId))?.nome ?? null;
+  } catch (e) {
+    console.error("[whatsapp] responsável padrão:", e instanceof Error ? e.message : "falha");
+    return null;
+  }
+}
+
+/** Manda os prazos urgentes: um a um com botões, ou num resumo só quando são muitos. Devolve quantas mensagens saíram. */
+async function enviarUrgentes(
+  v: VinculoWa,
+  urgentes: ReadonlyArray<AlertaWa>,
+  agora: Date,
+  responsavelPadrao: () => Promise<string | null>,
+): Promise<number> {
+  const pendentes = (await listarPendentes(v.usuarioId, agora)).filter((p) => CRITICOS.has(p.tipo));
+  if (urgentes.length > MAX_AVULSOS) {
+    if (pendentes.length > 0 && (await enviarParaPessoa(v, textoDoResumo(pendentes), agora, { critico: true }))) {
+      await marcarEnviados(pendentes.map((p) => p.id), agora);
+      return 1;
+    }
+    return 0;
+  }
+  let enviados = 0;
+  for (const a of urgentes) {
+    const linha = pendentes.find((p) => p.tipo === a.tipo && p.texto === a.texto && p.itemId === a.itemId);
+    if (!linha) continue;
+    const botoes = botoesDoAlerta(a.tipo, a.itemId, a.itemId === null ? null : await responsavelPadrao());
+    if (await enviarParaPessoa(v, a.texto, agora, { botoes, critico: true })) {
+      await marcarEnviados([linha.id], agora);
+      enviados += 1;
+    }
+  }
+  return enviados;
+}
+
 /**
- * Grava os alertas (sem repetir chave por pessoa) e manda os novos de quem está com a janela aberta,
- * dentro do horário. O resto fica pendente na fila.
+ * Grava na fila só o que cada pessoa escolheu receber (sem repetir chave por pessoa). Prazo urgente sai
+ * na hora para quem está com a janela aberta, dentro do horário; aviso espera o resumo das 7h.
  */
 export async function entregarAlertasWa(empresaId: string, alertas: ReadonlyArray<AlertaWa>, agora: Date = new Date()): Promise<{ novos: number; enviados: number }> {
   const resultado = { novos: 0, enviados: 0 };
   if (alertas.length === 0) return resultado;
+  let padrao: Promise<string | null> | null = null;
+  const responsavelPadrao = () => {
+    padrao ??= nomeDoPadrao(empresaId);
+    return padrao;
+  };
   try {
-    const novos = await enfileirarAlertas(empresaId, alertas);
-    resultado.novos = novos.length;
-    if (novos.length === 0 || !zernioConfigurado()) return resultado;
-
     const porPessoa = new Map<string, AlertaWa[]>();
-    for (const a of novos) porPessoa.set(a.usuarioId, [...(porPessoa.get(a.usuarioId) ?? []), a]);
+    for (const a of alertas) porPessoa.set(a.usuarioId, [...(porPessoa.get(a.usuarioId) ?? []), a]);
 
     for (const [usuarioId, lista] of porPessoa) {
       try {
         const v = await lerVinculoPorUsuario(usuarioId);
-        if (!v || !v.avisoWhatsapp || v.conversaId === null) continue;
+        if (!v) continue;
+        const aceitos = lista.filter((a) => aceitaAlerta(v.escolhas, a.tipo));
+        if (aceitos.length === 0) continue;
+        const novos = await enfileirarAlertas(empresaId, aceitos);
+        resultado.novos += novos.length;
+        if (!zernioConfigurado() || !v.avisoWhatsapp || v.conversaId === null) continue;
+        const urgentes = novos.filter((a) => CRITICOS.has(a.tipo));
+        if (urgentes.length === 0) continue;
         if (!janelaAberta(v.ultimaEntrada, agora)) {
-          const critico = lista.find((a) => CRITICOS.has(a.tipo));
-          if (critico && (await talvezTemplate(v, critico, agora))) resultado.enviados += 1;
+          const primeiro = urgentes[0];
+          if (primeiro && (await talvezTemplate(v, primeiro, agora))) resultado.enviados += 1;
           continue;
         }
         if (!dentroDoHorario(agora)) continue;
-        if (lista.length > MAX_AVULSOS) {
-          const pendentes = await listarPendentes(usuarioId, agora);
-          if (pendentes.length > 0 && (await enviarParaPessoa(v, textoDoResumo(pendentes), agora))) {
-            await marcarEnviados(pendentes.map((p) => p.id), agora);
-            resultado.enviados += 1;
-          }
-          continue;
-        }
-        const pendentes = await listarPendentes(usuarioId, agora);
-        for (const a of lista) {
-          const linha = pendentes.find((p) => p.tipo === a.tipo && p.texto === a.texto && p.itemId === a.itemId);
-          if (!linha) continue;
-          const botoes = botoesDoAlerta(a.tipo, a.itemId);
-          if (await enviarParaPessoa(v, a.texto, agora, { botoes, critico: CRITICOS.has(a.tipo) })) {
-            await marcarEnviados([linha.id], agora);
-            resultado.enviados += 1;
-          }
-        }
+        resultado.enviados += await enviarUrgentes(v, urgentes, agora, responsavelPadrao);
       } catch (e) {
         console.error("[whatsapp] alertas:", e instanceof Error ? e.message : "falha");
       }
@@ -163,15 +196,25 @@ export async function entregarAlertasWa(empresaId: string, alertas: ReadonlyArra
   return resultado;
 }
 
-/** F4: a pessoa voltou a escrever; manda num resumo só o que ficou na fila. Devolve se enviou. */
+/**
+ * A pessoa voltou a escrever: manda só o prazo urgente que ficou na fila e ainda vale (dentro do horário).
+ * Aviso e o resto continuam esperando o resumo das 7h. Devolve se enviou.
+ */
 export async function enviarFila(v: VinculoWa, agora: Date = new Date()): Promise<boolean> {
   try {
+    if (!dentroDoHorario(agora)) return false;
     await descartarVencidos(agora);
-    const pendentes = await listarPendentes(v.usuarioId, agora);
-    if (pendentes.length === 0) return false;
-    // O resumo é feito de alertas: conta no teto de alertas, não só no teto duro.
-    const enviado = await enviarParaPessoa(v, textoDoResumo(pendentes), agora);
-    if (enviado) await marcarEnviados(pendentes.map((p) => p.id), agora);
+    const urgentes = (await listarPendentes(v.usuarioId, agora)).filter((p) => CRITICOS.has(p.tipo));
+    if (urgentes.length === 0) return false;
+    const unico = urgentes.length === 1 ? urgentes[0] : undefined;
+    if (unico) {
+      const botoes = botoesDoAlerta(unico.tipo, unico.itemId, unico.itemId === null ? null : await nomeDoPadrao(v.empresaId));
+      const enviado = await enviarParaPessoa(v, unico.texto, agora, { botoes, critico: true });
+      if (enviado) await marcarEnviados([unico.id], agora);
+      return enviado;
+    }
+    const enviado = await enviarParaPessoa(v, textoDoResumo(urgentes), agora, { critico: true });
+    if (enviado) await marcarEnviados(urgentes.map((p) => p.id), agora);
     return enviado;
   } catch (e) {
     console.error("[whatsapp] fila:", e instanceof Error ? e.message : "falha");

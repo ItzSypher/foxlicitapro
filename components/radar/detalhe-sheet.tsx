@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { DicaGlossario, DicaModalidade, DicaNota, DicaValor } from "./dicas";
 import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Pilula } from "./pilula";
+import { SeloFonte } from "./selo-fonte";
 import { ContagemTexto } from "./prazo";
 import { Termometro } from "./termometro";
 
@@ -93,6 +94,10 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                   <dd className="min-w-0 wrap-break-word text-ink">{item.unidade}</dd>
                   <dt className="text-muted-foreground">CNPJ</dt>
                   <dd className="min-w-0 font-mono tabular-nums text-ink">{formatarCnpj(item.orgaoCnpj)}</dd>
+                  <dt className="text-muted-foreground">Fonte</dt>
+                  <dd className="min-w-0">
+                    <SeloFonte linkOrigem={item.linkOrigem} />
+                  </dd>
                 </dl>
               </Secao>
 

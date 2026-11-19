@@ -104,7 +104,7 @@ export function ResultadoConselheiro({ saida }: { saida: SaidaConselheiro }) {
       </Secao>
 
       {saida.riscos.length > 0 ? (
-        <Secao titulo="Riscos">
+        <Secao titulo="Pontos de atenção e como resolver">
           <Lista itens={saida.riscos} />
         </Secao>
       ) : null}

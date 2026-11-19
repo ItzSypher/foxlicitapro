@@ -72,4 +72,6 @@ export interface RespostaRadar {
   atualizadoEm: string;
   /** Modalidades cuja busca falhou; a lista pode vir parcial */
   falhas: ModalidadeId[];
+  /** UFs das áreas da empresa que ainda não têm nenhuma coleta; ausente fora do Radar do painel */
+  ufsPendentes?: string[];
 }

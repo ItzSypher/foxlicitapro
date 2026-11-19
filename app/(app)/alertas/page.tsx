@@ -1,10 +1,11 @@
 import { connection } from "next/server";
 import { formatarWhatsapp } from "@/core/whatsapp";
-import { janelaAberta } from "@/core/whatsapp-alertas";
-import { lerVinculoPorUsuario } from "@/db/whatsapp";
+import { janelaAberta, lerEscolhas, tituloAtribuir } from "@/core/whatsapp-alertas";
+import { lerResponsavelPadrao, lerVinculoPorUsuario } from "@/db/whatsapp";
 import { exigirSessao } from "@/lib/sessao";
 import { ControlesWhatsapp } from "./controles";
 import { LigarWhatsapp } from "./ligar-whatsapp";
+import { PerfilAlertaForm } from "./perfil-alerta";
 
 export const metadata = { title: "Alertas · FoxLicita Pro" };
 
@@ -13,7 +14,12 @@ const CARTAO = "flex flex-col gap-3 rounded-card border border-border bg-surface
 export default async function AlertasPage() {
   await connection();
   const sessao = await exigirSessao();
-  const vinculo = await lerVinculoPorUsuario(sessao.usuarioId).catch(() => null);
+  const [vinculo, padrao] = await Promise.all([
+    lerVinculoPorUsuario(sessao.usuarioId).catch(() => null),
+    lerResponsavelPadrao(sessao.empresaId).catch(() => null),
+  ]);
+  const escolhas = vinculo?.escolhas ?? lerEscolhas(null, sessao.papel);
+  const botaoAtribuir = tituloAtribuir(padrao?.nome ?? null);
   const numero = vinculo?.whatsapp ?? null;
   const recebendo = vinculo !== null && vinculo.avisoWhatsapp;
   const conversaAtiva = vinculo !== null && janelaAberta(vinculo.ultimaEntrada, new Date());
@@ -47,7 +53,7 @@ export default async function AlertasPage() {
             </dl>
             {recebendo && !conversaAtiva ? (
               <p className="text-[13px] text-muted-foreground">
-                Mande qualquer mensagem para o número para voltar a receber na hora; o que chegar enquanto isso vai num resumo.
+                Mande qualquer mensagem para o número para voltar a receber o resumo da manhã e os prazos urgentes.
               </p>
             ) : null}
             <ControlesWhatsapp recebendo={recebendo} />
@@ -63,14 +69,13 @@ export default async function AlertasPage() {
       </section>
 
       <section className={CARTAO}>
-        <h2 className="text-base font-semibold text-ink">O que chega por lá</h2>
-        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-ink">
-          <li>Prazos chegando, avisados 48 horas, 24 horas e 2 horas antes.</li>
-          <li>Licitação nova com nota alta no Radar.</li>
-          <li>Item do Pipeline sem responsável.</li>
-          <li>Mudança de etapa nos itens do Pipeline.</li>
-        </ul>
-        <p className="text-[13px] text-muted-foreground">Os avisos vêm das 7h às 20h e cada um chega uma vez só, sem repetir.</p>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-base font-semibold text-ink">O que chega por lá</h2>
+          <p className="text-[13px] text-muted-foreground">
+            Uma mensagem por dia, às 7h, com o que você escolher abaixo. Fora dela, só o prazo urgente, se estiver ligado. Cada coisa chega uma vez só.
+          </p>
+        </div>
+        <PerfilAlertaForm inicial={escolhas} />
       </section>
 
       <section className={CARTAO}>
@@ -90,14 +95,14 @@ export default async function AlertasPage() {
           </li>
         </ul>
         <p className="text-sm text-muted-foreground">
-          Você também pode fazer perguntas sobre o seu pipeline e tocar nos botões &quot;Vou participar&quot;, &quot;Atribuir a mim&quot; e &quot;Descartar&quot; que vêm junto dos avisos.
+          Você também pode fazer perguntas sobre o seu pipeline e tocar nos botões &quot;Vou participar&quot;, &quot;{botaoAtribuir}&quot; e &quot;Descartar&quot; que vêm junto dos prazos urgentes.
         </p>
       </section>
 
       <section className={CARTAO}>
         <h2 className="text-base font-semibold text-ink">Se ficar um tempo sem responder</h2>
         <p className="text-sm text-muted-foreground">
-          Se você ficar 24 horas sem mandar mensagem para o número, os alertas esperam e chegam juntos quando você escrever de novo. O resumo da manhã tem o botão &quot;Continuar recebendo&quot;, que mantém tudo chegando na hora.
+          Se você ficar 24 horas sem mandar mensagem para o número, o resumo da manhã para de chegar. Quando você escrever de novo, chega só o prazo urgente que estiver valendo; o resto vem no próximo resumo. O resumo tem o botão &quot;Continuar recebendo&quot;, que mantém tudo chegando.
         </p>
       </section>
     </div>

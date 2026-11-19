@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { Check, Copy, Mail, MessageCircle, Share2 } from "lucide-react";
-import { gerarLinkAction, revogarLinkAction } from "@/app/(app)/propostas/actions";
+import { gerarLinkAction, marcarEnviadaAction, revogarLinkAction } from "@/app/(app)/propostas/actions";
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CONTROLE } from "@/components/propostas/campos";
+import { CamposEnvio, ENVIO_VAZIO, envioParaAction, type DadosEnvio } from "@/components/propostas/registrar-envio";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Emitente } from "@/core/proposta-emitente";
 import { podeGerarLink } from "@/core/revisao";
@@ -28,6 +29,10 @@ interface Props {
   /** Grava as edições pendentes antes de gerar o link */
   aoSalvar: () => Promise<boolean>;
   emitente: Emitente;
+  /** ISO 8601 do primeiro envio registrado */
+  enviadaEm: string | null;
+  /** Depois de registrar o envio com o comprovante */
+  aoRegistrarEnvio: (status: StatusPropostaEquipe) => void;
 }
 
 const dataFmt = new Intl.DateTimeFormat("pt-BR", {
@@ -42,10 +47,50 @@ function dia(iso: string): string {
   return Number.isNaN(d.getTime()) ? "—" : dataFmt.format(d);
 }
 
-export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto, status, link, aoMudarLink, aoSalvar, emitente }: Props) {
+export function FolhaEnviar({
+  aberto,
+  aoMudar,
+  propostaId,
+  titulo,
+  orgao,
+  objeto,
+  status,
+  link,
+  aoMudarLink,
+  aoSalvar,
+  emitente,
+  enviadaEm,
+  aoRegistrarEnvio,
+}: Props) {
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [envio, setEnvio] = useState<DadosEnvio>(ENVIO_VAZIO);
+  const [registrando, setRegistrando] = useState(false);
+  const [erroEnvio, setErroEnvio] = useState<string | null>(null);
+  const [registrado, setRegistrado] = useState(false);
+  const semProva = envio.protocolo.trim() === "" && envio.comprovante === null;
+
+  function registrarEnvio() {
+    setErroEnvio(null);
+    setRegistrado(false);
+    iniciar(async () => {
+      const salvo = await aoSalvar();
+      if (!salvo) {
+        setErroEnvio("Não foi possível salvar as alterações. Tente de novo.");
+        return;
+      }
+      const r = await marcarEnviadaAction(propostaId, envioParaAction(envio));
+      if (!r.ok) {
+        setErroEnvio(r.mensagem);
+        return;
+      }
+      setEnvio(ENVIO_VAZIO);
+      setRegistrando(false);
+      setRegistrado(true);
+      aoRegistrarEnvio(r.status);
+    });
+  }
 
   const origem = typeof window === "undefined" ? "" : window.location.origin;
   const url = link ? `${origem}/p/${link.token}` : "";
@@ -193,6 +238,48 @@ export function FolhaEnviar({ aberto, aoMudar, propostaId, titulo, orgao, objeto
             <p role="alert" className="text-[13px] text-negative">
               {erro}
             </p>
+          )}
+
+          {!bloqueada && (
+            <section aria-labelledby="titulo-registrar-envio" className="flex flex-col gap-3 border-t border-border pt-4">
+              <div className="flex flex-col gap-1">
+                <h3 id="titulo-registrar-envio" className="text-sm font-semibold text-ink">
+                  {status === "enviada" ? "Envio registrado" : "Marcar como enviada"}
+                </h3>
+                <p className="text-[13px] text-muted-foreground">
+                  {status === "enviada"
+                    ? `Enviada${enviadaEm ? ` em ${dia(enviadaEm)}` : ""}. O comprovante fica na linha do tempo da proposta.`
+                    : "Depois de enviar no portal, registre aqui o número do protocolo ou o comprovante. Fica na linha do tempo, para toda a equipe."}
+                </p>
+              </div>
+
+              {status !== "enviada" || registrando ? (
+                <>
+                  <CamposEnvio valor={envio} aoMudar={setEnvio} desabilitado={pendente} />
+                  <button type="button" onClick={registrarEnvio} disabled={pendente || semProva} className={BOTAO_PRIMARIO}>
+                    {pendente ? "Registrando…" : status === "enviada" ? "Registrar mais um envio" : "Marcar como enviada"}
+                  </button>
+                  {semProva && (
+                    <p className="text-[13px] text-muted-foreground">Informe o protocolo ou anexe o comprovante.</p>
+                  )}
+                </>
+              ) : (
+                <button type="button" onClick={() => setRegistrando(true)} className={BOTAO_SECUNDARIO}>
+                  Anexar outro comprovante
+                </button>
+              )}
+
+              {registrado && (
+                <p role="status" className="text-[13px] text-positive">
+                  Envio registrado.
+                </p>
+              )}
+              {erroEnvio && (
+                <p role="alert" className="text-[13px] text-negative">
+                  {erroEnvio}
+                </p>
+              )}
+            </section>
           )}
         </div>
       </SheetContent>

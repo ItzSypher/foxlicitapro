@@ -19,6 +19,8 @@ import { FolhaEnviar, type LinkPublico } from "@/components/propostas/folha-envi
 import { PreviaEscalada } from "@/components/propostas/previa-escalada";
 import { BlocoAnalise } from "@/components/propostas/bloco-analise";
 import { FaixaRevisao } from "@/components/propostas/faixa-revisao";
+import { LinhaDoTempo, QuadroResultado, type ResumoResultado } from "@/components/propostas/linha-do-tempo";
+import type { EventoProposta } from "@/core/proposta-eventos";
 import { PainelRevisao } from "@/components/propostas/painel-revisao";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { totalProposta, validarProposta } from "@/core/proposta";
@@ -45,6 +47,9 @@ export interface PropostaParaEditor {
   revisaoNota: string | null;
   revisadoEm: string | null;
   analise: AnaliseAssistente | null;
+  /** ISO 8601 do primeiro envio registrado */
+  enviadaEm: string | null;
+  resultado: Omit<ResumoResultado, "status">;
 }
 
 export interface AcessosProposta {
@@ -67,6 +72,8 @@ interface Props {
   emitente: Emitente;
   /** O que esta pessoa pode fazer; o servidor confere de novo em cada ação */
   acessos: AcessosProposta;
+  /** Linha do tempo, já em ordem */
+  eventos: EventoProposta[];
 }
 
 const horaFmt = new Intl.DateTimeFormat("pt-BR", {
@@ -98,7 +105,7 @@ function aplicarPadroes(f: Formulario, novo: ModeloId): Formulario {
   };
 }
 
-export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens, acessos, emitente }: Props) {
+export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens, acessos, emitente, eventos }: Props) {
   const [form, setForm] = useState<Formulario>(() =>
     dadosParaFormulario(proposta.titulo, proposta.modelo, proposta.dados, referencias),
   );
@@ -350,6 +357,11 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
             </Secao>
           </div>
 
+          <Secao id="secao-linha-do-tempo" titulo="Linha do tempo">
+            <QuadroResultado dados={{ status: status === "enviada" ? "enviada" : "outro", ...proposta.resultado }} />
+            <LinhaDoTempo propostaId={id} eventos={eventos} />
+          </Secao>
+
           <Secao id="secao-pendencias" titulo={`Pendências (${pendencias.length})`}>
             {pendencias.length === 0 ? (
               <p className="text-sm text-positive">Nada pendente.</p>
@@ -430,6 +442,11 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
         }}
         aoSalvar={persistir}
         emitente={emitente}
+        enviadaEm={proposta.enviadaEm}
+        aoRegistrarEnvio={(novoStatus) => {
+          setStatus(novoStatus);
+          roteador.refresh();
+        }}
       />
 
       <Sheet open={excluirAberto} onOpenChange={setExcluirAberto}>

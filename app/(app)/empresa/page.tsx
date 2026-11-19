@@ -23,7 +23,7 @@ export default async function EmpresaPage() {
           {perfil.razaoSocial} · CNPJ {perfil.cnpj} · {ROTULO_PORTE[perfil.porte]} · {perfil.municipio}/{perfil.uf}
         </p>
       </header>
-      <FormularioEmpresa nomeFantasia={perfil.nomeFantasia} cnaes={perfil.cnaes} regioes={perfil.regioes} />
+      <FormularioEmpresa nomeFantasia={perfil.nomeFantasia} cnaes={perfil.cnaes} areas={perfil.areas} radarTudoDoRamo={perfil.radarTudoDoRamo} />
       <DadosProposta
         responsavel={perfil.responsavel}
         representanteCpf={perfil.representanteCpf}

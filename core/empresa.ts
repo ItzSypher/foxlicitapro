@@ -81,6 +81,8 @@ export const PERFIL_ORIGEM: PerfilEmpresa = {
     ...CNAES_PRODUTOS.map((c) => ({ codigo: c.codigo, descricao: c.descricao, frente: "produtos" as const, principal: c.principal })),
   ],
   regioes: ["nova-iguacu", "baixada", "capital", "rj"],
+  areas: { ufs: ["RJ"], municipiosIbge: [], base: { uf: "RJ", municipioIbge: "3303500" } },
+  radarTudoDoRamo: false,
   endereco: "Rua João Batista Rodrigues, 70, Casa, Da Luz",
   cep: "26260-340",
   telefone: "(21) 9942-9781",

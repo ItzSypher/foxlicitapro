@@ -1,28 +1,31 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CLASSE_CAMPO, EditorCnaes, SeletorRegioes } from "@/components/empresa/editor-perfil";
+import { CLASSE_CAMPO, EditorCnaes } from "@/components/empresa/editor-perfil";
+import { OndeAtender } from "@/components/empresa/onde-atender";
+import type { Areas } from "@/core/areas";
 import type { CnaePerfil } from "@/core/perfil";
-import type { Regiao } from "@/core/types";
 import { salvarEmpresaAction } from "./actions";
 
 interface Props {
   nomeFantasia: string | null;
   cnaes: CnaePerfil[];
-  regioes: Regiao[];
+  areas: Areas;
+  radarTudoDoRamo: boolean;
 }
 
 export function FormularioEmpresa(inicial: Props) {
   const [nome, setNome] = useState(inicial.nomeFantasia ?? "");
   const [cnaes, setCnaes] = useState(inicial.cnaes);
-  const [regioes, setRegioes] = useState(inicial.regioes);
+  const [areas, setAreas] = useState(inicial.areas);
+  const [tudoDoRamo, setTudoDoRamo] = useState(inicial.radarTudoDoRamo);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [salvando, iniciar] = useTransition();
 
   function salvar() {
     setAviso(null);
     iniciar(async () => {
-      const r = await salvarEmpresaAction({ nomeFantasia: nome.trim() || null, cnaes, regioes });
+      const r = await salvarEmpresaAction({ nomeFantasia: nome.trim() || null, cnaes, areas, radarTudoDoRamo: tudoDoRamo });
       setAviso(r.ok ? { ok: true, texto: "Dados da empresa salvos." } : { ok: false, texto: r.erro });
     });
   }
@@ -42,10 +45,7 @@ export function FormularioEmpresa(inicial: Props) {
         <EditorCnaes cnaes={cnaes} onChange={setCnaes} />
       </section>
 
-      <section className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
-        <h2 className="text-base font-semibold text-ink">Regiões de atendimento</h2>
-        <SeletorRegioes regioes={regioes} onChange={setRegioes} />
-      </section>
+      <OndeAtender areas={areas} onAreas={setAreas} tudoDoRamo={tudoDoRamo} onTudoDoRamo={setTudoDoRamo} />
 
       <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex flex-col gap-2 border-t border-border bg-ground px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
         {aviso ? (

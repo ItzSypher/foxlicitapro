@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lerCanais, salvarCanais } from "@/db/avisos";
+import { definirResponsavelPadrao } from "@/db/whatsapp";
 import { gerarSenhaInicial, hashSenha, verificarSenha } from "@/lib/auth";
 import { exigirDono, lerSessao } from "@/lib/sessao";
 import { PAPEIS, normalizarPermissoes, ehPermissao } from "@/core/permissoes";
@@ -252,5 +253,23 @@ export async function atualizarAcessosAction(
   } catch (e) {
     console.error("[equipe]", e instanceof Error ? e.message : e);
     return { ok: false, erro: "Não foi possível alterar agora. Tente de novo." };
+  }
+}
+
+/** O dono escolhe quem recebe o item no botão "Atribuir a ..." dos alertas. Vazio: quem tocou o botão. */
+export async function definirResponsavelPadraoAction(id: string): Promise<RespostaSimples> {
+  const dono = await comoDono();
+  if (!dono) return { ok: false, erro: SEM_PERMISSAO };
+  const alvo = id === "" ? null : id;
+  if (alvo !== null && !z.uuid().safeParse(alvo).success) return { ok: false, erro: "Pessoa não encontrada." };
+  try {
+    const ok = await definirResponsavelPadrao(dono.empresaId, alvo);
+    if (!ok) return { ok: false, erro: "Escolha uma pessoa ativa da equipe." };
+    revalidatePath("/equipe");
+    revalidatePath("/alertas");
+    return { ok: true };
+  } catch (e) {
+    console.error("[equipe]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível salvar agora. Tente de novo." };
   }
 }

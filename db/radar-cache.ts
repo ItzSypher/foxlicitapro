@@ -28,17 +28,23 @@ const oportunidadeSchema: z.ZodType<Oportunidade> = z.object({
 });
 
 export interface LinhaCache {
+  uf: string;
   modalidadeId: ModalidadeId;
   oportunidades: Oportunidade[];
   atualizadoEm: Date;
   falhouEm: Date | null;
 }
 
-/** Lê o cache das duas modalidades. Itens que não passam na validação são descartados. */
-export async function lerCacheRadar(): Promise<LinhaCache[]> {
+/**
+ * Lê o cache das UFs pedidas (todas, se `ufs` for omitido), uma linha por UF e modalidade.
+ * Itens que não passam na validação são descartados.
+ */
+export async function lerCacheRadar(ufs?: ReadonlyArray<string>): Promise<LinhaCache[]> {
+  if (ufs !== undefined && ufs.length === 0) return [];
   const linhas = await sql<
-    { modalidade_id: number; oportunidades: unknown; atualizado_em: Date; falhou_em: Date | null }[]
-  >`select modalidade_id, oportunidades, atualizado_em, falhou_em from radar_cache`;
+    { uf: string; modalidade_id: number; oportunidades: unknown; atualizado_em: Date; falhou_em: Date | null }[]
+  >`select uf, modalidade_id, oportunidades, atualizado_em, falhou_em from radar_cache
+    ${ufs === undefined ? sql`` : sql`where uf in ${sql([...ufs])}`}`;
 
   return linhas.flatMap((l) => {
     if (l.modalidade_id !== 6 && l.modalidade_id !== 8) return [];
@@ -47,23 +53,23 @@ export async function lerCacheRadar(): Promise<LinhaCache[]> {
       const r = oportunidadeSchema.safeParse(b);
       return r.success ? [r.data] : [];
     });
-    return [{ modalidadeId: l.modalidade_id, oportunidades, atualizadoEm: l.atualizado_em, falhouEm: l.falhou_em }];
+    return [{ uf: l.uf, modalidadeId: l.modalidade_id, oportunidades, atualizadoEm: l.atualizado_em, falhouEm: l.falhou_em }];
   });
 }
 
-/** Grava o resultado de uma modalidade (substitui a lista e zera a falha). */
-export async function gravarModalidade(modalidadeId: ModalidadeId, oportunidades: Oportunidade[], em: Date): Promise<void> {
+/** Grava o resultado de uma UF e modalidade (substitui a lista e zera a falha). */
+export async function gravarModalidade(uf: string, modalidadeId: ModalidadeId, oportunidades: Oportunidade[], em: Date): Promise<void> {
   await sql`
-    insert into radar_cache (modalidade_id, oportunidades, total, atualizado_em, falhou_em)
-    values (${modalidadeId}, ${sql.json(JSON.parse(JSON.stringify(oportunidades)))}, ${oportunidades.length}, ${em}, null)
-    on conflict (modalidade_id) do update
+    insert into radar_cache (uf, modalidade_id, oportunidades, total, atualizado_em, falhou_em)
+    values (${uf}, ${modalidadeId}, ${sql.json(JSON.parse(JSON.stringify(oportunidades)))}, ${oportunidades.length}, ${em}, null)
+    on conflict (uf, modalidade_id) do update
       set oportunidades = excluded.oportunidades, total = excluded.total,
           atualizado_em = excluded.atualizado_em, falhou_em = null`;
 }
 
-/** Marca que a última tentativa da modalidade falhou, sem apagar a lista anterior. */
-export async function marcarFalha(modalidadeId: ModalidadeId, em: Date): Promise<void> {
-  await sql`update radar_cache set falhou_em = ${em} where modalidade_id = ${modalidadeId}`;
+/** Marca que a última tentativa da UF e modalidade falhou, sem apagar a lista anterior. */
+export async function marcarFalha(uf: string, modalidadeId: ModalidadeId, em: Date): Promise<void> {
+  await sql`update radar_cache set falhou_em = ${em} where uf = ${uf} and modalidade_id = ${modalidadeId}`;
 }
 
 /** Tenta pegar a trava de coleta. Devolve false se outra coleta começou há menos de `segundos`. */

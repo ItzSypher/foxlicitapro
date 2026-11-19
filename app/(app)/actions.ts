@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { encerrarSessao, exigirSessao } from "@/lib/sessao";
 import { COOKIE_FRENTE, ehFrente } from "@/lib/frente";
+import { ufsDeColeta } from "@/core/areas";
+import { perfilAtual } from "@/lib/empresa-atual";
 import { atualizarRadar } from "@/lib/radar-dados";
 
 export async function definirFrente(valor: string): Promise<void> {
@@ -26,9 +28,10 @@ export async function sair(): Promise<void> {
   redirect("/login");
 }
 
-/** Botão "Atualizar" do Radar: coleta o PNCP agora (se outra coleta não estiver rodando). */
+/** Botão "Atualizar" do Radar: coleta agora só as UFs da empresa (se outra coleta não estiver rodando). */
 export async function atualizarRadarAgora(): Promise<void> {
   await exigirSessao();
-  await atualizarRadar();
+  const perfil = await perfilAtual();
+  await atualizarRadar({ ufs: ufsDeColeta(perfil.areas) });
   revalidatePath("/radar");
 }

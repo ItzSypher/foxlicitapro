@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
+import { PilulaResultado } from "@/components/propostas/linha-do-tempo";
 import { PilulaStatus, dataHoraCurta } from "@/components/propostas/status";
+import { semResultado } from "@/core/proposta-resultado";
 import { podeRevisar } from "@/core/revisao";
 import type { ResumoProposta } from "@/db/propostas";
 import { formatarMoeda } from "@/lib/formato";
@@ -16,32 +18,52 @@ function normalizar(texto: string): string {
 const BOTAO_PRIMARIO =
   "inline-flex h-11 items-center justify-center gap-2 rounded-control bg-brand-fill px-4 text-sm font-medium text-black outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ground";
 
-type Aba = "revisar" | "minhas" | "todas";
+export type Aba = "revisar" | "minhas" | "sem-resultado" | "todas";
 
 const ROTULO_ABA: Record<Aba, string> = {
   revisar: "Para revisar",
   minhas: "Minhas",
+  "sem-resultado": "Enviadas sem resultado",
   todas: "Todas",
 };
 
-const ORDEM_ABAS: ReadonlyArray<Aba> = ["revisar", "minhas", "todas"];
+const ROTULO_ABA_CURTO: Record<Aba, string> = {
+  revisar: "Revisar",
+  minhas: "Minhas",
+  "sem-resultado": "Sem resultado",
+  todas: "Todas",
+};
+
+const ORDEM_ABAS: ReadonlyArray<Aba> = ["revisar", "minhas", "sem-resultado", "todas"];
 
 const VAZIO_ABA: Record<Aba, string> = {
   revisar: "Nada esperando a sua revisão.",
   minhas: "Você ainda não criou propostas.",
+  "sem-resultado": "Nenhuma proposta enviada esperando resultado.",
   todas: "Nenhuma proposta ainda.",
 };
 
-export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProposta[]; usuarioId: string }) {
+export function ListaPropostas({
+  propostas,
+  usuarioId,
+  abaInicial,
+}: {
+  propostas: ResumoProposta[];
+  usuarioId: string;
+  abaInicial?: Aba;
+}) {
   const porAba = useMemo(() => {
     const revisar = propostas.filter((p) =>
       podeRevisar(p.status, { usuarioId, criadoPor: p.criadoPor, autor: p.autor }),
     );
     const minhas = propostas.filter((p) => p.criadoPor === usuarioId);
-    return { revisar, minhas, todas: propostas } satisfies Record<Aba, ResumoProposta[]>;
+    const pendentes = propostas
+      .filter(semResultado)
+      .sort((a, b) => (a.enviadaEm ?? a.atualizadoEm).localeCompare(b.enviadaEm ?? b.atualizadoEm));
+    return { revisar, minhas, "sem-resultado": pendentes, todas: propostas } satisfies Record<Aba, ResumoProposta[]>;
   }, [propostas, usuarioId]);
 
-  const [aba, setAba] = useState<Aba>(() => (porAba.revisar.length > 0 ? "revisar" : "todas"));
+  const [aba, setAba] = useState<Aba>(() => abaInicial ?? (porAba.revisar.length > 0 ? "revisar" : "todas"));
   const [busca, setBusca] = useState("");
 
   const base = porAba[aba];
@@ -77,7 +99,8 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
               "aria-selected:border-brand aria-selected:font-semibold aria-selected:text-ink",
             )}
           >
-            <span className="truncate">{ROTULO_ABA[id]}</span>
+            <span className="truncate lg:hidden">{ROTULO_ABA_CURTO[id]}</span>
+            <span className="hidden truncate lg:inline">{ROTULO_ABA[id]}</span>
             <span className="text-xs tabular-nums text-muted-foreground">{porAba[id].length}</span>
           </button>
         ))}
@@ -122,12 +145,17 @@ export function ListaPropostas({ propostas, usuarioId }: { propostas: ResumoProp
                 >
                   <span className="min-w-0 truncate text-sm font-medium text-ink md:col-start-1">{p.titulo}</span>
                   <span className="justify-self-end md:order-4 md:col-start-4 md:justify-self-start">
-                    <PilulaStatus status={p.status} />
+                    {p.status === "enviada" && p.resultado !== null ? (
+                      <PilulaResultado resultado={p.resultado} />
+                    ) : (
+                      <PilulaStatus status={p.status} />
+                    )}
                   </span>
                   <span className="col-span-2 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground md:contents">
                     <span className="min-w-0 flex-1 truncate md:order-2 md:col-start-2 md:flex-none">
                       {p.orgao || "Sem órgão"}
                       {p.autor === "assistente" ? " · assistente" : p.criadoPorNome ? ` · ${p.criadoPorNome}` : ""}
+                      {p.externa ? " · fora do sistema" : ""}
                     </span>
                     <span className="tabular-nums text-ink md:order-3 md:col-start-3 md:text-right">
                       {formatarMoeda(p.total)}

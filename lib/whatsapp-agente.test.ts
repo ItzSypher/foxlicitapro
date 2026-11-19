@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ItemPipeline } from "@/components/pipeline/tipos";
-import type { MensagemRecebida } from "@/core/whatsapp-alertas";
+import { escolhasDoPerfil, type MensagemRecebida } from "@/core/whatsapp-alertas";
 import type { VinculoWa } from "@/db/whatsapp";
 
 vi.mock("server-only", () => ({}));
@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   definirAvisoWhatsapp: vi.fn(),
   gravarPendencia: vi.fn(),
   lerPendencia: vi.fn(),
+  lerResponsavelPadrao: vi.fn(),
   apagarPendencia: vi.fn(),
   listarPipeline: vi.fn(),
   moverItem: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("@/db/whatsapp", () => ({
   definirAvisoWhatsapp: m.definirAvisoWhatsapp,
   gravarPendencia: m.gravarPendencia,
   lerPendencia: m.lerPendencia,
+  lerResponsavelPadrao: m.lerResponsavelPadrao,
   apagarPendencia: m.apagarPendencia,
 }));
 vi.mock("@/db/pipeline", () => ({
@@ -67,6 +69,7 @@ function vinculo(sobra: Partial<VinculoWa> = {}): VinculoWa {
     conversaId: "conv-0",
     ultimaEntrada: null,
     ultimoTemplate: null,
+    escolhas: escolhasDoPerfil("operacional"),
     ...sobra,
   };
 }
@@ -87,6 +90,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.enviarParaPessoa.mockResolvedValue(true);
   m.enviarFila.mockResolvedValue(false);
+  m.lerResponsavelPadrao.mockResolvedValue(null);
   m.lerVinculoPorNumero.mockResolvedValue(vinculo());
   m.listarPipeline.mockResolvedValue([item("i1")]);
   m.assistenteDisponivel.mockReturnValue(true);
@@ -103,7 +107,7 @@ describe("processarMensagem", () => {
     expect(m.enviarParaPessoa).not.toHaveBeenCalled();
   });
 
-  it("ativar com código válido: confirma com o primeiro nome e manda a fila", async () => {
+  it("ativar com código válido: confirma com o primeiro nome e manda só o urgente da fila", async () => {
     m.ativarPorCodigo.mockResolvedValue({ ok: true, vinculo: vinculo() });
     await processarMensagem(mensagem("ATIVAR ABC234"), AGORA);
     expect(m.ativarPorCodigo).toHaveBeenCalledWith("ABC234", "5511999990000", "conv-1", AGORA);
@@ -136,11 +140,27 @@ describe("processarMensagem", () => {
     expect(textosEnviados()[0]).toContain("não pode mexer no pipeline");
   });
 
-  it("botão atribuir com permissão: define o responsável", async () => {
+  it("botão atribuir sem responsável padrão: o item fica com quem tocou", async () => {
     m.definirResponsavel.mockResolvedValue({ existe: true, mudou: true });
     await processarMensagem(mensagem("", "atr:i1"), AGORA);
     expect(m.definirResponsavel).toHaveBeenCalledWith("emp1", "i1", "u1");
-    expect(textosEnviados()[0]).toContain("✅ Feito");
+    expect(textosEnviados()[0]).toContain("agora é seu");
+  });
+
+  it("botão atribuir com responsável padrão: o item vai para ele", async () => {
+    m.lerResponsavelPadrao.mockResolvedValue({ id: "u2", nome: "Paulo Henrique" });
+    m.definirResponsavel.mockResolvedValue({ existe: true, mudou: true });
+    await processarMensagem(mensagem("", "atr:i1"), AGORA);
+    expect(m.definirResponsavel).toHaveBeenCalledWith("emp1", "i1", "u2");
+    expect(textosEnviados()[0]).toContain("agora está com Paulo.");
+  });
+
+  it("quem é o responsável padrão e toca atribuir recebe o item como seu", async () => {
+    m.lerResponsavelPadrao.mockResolvedValue({ id: "u1", nome: "Ana Souza" });
+    m.definirResponsavel.mockResolvedValue({ existe: true, mudou: true });
+    await processarMensagem(mensagem("", "atr:i1"), AGORA);
+    expect(m.definirResponsavel).toHaveBeenCalledWith("emp1", "i1", "u1");
+    expect(textosEnviados()[0]).toContain("agora é seu");
   });
 
   it("pendência: sim executa e apaga; não cancela; sem pendência avisa", async () => {

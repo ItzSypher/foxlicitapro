@@ -127,9 +127,9 @@ describe("ordem mais recentes", () => {
   });
 });
 
-describe("filtro Interior RJ", () => {
-  it("pega só a região rj", () => {
-    const lista = [oportunidade(1, { regiao: "rj" }), oportunidade(2), oportunidade(3, { regiao: "baixada" })];
-    expect(filtrarEOrdenar(lista, { ...FILTROS_PADRAO, regiao: "interior" }).map((o) => o.id)).toEqual(["id-1"]);
+describe("filtro de UF", () => {
+  it("pega só as UFs marcadas", () => {
+    const lista = [oportunidade(1, { uf: "MG" }), oportunidade(2), oportunidade(3, { uf: "ES" })];
+    expect(filtrarEOrdenar(lista, { ...FILTROS_PADRAO, ufs: ["MG", "ES"] }).map((o) => o.id).sort()).toEqual(["id-1", "id-3"]);
   });
 });

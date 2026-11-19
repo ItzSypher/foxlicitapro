@@ -16,6 +16,7 @@ import {
   definirAvisoWhatsapp,
   gravarPendencia,
   lerPendencia,
+  lerResponsavelPadrao,
   lerVinculoPorNumero,
   registrarEntrada,
   type VinculoWa,
@@ -46,7 +47,7 @@ const BOTOES_CONFIRMA = [
 
 const INSTRUCAO_WHATSAPP =
   "Você responde pelo WhatsApp. No máximo 4 linhas curtas, sem tabelas nem títulos. " +
-  "Nunca diga que alterou o pipeline. Se a pessoa pedir para participar, se atribuir ou descartar um item, " +
+  "Nunca diga que alterou o pipeline. Se a pessoa pedir para participar, atribuir ao responsável padrão ou descartar um item, " +
   "identifique o item pelo id do contexto e termine com uma linha exatamente `ACAO: part <id>` (ou atr/desc).";
 
 const LINHA_ACAO = /^[ \t`]*ACAO:[^\n]*$/gim;
@@ -123,9 +124,13 @@ async function executarAcao(v: VinculoWa, acao: AcaoBotao): Promise<string> {
       return `✅ Feito: ${objeto} agora está em ${ROTULO_ETAPA.analisando}.`;
     }
     if (acao.tipo === "atribuir") {
-      const r = await definirResponsavel(v.empresaId, item.id, v.usuarioId);
+      // Vai para o responsável padrão da empresa (tela Equipe); sem ele, para quem tocou o botão.
+      const padrao = await lerResponsavelPadrao(v.empresaId);
+      const alvo = padrao?.id ?? v.usuarioId;
+      const r = await definirResponsavel(v.empresaId, item.id, alvo);
       if (!r.existe) return "Não encontrei esse item no pipeline.";
-      return `✅ Feito: ${objeto} agora é seu.`;
+      if (alvo === v.usuarioId || padrao === null) return `✅ Feito: ${objeto} agora é seu.`;
+      return `✅ Feito: ${objeto} agora está com ${primeiroNome(padrao.nome)}.`;
     }
     await moverItem(v.empresaId, item.id, "perdida", undefined, v.usuarioId);
     return `✅ Feito: ${objeto} foi descartado.`;
@@ -239,7 +244,7 @@ async function tratar(msg: MensagemRecebida, agora: Date): Promise<void> {
     await responder(r.texto, r.botoes);
   }
 
-  // F4: o que ficou guardado chega num resumo quando a pessoa volta a escrever.
+  // Só o prazo urgente que ficou na fila sai agora; o resto espera o resumo das 7h.
   if (atual.avisoWhatsapp) await enviarFila(atual, agora);
 }
 

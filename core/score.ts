@@ -1,8 +1,9 @@
 import { avaliarLimites, capitalNecessario, type LimitesCaixa } from "./caixa";
 import { casarCnaesComForca, type CasamentoCnae } from "./cnae-keywords";
 import { PERFIL_ORIGEM } from "./empresa";
-import { atendeRegiao, ehMei, type PerfilEmpresa } from "./perfil";
-import type { Criterio, Faixa, Frente, Oportunidade, Regiao, Score } from "./types";
+import { pontuacaoLocal, type NivelLocal } from "./areas";
+import { ehMei, type PerfilEmpresa } from "./perfil";
+import type { Criterio, Faixa, Frente, Oportunidade, Score } from "./types";
 
 const FATURAMENTO_MEI_MENSAL = 6750;
 const FATURAMENTO_MEI_ANUAL = 81000;
@@ -10,20 +11,22 @@ const FATURAMENTO_MEI_ANUAL = 81000;
 const LIMITE_GO = 75;
 const LIMITE_ATENCAO = 50;
 
-const NOMES_REGIAO: Record<Regiao, string> = {
-  "nova-iguacu": "Nova Iguaçu",
-  baixada: "Baixada Fluminense",
-  capital: "capital do Rio de Janeiro",
-  rj: "interior do estado do Rio",
-  "fora-rj": "fora do estado do Rio",
+const MOTIVO_LOCAL_SERVICO: Record<NivelLocal, string> = {
+  "municipio-base": "Serviço no seu município-base: sem deslocamento",
+  "mesma-rm": "Serviço na sua região metropolitana: deslocamento curto",
+  "capital-ou-rm": "Serviço na capital ou região metropolitana do seu estado: deslocamento médio",
+  "mesma-uf": "Serviço no interior do seu estado: deslocamento longo",
+  "outra-uf": "Serviço em outro estado que você atende: deslocamento muito longo",
+  fora: "Serviço fora das suas áreas de atendimento: inviável presencialmente",
 };
 
-const PONTOS_LOCAL_SERVICOS: Record<Regiao, number> = {
-  "nova-iguacu": 20,
-  baixada: 16,
-  capital: 14,
-  rj: 6,
-  "fora-rj": 0,
+const MOTIVO_LOCAL_PRODUTO: Record<NivelLocal, string> = {
+  "municipio-base": "Produto entregue no seu município-base: frete viável",
+  "mesma-rm": "Produto entregue na sua região metropolitana: frete viável",
+  "capital-ou-rm": "Produto entregue na capital ou região metropolitana do seu estado: frete viável",
+  "mesma-uf": "Produto entregue no seu estado: frete viável",
+  "outra-uf": "Produto entregue em outro estado que você atende: frete viável",
+  fora: "Produto entregue fora das suas áreas de atendimento: frete mais pesado",
 };
 
 /**
@@ -89,27 +92,12 @@ function criterioModalidade(o: Oportunidade): Criterio {
 
 function criterioLocal(o: Oportunidade, frente: Frente, perfil: PerfilEmpresa): Criterio {
   const base = { id: "local" as const, rotulo: "Local da entrega", maximo: 20, aConfirmar: false };
-  const regiao = NOMES_REGIAO[o.regiao];
-  const atende = atendeRegiao(perfil, o.regiao);
+  const local = pontuacaoLocal(o, perfil.areas);
   if (frente === "produtos") {
-    if (!atende) {
-      const onde = o.regiao === "fora-rj" ? "fora do estado do Rio" : "fora das suas regiões de interesse";
-      return { ...base, pontos: 8, motivo: `Produto entregue ${onde}: frete mais pesado` };
-    }
-    return { ...base, pontos: 20, motivo: `Produto entregue em ${regiao}: frete viável` };
+    // Produto viaja: dentro das áreas vale o máximo, fora delas o frete pesa.
+    return { ...base, pontos: local.dentro ? 20 : 8, motivo: MOTIVO_LOCAL_PRODUTO[local.nivel] };
   }
-  if (!atende && o.regiao !== "fora-rj") {
-    return { ...base, pontos: 0, motivo: "Serviço fora das suas regiões de interesse: inviável presencialmente" };
-  }
-  const pontos = atende ? PONTOS_LOCAL_SERVICOS[o.regiao] : 0;
-  const motivos: Record<Regiao, string> = {
-    "nova-iguacu": "Serviço em Nova Iguaçu: sem deslocamento",
-    baixada: "Serviço na Baixada Fluminense: deslocamento curto",
-    capital: "Serviço na capital: deslocamento médio",
-    rj: "Serviço no interior do estado: deslocamento longo",
-    "fora-rj": "Serviço fora do estado do Rio: inviável presencialmente",
-  };
-  return { ...base, pontos, motivo: motivos[o.regiao] };
+  return { ...base, pontos: local.pontos, motivo: MOTIVO_LOCAL_SERVICO[local.nivel] };
 }
 
 function criterioDocumentacao(o: Oportunidade): Criterio {

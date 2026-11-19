@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularScore, limiteMeiAnual } from "./score";
+import { LOCAL_DA_REGIAO } from "./teste-local";
 import type { Criterio, CriterioId, Frente, Oportunidade } from "./types";
 
 const AGORA = new Date("2026-11-10T12:00:00-03:00");
@@ -24,6 +25,7 @@ function oportunidade(parcial: Partial<Oportunidade> = {}): Oportunidade {
     sequencialCompra: 1,
     linkPncp: "https://pncp.gov.br/app/editais/00000000000000/2026/1",
     linkOrigem: null,
+    ...(parcial.regiao ? LOCAL_DA_REGIAO[parcial.regiao] : {}),
     ...parcial,
   };
 }
@@ -100,7 +102,7 @@ describe("critério local", () => {
   it.each([
     ["nova-iguacu", 20],
     ["baixada", 16],
-    ["capital", 14],
+    ["capital", 16],
     ["rj", 6],
     ["fora-rj", 0],
   ] as const)("serviços em %s vale %i", (regiao, pontos) => {
@@ -180,9 +182,9 @@ describe("faixas e total", () => {
   });
 
   it("de 50 a 74 é atenção", () => {
-    // pregão na capital: 30 + 10 + 14 + 6 + 10 = 70
+    // pregão na capital (mesma região metropolitana da base): 30 + 10 + 16 + 6 + 10 = 72
     const s = calcularScore(oportunidade({ modalidadeId: 6, regiao: "capital" }), "servicos", AGORA);
-    expect(s.total).toBe(70);
+    expect(s.total).toBe(72);
     expect(s.faixa).toBe("atencao");
   });
 
