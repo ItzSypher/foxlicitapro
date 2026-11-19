@@ -39,7 +39,7 @@ export function FormularioEmpresa(inicial: Props) {
         <input id="nome-fantasia" value={nome} maxLength={120} onChange={(e) => setNome(e.target.value)} className={CLASSE_CAMPO} />
       </section>
 
-      <section className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
+      <section data-tour="empresa-ramo" className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
         <h2 className="text-base font-semibold text-ink">Atividades (CNAE) e frentes</h2>
         <p className="text-[13px] text-muted-foreground">A frente define em qual aba do Radar e da Calculadora a atividade entra.</p>
         <EditorCnaes cnaes={cnaes} onChange={setCnaes} />

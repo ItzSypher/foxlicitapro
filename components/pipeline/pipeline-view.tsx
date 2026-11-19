@@ -496,7 +496,7 @@ function Quadro({
             })}
           </div>
 
-          <div className="relative min-w-0 md:min-h-0 md:flex-1">
+          <div data-tour="pipeline-colunas" className="relative min-w-0 md:min-h-0 md:flex-1">
           {colunas && bordas.esquerda ? (
             <button
               type="button"

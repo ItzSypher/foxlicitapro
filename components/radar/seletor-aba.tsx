@@ -15,7 +15,7 @@ export function SeletorAba({
   onEscolher: (valor: Aba) => void;
 }) {
   return (
-    <div role="group" aria-label="Oportunidades" className="flex items-end gap-1 overflow-x-auto border-b border-border [scrollbar-width:none]">
+    <div role="group" aria-label="Oportunidades" data-tour="radar-abas" className="flex items-end gap-1 overflow-x-auto border-b border-border [scrollbar-width:none]">
       {ABAS.map((opcao) => {
         const ativa = aba === opcao.id;
         return (

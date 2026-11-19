@@ -33,7 +33,7 @@ export function AdicionarPeloLink() {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div data-tour="pipeline-link" className="flex min-w-0 flex-col gap-3">
       <button
         type="button"
         aria-expanded={aberto}

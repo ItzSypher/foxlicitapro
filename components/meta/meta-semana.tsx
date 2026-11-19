@@ -47,7 +47,7 @@ export function MetaSemana({ painel, className }: { painel: PainelMeta; classNam
   const maiorHistorico = Math.max(1, meta.ideal, ...historico.map((s) => s.disputas));
 
   return (
-    <section aria-label="Meta da semana" className={cn("rounded-card border border-border bg-surface", className)}>
+    <section aria-label="Meta da semana" data-tour="radar-meta" className={cn("rounded-card border border-border bg-surface", className)}>
       <details className="group">
         <summary className="flex cursor-pointer list-none flex-col gap-2 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
           <span className="flex items-center justify-between gap-3">

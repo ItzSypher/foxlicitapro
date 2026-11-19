@@ -141,7 +141,7 @@ export function OndeAtender({ areas, onAreas, tudoDoRamo, onTudoDoRamo }: Props)
   const opcoesBase = [...new Set([...areas.municipiosIbge, ...(areas.base.municipioIbge ? [areas.base.municipioIbge] : [])])];
 
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4">
+    <section data-tour="empresa-onde" className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-ink">Onde atender</h2>
         <p className="text-[13px] text-muted-foreground">

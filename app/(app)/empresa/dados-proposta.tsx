@@ -37,7 +37,7 @@ export function DadosProposta(inicial: Props) {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+    <section data-tour="empresa-proposta" className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-ink">Dados da proposta</h2>
         <p className="text-[13px] text-muted-foreground">

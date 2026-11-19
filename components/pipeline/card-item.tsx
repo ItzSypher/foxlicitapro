@@ -282,6 +282,7 @@ function Prazo({ encerramentoIso, agoraInicial }: { encerramentoIso: string; ago
   const texto = textoFecha(restanteMs(encerramentoIso, agora));
   return (
     <span
+      data-tour="pipeline-prazo"
       className={cn(
         "text-xs tabular-nums",
         texto === null ? "text-muted-foreground" : "text-ink",
@@ -659,6 +660,7 @@ export function CardItem({
 
   return (
     <li
+      data-tour="pipeline-card"
       draggable={podeArrastar}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", dado.id);
@@ -728,12 +730,14 @@ export function CardItem({
         </span>
       </p>
 
-      <Responsavel
-        dado={dado}
-        pessoas={pessoas}
-        aoMudar={(r) => aoResponsavel(dado.id, r)}
-        somenteLeitura={!podeEditar}
-      />
+      <div data-tour="pipeline-responsavel" className="min-w-0">
+        <Responsavel
+          dado={dado}
+          pessoas={pessoas}
+          aoMudar={(r) => aoResponsavel(dado.id, r)}
+          somenteLeitura={!podeEditar}
+        />
+      </div>
 
       <DetalheItem
         aberto={detalheAberto}

@@ -190,7 +190,7 @@ export function PainelDiaView({
   const semNovidade = novasDisponiveis && painel.novas24h === 0;
 
   return (
-    <section aria-label="Resumo do dia" className="flex flex-col gap-3">
+    <section aria-label="Resumo do dia" data-tour="radar-painel" className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-ink">Resumo do dia</h2>
         <button

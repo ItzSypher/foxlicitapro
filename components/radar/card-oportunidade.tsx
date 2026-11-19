@@ -30,6 +30,7 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaPro
   const cor = TEXTO_FAIXA[item.score.faixa];
   return (
     <div
+      data-tour="radar-card"
       style={{ "--i": indice } as React.CSSProperties}
       className="card-entrada relative isolate flex h-full w-full flex-col gap-3 rounded-card bg-surface p-4 text-left transition-[background-color,scale] duration-150 hover:bg-raised active:scale-[.99]"
     >

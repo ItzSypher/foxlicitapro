@@ -86,7 +86,7 @@ export function ListaPropostas({
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Filtro de propostas" className="flex flex-wrap gap-2 md:gap-0 md:border-b md:border-border">
+      <div role="tablist" aria-label="Filtro de propostas" data-tour="propostas-abas" className="flex flex-wrap gap-2 md:gap-0 md:border-b md:border-border">
         {ORDEM_ABAS.map((id) => (
           <button
             key={id}
@@ -129,7 +129,7 @@ export function ListaPropostas({
           <p className="text-[13px] tabular-nums text-muted-foreground" aria-live="polite">
             {filtradas.length === 1 ? "1 proposta" : `${filtradas.length} propostas`}
           </p>
-          <div className="overflow-hidden rounded-card border border-border">
+          <div data-tour="propostas-lista" className="overflow-hidden rounded-card border border-border">
           <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_128px_104px_104px] gap-x-4 border-b border-border px-4 py-2 text-xs text-muted-foreground md:grid">
             <span>Proposta</span>
             <span>Órgão</span>
@@ -146,7 +146,7 @@ export function ListaPropostas({
                   className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_128px_104px_104px] md:gap-x-4"
                 >
                   <span className="min-w-0 text-sm font-medium break-words text-ink line-clamp-2 md:col-start-1 md:line-clamp-1">{p.titulo}</span>
-                  <span className="self-start justify-self-end md:order-4 md:col-start-4 md:justify-self-start">
+                  <span data-tour="propostas-status" className="self-start justify-self-end md:order-4 md:col-start-4 md:justify-self-start">
                     {p.status === "enviada" && p.resultado !== null ? (
                       <PilulaResultado resultado={p.resultado} />
                     ) : (

@@ -51,6 +51,7 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
 
   return (
     <div
+      data-tour="radar-card"
       style={{ "--i": indice } as React.CSSProperties}
       className={cn(
         "card-entrada relative isolate grid w-full grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3 border-b border-rule px-2 py-3 text-left transition-colors hover:bg-raised md:min-h-16 md:gap-x-4 md:py-2",

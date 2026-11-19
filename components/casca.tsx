@@ -6,6 +6,8 @@ import { BotaoSair } from "@/components/botao-sair";
 import { Marca } from "@/components/marca";
 import { BotaoTour } from "@/components/novidades/botao-tour";
 import { Novidades } from "@/components/novidades/novidades";
+import { BotaoTourTelaAuto } from "@/components/tour/botao-tour-tela";
+import { TourGuiado } from "@/components/tour/tour-guiado";
 import { NavInferior, NavLateral, type DadosNav } from "@/components/navegacao";
 import { TemaToggle } from "@/components/tema-toggle";
 import { contarNaoLidos } from "@/db/avisos";
@@ -70,6 +72,7 @@ export function Casca({
               <span className="text-xs text-muted-foreground">{rotuloPapel(usuario.papel)} · Minha conta</span>
             </Link>
           ) : null}
+          {usuario ? <BotaoTourTelaAuto /> : null}
           {usuario && podeFazerTour(usuario.papel) ? <BotaoTour /> : null}
           <TemaToggle modo="completo" />
           <BotaoSair modo="completo" />
@@ -111,6 +114,7 @@ export function Casca({
 
       <NavInferior dados={dados} />
       {usuario ? <Novidades usuarioId={usuario.id} papel={usuario.papel} /> : null}
+      {usuario ? <TourGuiado usuarioId={usuario.id} /> : null}
     </>
   );
 }

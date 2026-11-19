@@ -76,6 +76,7 @@ export function BuscaPalavras({
       {/* Sem div em volta: o sticky precisa de um pai tão alto quanto a página para fixar no topo do celular. */}
       <form
         role="search"
+        data-tour="radar-busca"
         onSubmit={(evento) => {
           evento.preventDefault();
           aoAplicar(busca);

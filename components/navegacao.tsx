@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { BotaoSair } from "@/components/botao-sair";
 import { BotaoTour } from "@/components/novidades/botao-tour";
+import { BotaoTourTela } from "@/components/tour/botao-tour-tela";
 import { TemaToggle } from "@/components/tema-toggle";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Papel } from "@/core/types-equipe";
@@ -336,6 +337,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
                 </Link>
               );
             })}
+            {usuario ? <BotaoTourTela caminho={caminho} aoAbrir={() => setAberto(false)} className="h-12 text-ink" /> : null}
             {usuario && podeFazerTour(usuario.papel) ? (
               <BotaoTour aoAbrir={() => setAberto(false)} className="h-12 text-ink" />
             ) : null}

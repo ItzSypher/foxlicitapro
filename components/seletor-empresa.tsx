@@ -23,6 +23,7 @@ export function SeletorEmpresa({ empresas, ativaId, variante, className }: Props
   return (
     <select
       aria-label="Empresa"
+      data-tour="gestor-seletor"
       value={ativaId}
       disabled={pendente}
       onChange={(e) => {

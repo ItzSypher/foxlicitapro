@@ -261,7 +261,7 @@ export function AssinaturaCampo({ valor, aoMudar }: Props) {
     }`;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div data-tour="empresa-assinatura" className="flex flex-col gap-3">
       <span className="text-sm font-medium text-ink">Assinatura</span>
 
       {valor ? (

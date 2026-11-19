@@ -189,7 +189,7 @@ export function BarraFiltros({
 
   return (
     <div className="flex items-center gap-2 lg:gap-3">
-      <div role="group" aria-label="Estado" className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5">
+      <div role="group" aria-label="Estado" data-tour="radar-estados" className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5">
         <Chip ativo={filtros.ufs.length === 0} aoAlternar={() => onUfs([])}>
           Todos
         </Chip>
