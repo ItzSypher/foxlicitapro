@@ -29,6 +29,7 @@ const DadosItemSchema = z.object({
   score: z.object({
     frenteCasada: FrenteSchema.nullable(),
     cnaesCasados: z.array(z.string()),
+    foco: z.string().optional(),
   }),
 });
 

@@ -49,6 +49,8 @@ export interface PerfilEmpresa {
   areas: Areas;
   /** Radar mostra toda oportunidade do ramo (CNAE ou palavra-chave), mesmo com nota baixa */
   radarTudoDoRamo: boolean;
+  /** Termos que o dono mais quer vender: objeto com um deles vale a nota máxima de ramo. Até 20 termos de 60 caracteres */
+  foco: string[];
   endereco: string | null;
   cep: string | null;
   telefone: string | null;
@@ -62,6 +64,24 @@ export interface PerfilEmpresa {
   assinatura: string | null;
   /** Empresa criada pelo Admin sem consulta à Receita */
   teste: boolean;
+}
+
+export const LIMITE_FOCO_TERMOS = 20;
+export const LIMITE_FOCO_CARACTERES = 60;
+
+/** Limpa a lista do foco: espaços simples, sem vazios nem repetidos (sem diferenciar maiúsculas), dentro dos limites. */
+export function normalizarFoco(bruto: readonly string[]): string[] {
+  const vistos = new Set<string>();
+  const termos: string[] = [];
+  for (const item of bruto) {
+    const termo = item.replace(/\s+/g, " ").trim().slice(0, LIMITE_FOCO_CARACTERES).trim();
+    const chave = termo.toLowerCase();
+    if (termo === "" || vistos.has(chave)) continue;
+    vistos.add(chave);
+    termos.push(termo);
+    if (termos.length >= LIMITE_FOCO_TERMOS) break;
+  }
+  return termos;
 }
 
 export function ehPorte(valor: unknown): valor is Porte {

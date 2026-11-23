@@ -59,6 +59,11 @@ function chaveContador(agora: Date): string {
   return `envios:${mesDeSaoPaulo(agora)}`;
 }
 
+/** Resumo das 7h com a janela fechada sai como mensagem utilitária da Meta. `WA_ENVIO_UTILIDADE=false` desliga. */
+function utilidadeLigada(): boolean {
+  return (process.env.WA_ENVIO_UTILIDADE ?? "").trim().toLowerCase() !== "false";
+}
+
 function chaveAlertas(agora: Date): string {
   return `alertas:${mesDeSaoPaulo(agora)}`;
 }
@@ -72,14 +77,18 @@ export async function enviarParaPessoa(
   v: VinculoWa,
   texto: string,
   agora: Date,
-  opcoes: { botoes?: ReadonlyArray<BotaoZernio>; critico?: boolean; resposta?: boolean } = {},
+  opcoes: { botoes?: ReadonlyArray<BotaoZernio>; critico?: boolean; resposta?: boolean; utilidade?: boolean } = {},
 ): Promise<boolean> {
-  if (!zernioConfigurado() || v.conversaId === null || !janelaAberta(v.ultimaEntrada, agora)) return false;
+  if (!zernioConfigurado() || v.conversaId === null) return false;
+  const aberta = janelaAberta(v.ultimaEntrada, agora);
+  // Janela fechada: só passa como mensagem utilitária (cobrada), e só quando quem chama pediu e ela não foi desligada.
+  const comoUtilidade = !aberta && opcoes.utilidade === true && utilidadeLigada();
+  if (!aberta && !comoUtilidade) return false;
   try {
     const ehAlerta = !opcoes.resposta;
     if ((await somarContador(chaveContador(agora), 0)) >= limiteMensal()) return false;
     if (ehAlerta && (await somarContador(chaveAlertas(agora), 0)) >= limiteAlertas()) return false;
-    const r = await enviarTexto(v.conversaId, texto, opcoes.botoes);
+    const r = await enviarTexto(v.conversaId, texto, opcoes.botoes, { utilidade: comoUtilidade });
     if (!r.ok) {
       console.error("[whatsapp] envio:", r.erro ?? "falha");
       return false;

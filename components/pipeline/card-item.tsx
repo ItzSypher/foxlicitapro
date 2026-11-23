@@ -13,6 +13,7 @@ import { margemEmPercentual, type Estatistica, type ResumoCotacoes } from "@/cor
 import { linkInternoDaOportunidade } from "@/core/link-oportunidade";
 import { resumirObjeto } from "@/core/objeto";
 import type { PrecoSugerido } from "@/core/preco-sugerido";
+import { PontoVivo } from "@/components/radar/selos-vivos";
 import { PrecoSugeridoDetalhe } from "@/components/preco/preco-sugerido-detalhe";
 import { SeloVeredito } from "@/components/preco/selo-veredito";
 import { PASSOS_JURIDICOS, checklistCompleto } from "@/core/revisao-juridica";
@@ -623,6 +624,8 @@ interface Props {
   podeRevisar: boolean;
   /** Posição na coluna: só os primeiros itens entram em sequência */
   indice?: number;
+  /** O prazo cai hoje (dia civil de São Paulo) e ainda não passou: mostra o selo "Fecha hoje" */
+  fechaHoje?: boolean;
   arrastavel: boolean;
   arrastando: boolean;
   aoIniciarArraste: (id: string) => void;
@@ -639,6 +642,7 @@ export function CardItem({
   podeEditar,
   podeRevisar,
   indice = 0,
+  fechaHoje = false,
   arrastavel,
   arrastando,
   aoIniciarArraste,
@@ -719,6 +723,13 @@ export function CardItem({
           />
         </span>
       </div>
+
+      {fechaHoje ? (
+        <span className="inline-flex h-5 w-fit items-center gap-1.5 rounded-full bg-pill-neg-bg px-2 text-xs font-medium whitespace-nowrap text-pill-neg-fg">
+          <PontoVivo className="bg-negative" />
+          Fecha hoje
+        </span>
+      ) : null}
 
       <p className="line-clamp-2 text-sm font-medium leading-snug text-ink">{titulo}</p>
 

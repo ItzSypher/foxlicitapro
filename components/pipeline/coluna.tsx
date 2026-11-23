@@ -1,10 +1,12 @@
 "use client";
 
+import { Fragment } from "react";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { agruparPorPrazo, grupoDoPrazo, ROTULO_GRUPO_PRAZO } from "@/core/pipeline-prazos";
 import { cn } from "@/lib/utils";
 import { CardItem } from "./card-item";
 import { formatarReais } from "./formato";
-import type { EtapaId, ItemPipeline, PessoaPipeline, ResumoEtapa } from "./tipos";
+import { ETAPAS_ATIVAS, type EtapaId, type ItemPipeline, type PessoaPipeline, type ResumoEtapa } from "./tipos";
 
 interface Props {
   etapa: EtapaId;
@@ -19,6 +21,8 @@ interface Props {
   aberta: boolean;
   aoAlternar: (etapa: EtapaId, aberta: boolean) => void;
   agoraInicial: number;
+  /** Relógio da tela (minuto a minuto), para agrupar por prazo */
+  agora: number;
   pessoas: PessoaPipeline[];
   aoResponsavel: (id: string, responsavelId: string | null) => void;
   podeEditar: boolean;
@@ -44,6 +48,7 @@ export function Coluna({
   aberta,
   aoAlternar,
   agoraInicial,
+  agora,
   pessoas,
   aoResponsavel,
   podeEditar,
@@ -61,6 +66,12 @@ export function Coluna({
   // Vazia vira faixa; durante o arraste a faixa se expande quando o card passa por cima.
   const colapsada = colunas && itens.length === 0 && !aberta && !alvo;
   const arrastando = arrastandoId !== null;
+  // Etapas vivas: por prazo, com separadores. Ganha e perdida mantêm a ordem do quadro.
+  const porPrazo = ETAPAS_ATIVAS.includes(etapa);
+  const grupos: Array<{ grupo: ReturnType<typeof grupoDoPrazo> | null; itens: ItemPipeline[] }> = porPrazo
+    ? agruparPorPrazo(itens, agora)
+    : [{ grupo: null, itens }];
+  let contador = 0;
   return (
     <section
       id={`coluna-${etapa}`}
@@ -134,23 +145,42 @@ export function Coluna({
             Nada aqui ainda.
           </li>
         ) : (
-          itens.map((dado, indice) => (
-            <CardItem
-              key={dado.id}
-              dado={dado}
-              agoraInicial={agoraInicial}
-              pessoas={pessoas}
-              aoResponsavel={aoResponsavel}
-              podeEditar={podeEditar}
-              podeRevisar={podeRevisar}
-              indice={indice}
-              arrastavel={colunas && podeEditar}
-              arrastando={arrastandoId === dado.id}
-              aoIniciarArraste={aoIniciarArraste}
-              aoTerminarArraste={aoTerminarArraste}
-              aoMover={aoMover}
-              aoRemover={aoRemover}
-            />
+          grupos.map((g) => (
+            <Fragment key={g.grupo ?? "unico"}>
+              {g.grupo === null ? null : (
+                <li
+                  className={cn(
+                    "px-1 pt-1 text-xs font-semibold tracking-wide uppercase",
+                    g.grupo === "hoje" ? "text-negative" : g.grupo === "amanha" ? "text-warning" : "text-muted-foreground",
+                  )}
+                >
+                  {ROTULO_GRUPO_PRAZO[g.grupo]}
+                  <span className="ml-1.5 font-normal tabular-nums">{g.itens.length}</span>
+                </li>
+              )}
+              {g.itens.map((dado) => {
+                const indice = contador++;
+                return (
+                  <CardItem
+                    key={dado.id}
+                    dado={dado}
+                    agoraInicial={agoraInicial}
+                    pessoas={pessoas}
+                    aoResponsavel={aoResponsavel}
+                    podeEditar={podeEditar}
+                    podeRevisar={podeRevisar}
+                    indice={indice}
+                    fechaHoje={g.grupo === "hoje"}
+                    arrastavel={colunas && podeEditar}
+                    arrastando={arrastandoId === dado.id}
+                    aoIniciarArraste={aoIniciarArraste}
+                    aoTerminarArraste={aoTerminarArraste}
+                    aoMover={aoMover}
+                    aoRemover={aoRemover}
+                  />
+                );
+              })}
+            </Fragment>
           ))
         )}
       </ul>

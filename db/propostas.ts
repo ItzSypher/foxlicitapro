@@ -8,6 +8,7 @@ import { ehModeloId, type ModeloId } from "@/core/proposta-modelos";
 import { ehSituacaoResultado, type SituacaoResultado } from "@/core/proposta-resultado";
 import { inserirEvento, type EventoNovo } from "@/db/proposta-eventos";
 import { ehStatusEquipe } from "@/core/revisao";
+import type { MovimentoProposta } from "@/core/whatsapp-alertas";
 import type { DadosProposta } from "@/core/types-detalhe";
 import type { AnaliseAssistente, AutorProposta, StatusPropostaEquipe } from "@/core/types-equipe";
 
@@ -423,4 +424,44 @@ export async function lerPorToken(token: string): Promise<PropostaPublica | null
     modelo: ehModeloId(linha.modelo) ? linha.modelo : "cotacao-simples",
     dados: dados.data,
   };
+}
+
+interface LinhaMovimentoProposta {
+  proposta_id: string;
+  tipo: string;
+  por_id: string | null;
+  por_nome: string | null;
+  objeto: string;
+  total: string;
+}
+
+const ACAO_DO_EVENTO: Readonly<Record<string, MovimentoProposta["acao"]>> = {
+  criada: "gerou",
+  aprovada: "aprovou",
+  enviada: "enviou",
+};
+
+/**
+ * Propostas geradas, aprovadas e enviadas depois de `desde`, da mais antiga para a mais nova, com quem fez.
+ * Vem da linha do tempo da proposta; proposta registrada depois de enviada fora do sistema só conta como enviada.
+ */
+export async function listarMovimentosDePropostas(empresaId: string, desde: Date): Promise<MovimentoProposta[]> {
+  const linhas = await sql<LinhaMovimentoProposta[]>`
+    select e.proposta_id::text as proposta_id, e.tipo, e.por::text as por_id, u.nome as por_nome,
+           coalesce(nullif(p.dados->>'objeto', ''), p.titulo) as objeto, p.total
+    from proposta_eventos e
+    join propostas p on p.id = e.proposta_id and p.empresa_id = e.empresa_id
+    left join usuarios u on u.id = e.por
+    where e.empresa_id = ${empresaId} and e.em > ${desde.toISOString()}::timestamptz
+      and e.tipo in ('criada', 'aprovada', 'enviada') and not (e.tipo = 'criada' and p.externa)
+    order by e.em asc, e.id asc
+    limit 50
+  `;
+  const movimentos: MovimentoProposta[] = [];
+  for (const l of linhas) {
+    const acao = ACAO_DO_EVENTO[l.tipo];
+    if (acao === undefined) continue;
+    movimentos.push({ propostaId: l.proposta_id, objeto: l.objeto, acao, porId: l.por_id, porNome: l.por_nome, total: Number(l.total) });
+  }
+  return movimentos;
 }

@@ -2,17 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import { z } from "zod";
-import { avisarPropostaEmRevisao, avisarPropostaRevisada } from "@/lib/avisos";
-import { podeAgirNaRevisao, type Permissao } from "@/core/permissoes";
-import { SEM_PERMISSAO, lerSessao, verificarPermissao } from "@/lib/sessao";
+import type { Permissao } from "@/core/permissoes";
+import { lerSessao, verificarPermissao } from "@/lib/sessao";
 import { DadosPropostaSchema, dadosEmBranco, dataIsoBrasilia, totalProposta, validarProposta } from "@/core/proposta";
-import { validarEnvio, validarExterna, type TipoEvento } from "@/core/proposta-eventos";
+import { validarEnvio, validarExterna } from "@/core/proposta-eventos";
 import { ehModeloId, type ModeloId } from "@/core/proposta-modelos";
-import { podeGerarLink, statusAposEdicao, podeEditar, transicao, type AcaoRevisao } from "@/core/revisao";
+import { podeGerarLink, statusAposEdicao, podeEditar, type AcaoRevisao } from "@/core/revisao";
 import type { Sessao, StatusPropostaEquipe } from "@/core/types-equipe";
 import { criarPropostaExterna, marcarEnviada } from "@/db/proposta-eventos";
+import { executarAcaoRevisao } from "@/lib/revisao-proposta";
 import { criarRascunho } from "./rascunho";
 import {
   atualizarProposta,
@@ -89,79 +88,19 @@ export type RespostaRevisao =
 
 const AcaoSchema = z.enum(["enviar", "aprovar", "devolver", "retirar", "reabrir"]);
 
-/** O que entra na linha do tempo; retirar e reabrir só voltam para rascunho. */
-const EVENTO_DA_ACAO: Record<AcaoRevisao, TipoEvento | null> = {
-  enviar: "revisao",
-  aprovar: "aprovada",
-  devolver: "devolvida",
-  retirar: null,
-  reabrir: null,
-};
-
 /**
  * Enviar para revisão, aprovar, devolver (com nota), retirar da revisão ou reabrir uma aprovada.
- * As regras de quem pode o quê ficam em core/revisao.ts.
+ * As regras de quem pode o quê ficam em core/revisao.ts; a execução é a mesma do WhatsApp (lib/revisao-proposta.ts).
  */
 export async function acaoRevisaoAction(id: string, acao: AcaoRevisao, nota?: string): Promise<RespostaRevisao> {
   const sessao = await lerSessao();
   if (!sessao) return { ok: false, mensagem: SEM_SESSAO };
   const acaoLida = AcaoSchema.safeParse(acao);
   if (!IdSchema.safeParse(id).success || !acaoLida.success) return { ok: false, mensagem: NAO_ENCONTRADA };
-  if (!podeAgirNaRevisao(sessao, acaoLida.data)) return { ok: false, mensagem: SEM_PERMISSAO };
 
-  try {
-    const p = await lerProposta(sessao.empresaId, id);
-    if (!p) return { ok: false, mensagem: NAO_ENCONTRADA };
-
-    const decisao = transicao(p.status, acaoLida.data, {
-      usuarioId: sessao.usuarioId,
-      criadoPor: p.criadoPor,
-      autor: p.autor,
-      nota,
-      pendencias: acaoLida.data === "enviar" ? validarProposta(p.dados, p.modelo).length : 0,
-    });
-    if (!decisao.ok) return { ok: false, mensagem: decisao.erro };
-
-    const notaFinal = acaoLida.data === "devolver" ? (nota ?? "").trim() : null;
-    const revisao =
-      acaoLida.data === "aprovar" || acaoLida.data === "devolver"
-        ? { revisadoPor: sessao.usuarioId, nota: notaFinal }
-        : null;
-    const tipoEvento = EVENTO_DA_ACAO[acaoLida.data];
-    const evento = tipoEvento ? { tipo: tipoEvento, por: sessao.usuarioId, nota: notaFinal } : undefined;
-    const gravou = await definirStatus(sessao.empresaId, id, decisao.status, revisao, p.status, evento);
-    if (!gravou) return { ok: false, mensagem: "A proposta mudou enquanto você olhava. Recarregue a página." };
-
-    if (acaoLida.data === "enviar") {
-      after(() =>
-        avisarPropostaEmRevisao({ empresaId: sessao.empresaId, id, titulo: p.titulo, autorId: sessao.usuarioId, autorNome: sessao.nome }),
-      );
-    } else if (revisao) {
-      after(() =>
-        avisarPropostaRevisada({
-          empresaId: sessao.empresaId,
-          id,
-          titulo: p.titulo,
-          autorId: p.criadoPor,
-          revisorId: sessao.usuarioId,
-          revisorNome: sessao.nome,
-          aprovada: acaoLida.data === "aprovar",
-          nota: notaFinal,
-        }),
-      );
-    }
-
-    revalidatePath("/propostas");
-    return {
-      ok: true,
-      status: decisao.status,
-      revisao: revisao
-        ? { revisadoPorNome: sessao.nome, revisaoNota: notaFinal, revisadoEm: new Date().toISOString() }
-        : { revisadoPorNome: null, revisaoNota: null, revisadoEm: null },
-    };
-  } catch {
-    return { ok: false, mensagem: FALHA };
-  }
+  const r = await executarAcaoRevisao(sessao, id, acaoLida.data, nota);
+  if (r.ok) revalidatePath("/propostas");
+  return r;
 }
 
 export type RespostaLink =

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { sql } from "@/db/client";
 import { formatarCnpj, somenteDigitos, type EmpresaConsultada } from "@/core/brasilapi";
 import { areasDasRegioes, normalizarAreas, regioesDasAreas, type Areas } from "@/core/areas";
-import { ehPorte, ehRegiao, type CnaePerfil, type PerfilEmpresa } from "@/core/perfil";
+import { ehPorte, ehRegiao, normalizarFoco, type CnaePerfil, type PerfilEmpresa } from "@/core/perfil";
 import type { Regiao } from "@/core/types";
 import { criarUsuario } from "@/db/usuarios";
 import type { Usuario } from "@/core/types-equipe";
@@ -39,6 +39,7 @@ interface LinhaEmpresa {
   regioes: unknown;
   areas: unknown;
   radar_tudo_do_ramo: boolean;
+  foco: string[] | null;
   ativa: boolean;
   criada_em: Date;
   data_abertura: string | null;
@@ -53,7 +54,7 @@ interface LinhaEmpresa {
   teste: boolean;
 }
 
-const colunas = () => sql`id, cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, areas, radar_tudo_do_ramo, ativa, criada_em,
+const colunas = () => sql`id, cnpj, razao_social, nome_fantasia, porte, uf, municipio, cnaes, regioes, areas, radar_tudo_do_ramo, foco, ativa, criada_em,
   to_char(data_abertura, 'YYYY-MM-DD') as data_abertura, endereco, cep, telefone, email_contato, responsavel,
   representante_cpf, representante_rg, dados_bancarios, teste`;
 
@@ -88,6 +89,7 @@ function converter(l: LinhaEmpresa): Empresa {
     regioes,
     areas: lerAreas(l, regioes),
     radarTudoDoRamo: l.radar_tudo_do_ramo === true,
+    foco: Array.isArray(l.foco) ? normalizarFoco(l.foco.filter((t): t is string => typeof t === "string")) : [],
     endereco: l.endereco,
     cep: l.cep,
     telefone: l.telefone,
@@ -215,9 +217,10 @@ export interface EdicaoEmpresa {
   cnaes: CnaePerfil[];
   areas: Areas;
   radarTudoDoRamo: boolean;
+  foco: string[];
 }
 
-/** Tela "Empresa" do dono: nome fantasia, CNAEs/frentes e onde atender. O id é o da sessão. */
+/** Tela "Empresa" do dono: nome fantasia, CNAEs/frentes, onde atender e foco. O id é o da sessão. */
 export async function atualizarPerfilEmpresa(empresaId: string, dados: EdicaoEmpresa): Promise<boolean> {
   if (!FORMATO_ID.test(empresaId)) return false;
   const cnaes = cnaesSchema.parse(dados.cnaes);
@@ -227,10 +230,12 @@ export async function atualizarPerfilEmpresa(empresaId: string, dados: EdicaoEmp
   // As regiões antigas seguem coerentes com as áreas para quem ainda as lê (conselheiro).
   const regioesJson = JSON.parse(JSON.stringify(regioesDasAreas(areas))) as postgres.JSONValue;
   const fantasia = dados.nomeFantasia?.trim() ? dados.nomeFantasia.trim().slice(0, 120) : null;
+  const focoJson = JSON.parse(JSON.stringify(normalizarFoco(dados.foco))) as postgres.JSONValue;
   const r = await sql`
     update empresas
        set nome_fantasia = ${fantasia}, cnaes = ${sql.json(cnaesJson)}, regioes = ${sql.json(regioesJson)},
-           areas = ${sql.json(areasJson)}, radar_tudo_do_ramo = ${dados.radarTudoDoRamo}
+           areas = ${sql.json(areasJson)}, radar_tudo_do_ramo = ${dados.radarTudoDoRamo},
+           foco = array(select jsonb_array_elements_text(${sql.json(focoJson)}))
      where id = ${empresaId}
   `;
   return r.count > 0;

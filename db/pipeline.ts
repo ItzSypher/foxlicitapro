@@ -46,6 +46,7 @@ const scoreSchema = z.object({
   faixa: z.enum(["go", "atencao", "nogo"]),
   criterios: z.array(criterioSchema),
   cnaesCasados: z.array(z.string()),
+  foco: z.string().optional(),
   frenteCasada: z.enum(["servicos", "produtos"]).nullable(),
 });
 
@@ -158,7 +159,21 @@ export async function idsNoPipeline(empresaId: string): Promise<Set<string>> {
   return new Set(linhas.map((l) => String(l.id)));
 }
 
-/** Insere na etapa "radar", no fim da coluna. Se já existe, só atualiza os dados da oportunidade. */
+/**
+ * Quem recebe um item novo: o responsável padrão da empresa (tela Equipe), senão o primeiro gestor ativo da empresa,
+ * senão um gestor ligado a ela pelo Admin (usuario_empresas), senão quem adicionou. Nenhum item fica sem responsável.
+ */
+function responsavelPadraoSql(tx: postgres.TransactionSql, empresaId: string, criadoPor: string | null) {
+  return tx`coalesce(
+    (select e.wa_responsavel_padrao from empresas e join usuarios u on u.id = e.wa_responsavel_padrao and u.ativo where e.id = ${empresaId}),
+    (select u.id from usuarios u where u.empresa_id = ${empresaId} and u.ativo and u.papel = 'gestor' order by u.criado_em limit 1),
+    (select ue.usuario_id from usuario_empresas ue join usuarios u on u.id = ue.usuario_id and u.ativo
+      where ue.empresa_id = ${empresaId} order by ue.criado_em limit 1),
+    ${criadoPor}::uuid
+  )`;
+}
+
+/** Insere na etapa "radar", no fim da coluna, já com responsável. Se já existe, atualiza os dados e preenche o responsável vazio. */
 export async function salvarItem(
   empresaId: string,
   o: OportunidadeComScore,
@@ -170,7 +185,7 @@ export async function salvarItem(
 
   return sql.begin(async (tx) => {
     const [linha] = await tx`
-      insert into pipeline_itens (empresa_id, id, etapa, ordem, dados, score, faixa, valor_estimado, data_encerramento, criado_por)
+      insert into pipeline_itens (empresa_id, id, etapa, ordem, dados, score, faixa, valor_estimado, data_encerramento, criado_por, responsavel)
       values (
         ${empresaId},
         ${dados.id},
@@ -181,9 +196,11 @@ export async function salvarItem(
         ${dados.score.faixa},
         ${dados.valorEstimado},
         ${encerramento},
-        ${criadoPor}
+        ${criadoPor},
+        ${responsavelPadraoSql(tx, empresaId, criadoPor)}
       )
       on conflict (empresa_id, id) do update set
+        responsavel = coalesce(pipeline_itens.responsavel, excluded.responsavel),
         dados = excluded.dados,
         score = excluded.score,
         faixa = excluded.faixa,
@@ -280,7 +297,12 @@ export async function definirResponsavel(
     const atual = await tx`select responsavel from pipeline_itens where empresa_id = ${empresaId} and id = ${id} for update`;
     if (atual.length === 0) return { existe: false, mudou: false };
     if (responsavelId !== null) {
-      const dono = await tx`select 1 from usuarios where id = ${responsavelId} and empresa_id = ${empresaId}`;
+      // Pessoa da empresa ou gestor ligado a ela pelo Admin.
+      const dono = await tx`
+        select 1 from usuarios where id = ${responsavelId} and empresa_id = ${empresaId}
+        union all
+        select 1 from usuario_empresas where usuario_id = ${responsavelId} and empresa_id = ${empresaId}
+      `;
       if (dono.length === 0) return { existe: false, mudou: false };
     }
     const anterior = (atual[0]?.responsavel ?? null) as string | null;

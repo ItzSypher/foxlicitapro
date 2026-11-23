@@ -98,6 +98,17 @@ describe("tetos de envio do mês", () => {
     const v = { ...vinculo(), ultimaEntrada: new Date(AGORA.getTime() - 24 * 3_600_000) };
     expect(await enviarParaPessoa(v, "prazo", AGORA)).toBe(false);
   });
+
+  it("janela fechada com utilidade envia como mensagem utilitária", async () => {
+    const v = { ...vinculo(), ultimaEntrada: new Date(AGORA.getTime() - 48 * 3_600_000) };
+    expect(await enviarParaPessoa(v, "resumo", AGORA, { utilidade: true })).toBe(true);
+    expect(m.enviarTexto).toHaveBeenLastCalledWith(expect.any(String), "resumo", undefined, { utilidade: true });
+  });
+
+  it("janela aberta com utilidade vai como texto comum", async () => {
+    expect(await enviarParaPessoa(vinculo(), "resumo", AGORA, { utilidade: true })).toBe(true);
+    expect(m.enviarTexto).toHaveBeenLastCalledWith(expect.any(String), "resumo", undefined, { utilidade: false });
+  });
 });
 
 function alerta(parcial: Partial<AlertaWa> & { tipo: AlertaWa["tipo"] }): AlertaWa {

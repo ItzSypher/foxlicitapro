@@ -1,5 +1,5 @@
 import { avaliarLimites, capitalNecessario, type LimitesCaixa } from "./caixa";
-import { casarCnaesComForca, type CasamentoCnae } from "./cnae-keywords";
+import { casarCnaesComForca, casarFoco, type CasamentoCnae } from "./cnae-keywords";
 import { PERFIL_ORIGEM } from "./empresa";
 import { pontuacaoLocal, type NivelLocal } from "./areas";
 import { ehMei, type PerfilEmpresa } from "./perfil";
@@ -80,6 +80,11 @@ function criterioCnae(frente: Frente, ativos: CasamentoCnae[], outros: Casamento
     return { ...base, pontos: 12, motivo: `O objeto casa só com a frente de ${outra} (CNAE ${outros[0].codigo})` };
   }
   return { ...base, pontos: 0, motivo: "Nenhum CNAE da empresa casa com o objeto" };
+}
+
+/** O objeto bate com um termo do foco: vale o melhor casamento de ramo, como se o CNAE casasse com força. */
+function criterioFoco(termo: string): Criterio {
+  return { id: "cnae", rotulo: "Ramo e foco", maximo: 30, pontos: 30, aConfirmar: false, motivo: `Bate com o seu foco: ${termo}` };
 }
 
 function criterioModalidade(o: Oportunidade): Criterio {
@@ -229,8 +234,10 @@ export function calcularScore(
   const ativos = melhorPrimeiro(casados[frente]);
   const outros = melhorPrimeiro(casados[outraFrente]);
 
+  const foco = casarFoco(o.objeto, perfil.foco);
+
   const criterios: Criterio[] = [
-    criterioCnae(frente, ativos, outros),
+    foco !== null ? criterioFoco(foco) : criterioCnae(frente, ativos, outros),
     criterioModalidade(o),
     criterioLocal(o, frente, perfil),
     criterioDocumentacao(o),
@@ -244,8 +251,10 @@ export function calcularScore(
   const soma = criterios.reduce((acc, c) => acc + c.pontos, 0);
   const somaMaximos = criterios.reduce((acc, c) => acc + c.maximo, 0);
   const total = cx ? Math.round((soma * 100) / somaMaximos) : soma;
-  const semMatch = ativos.length === 0 && outros.length === 0;
-  const frenteCasada: Frente | null = ativos.length > 0 ? frente : outros.length > 0 ? outraFrente : null;
+  const semCnae = ativos.length === 0 && outros.length === 0;
+  const semMatch = semCnae && foco === null;
+  // O foco conta como casado na frente ativa.
+  const frenteCasada: Frente | null = ativos.length > 0 || foco !== null ? frente : outros.length > 0 ? outraFrente : null;
 
   const restante = Date.parse(o.dataEncerramento) - agora.getTime();
   const poucoTempo = restante > 0 && restante < MS_POUCO_TEMPO;
@@ -254,6 +263,9 @@ export function calcularScore(
   if (poucoTempo) alertas.push("Fecha em menos de 6 h: pouco tempo para montar proposta");
   if (ehMei(perfil) && o.valorEstimado !== null && o.valorEstimado > TETO_MEI_ANO_CHEIO) alertas.push("Valor acima do teto anual do MEI");
   if (cx?.alerta) alertas.push(cx.alerta);
+  if (foco !== null && semCnae) {
+    alertas.push("Nenhum CNAE do CNPJ cobre este objeto: confira se o edital exige CNAE compatível");
+  }
   if (frenteCasada === outraFrente) {
     alertas.push(`Casou só com a outra frente (${outraFrente === "produtos" ? "produtos" : "serviços"})`);
   }
@@ -267,6 +279,7 @@ export function calcularScore(
     criterios,
     cnaesCasados: [...ativos, ...outros].map((c) => c.codigo),
     frenteCasada,
+    ...(foco !== null ? { foco } : {}),
     ...(alertas.length > 0 ? { alertas } : {}),
   };
 }

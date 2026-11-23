@@ -1,4 +1,5 @@
 import { Pilula } from "@/components/radar/pilula";
+import { motivoPrincipal } from "@/core/motivo-nota";
 import type { Score } from "@/core/types";
 import { nomeFaixa } from "@/lib/radar-filtros";
 import { Secao } from "./secao";
@@ -12,6 +13,12 @@ export function NotaCriterios({ score }: { score: Score | null }) {
         </p>
       ) : (
         <div className="flex flex-col gap-3 rounded-card border border-border bg-surface px-4">
+          {score.foco !== undefined || motivoPrincipal(score) !== null ? (
+            <div className="flex flex-col items-start gap-1.5 pt-3">
+              {score.foco !== undefined ? <Pilula tom="positivo">Seu foco</Pilula> : null}
+              {motivoPrincipal(score) !== null ? <p className="text-sm text-ink">{motivoPrincipal(score)}</p> : null}
+            </div>
+          ) : null}
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">Pontuação por critério</caption>
             <tbody>

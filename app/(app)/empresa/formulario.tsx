@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { CLASSE_CAMPO, EditorCnaes } from "@/components/empresa/editor-perfil";
+import { EditorFoco } from "@/components/empresa/editor-foco";
 import { OndeAtender } from "@/components/empresa/onde-atender";
 import type { Areas } from "@/core/areas";
 import type { CnaePerfil } from "@/core/perfil";
@@ -12,6 +13,7 @@ interface Props {
   cnaes: CnaePerfil[];
   areas: Areas;
   radarTudoDoRamo: boolean;
+  foco: string[];
 }
 
 export function FormularioEmpresa(inicial: Props) {
@@ -19,13 +21,14 @@ export function FormularioEmpresa(inicial: Props) {
   const [cnaes, setCnaes] = useState(inicial.cnaes);
   const [areas, setAreas] = useState(inicial.areas);
   const [tudoDoRamo, setTudoDoRamo] = useState(inicial.radarTudoDoRamo);
+  const [foco, setFoco] = useState(inicial.foco);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [salvando, iniciar] = useTransition();
 
   function salvar() {
     setAviso(null);
     iniciar(async () => {
-      const r = await salvarEmpresaAction({ nomeFantasia: nome.trim() || null, cnaes, areas, radarTudoDoRamo: tudoDoRamo });
+      const r = await salvarEmpresaAction({ nomeFantasia: nome.trim() || null, cnaes, areas, radarTudoDoRamo: tudoDoRamo, foco });
       setAviso(r.ok ? { ok: true, texto: "Dados da empresa salvos." } : { ok: false, texto: r.erro });
     });
   }
@@ -44,6 +47,8 @@ export function FormularioEmpresa(inicial: Props) {
         <p className="text-[13px] text-muted-foreground">A frente define em qual aba do Radar e da Calculadora a atividade entra.</p>
         <EditorCnaes cnaes={cnaes} onChange={setCnaes} />
       </section>
+
+      <EditorFoco foco={foco} onChange={setFoco} />
 
       <OndeAtender areas={areas} onAreas={setAreas} tudoDoRamo={tudoDoRamo} onTudoDoRamo={setTudoDoRamo} />
 

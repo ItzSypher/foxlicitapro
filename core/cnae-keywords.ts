@@ -773,6 +773,20 @@ export function casarCnaesComForca(objeto: string, perfil: Pick<PerfilEmpresa, "
   return resultado;
 }
 
+/**
+ * Primeiro termo do foco da empresa que aparece no objeto, com a mesma normalização e o mesmo plural simples
+ * dos termos de CNAE. Os negativos não valem aqui: o dono escolheu o termo de propósito. Null sem casamento.
+ */
+export function casarFoco(objeto: string, foco: ReadonlyArray<string>): string | null {
+  if (foco.length === 0) return null;
+  const texto = removerSetorDeSistemas(normalizarTexto(objeto));
+  for (const termo of foco) {
+    if (normalizarTexto(termo) === "") continue;
+    if (regexDoTermo(termo).test(texto)) return termo;
+  }
+  return null;
+}
+
 export type CnaesCasados = Record<Frente, string[]>;
 
 /** Devolve os códigos CNAE cujos termos aparecem no objeto, separados por frente. */

@@ -11,7 +11,7 @@ export function ehNova(dataPublicacao: string | null | undefined, agora: number)
 }
 
 /** Ponto com um anel que se abre devagar. Sem movimento no aparelho, fica só o ponto. */
-function PontoVivo({ className }: { className: string }) {
+export function PontoVivo({ className }: { className: string }) {
   return (
     <span aria-hidden="true" className="relative flex size-2 shrink-0">
       <span

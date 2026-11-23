@@ -4,6 +4,7 @@ import { memo } from "react";
 import Link from "next/link";
 import { FileCheck } from "lucide-react";
 import type { OportunidadeComScore } from "@/core/types";
+import { motivoPrincipal } from "@/core/motivo-nota";
 import { resumirObjeto } from "@/core/objeto";
 import { formatarMoedaCurta } from "@/lib/formato";
 import { nomeFaixa, nomeModalidade } from "@/lib/radar-filtros";
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { TEXTO_FAIXA } from "./faixa";
 import { DicaNota } from "./dicas";
 import { AlertaDoScore, Motivos } from "./motivos";
+import { Pilula } from "./pilula";
 import { PrazoDoCard } from "./prazo";
 import { SeloFonte } from "./selo-fonte";
 import { SelosVivos } from "./selos-vivos";
@@ -28,6 +30,7 @@ interface Props {
 
 function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaProntaId, onAbrir }: Props) {
   const cor = TEXTO_FAIXA[item.score.faixa];
+  const motivo = motivoPrincipal(item.score);
   return (
     <div
       data-tour="radar-card"
@@ -62,6 +65,12 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaPro
         agoraInicial={agoraInicial}
       />
 
+      {item.score.foco !== undefined ? (
+        <Pilula tom="positivo" className="w-fit">
+          Seu foco
+        </Pilula>
+      ) : null}
+
       <button
         type="button"
         onClick={() => onAbrir(item)}
@@ -88,6 +97,11 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaPro
         </Link>
       ) : null}
 
+      {motivo !== null ? (
+        <span title={motivo} className="block truncate text-xs text-muted-foreground">
+          {motivo}
+        </span>
+      ) : null}
       {motivos && motivos.length > 0 ? <Motivos motivos={motivos.slice(0, 1)} className="mt-auto" /> : null}
       <AlertaDoScore score={item.score} className={motivos && motivos.length > 0 ? undefined : "mt-auto"} />
     </div>

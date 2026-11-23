@@ -14,6 +14,8 @@ const URL_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 export const MODELO_PADRAO = "gemini-3.1-flash-lite";
 const TIMEOUT_MS = 60_000;
 const ESPERA_RETRY_MS = 1500;
+/** Novas tentativas em 429, 5xx ou falha de rede (a espera dobra a cada uma). O modelo às vezes fica "high demand" por segundos. */
+const MAX_NOVAS_TENTATIVAS = 2;
 const STATUS_COM_RETRY: ReadonlySet<number> = new Set([429, 500, 502, 503, 504]);
 const MAX_ERROS_NA_CORRECAO = 8;
 
@@ -239,7 +241,7 @@ function esperar(ms: number): Promise<void> {
   return new Promise((resolver) => setTimeout(resolver, ms));
 }
 
-/** Uma chamada ao generateContent, com timeout de 60 s e 1 nova tentativa em 429, 5xx ou falha de rede. */
+/** Uma chamada ao generateContent, com timeout de 60 s e até 2 novas tentativas em 429, 5xx ou falha de rede. */
 async function chamar(
   pedido: PedidoApi,
   opcoes: OpcoesGemini,
@@ -253,7 +255,8 @@ async function chamar(
   const corpo = JSON.stringify(pedido);
 
   for (let tentativa = 0; ; tentativa += 1) {
-    const ultima = tentativa >= 1;
+    const ultima = tentativa >= MAX_NOVAS_TENTATIVAS;
+    const pausa = espera * 2 ** tentativa;
     let resposta: Response;
     try {
       resposta = await fetchImpl(url, {
@@ -268,14 +271,14 @@ async function chamar(
         throw new ErroAssistente("tempo-esgotado", "O assistente demorou demais para responder. Tente de novo.");
       }
       if (!ultima) {
-        await esperar(espera);
+        await esperar(pausa);
         continue;
       }
       throw new ErroAssistente("rede", "Não foi possível falar com o assistente agora. Verifique a conexão e tente de novo.");
     }
 
     if (STATUS_COM_RETRY.has(resposta.status) && !ultima) {
-      await esperar(espera);
+      await esperar(pausa);
       continue;
     }
     if (!resposta.ok) {

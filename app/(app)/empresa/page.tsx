@@ -25,7 +25,7 @@ export default async function EmpresaPage() {
           {perfil.razaoSocial} · CNPJ {perfil.cnpj} · {ROTULO_PORTE[perfil.porte]} · {perfil.municipio}/{perfil.uf}
         </p>
       </header>
-      <FormularioEmpresa nomeFantasia={perfil.nomeFantasia} cnaes={perfil.cnaes} areas={perfil.areas} radarTudoDoRamo={perfil.radarTudoDoRamo} />
+      <FormularioEmpresa nomeFantasia={perfil.nomeFantasia} cnaes={perfil.cnaes} areas={perfil.areas} radarTudoDoRamo={perfil.radarTudoDoRamo} foco={perfil.foco} />
       <MetaSemanal minimo={meta.minimo} ideal={meta.ideal} />
       <DadosProposta
         responsavel={perfil.responsavel}

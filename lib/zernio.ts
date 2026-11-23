@@ -125,7 +125,16 @@ function resultado(r: Resposta): ResultadoZernio {
 }
 
 /** Texto livre (vale com a janela de 24 h aberta). Até 3 botões de resposta rápida. */
-export async function enviarTexto(conversationId: string, texto: string, botoes?: ReadonlyArray<BotaoZernio>): Promise<ResultadoZernio> {
+/**
+ * Texto na conversa. `utilidade`: manda como mensagem utilitária da empresa (Direct Send da Meta), que passa mesmo com a
+ * janela de 24 h fechada e é cobrada como utility. Só para conteúdo de serviço (resumo, prazo), nunca propaganda.
+ */
+export async function enviarTexto(
+  conversationId: string,
+  texto: string,
+  botoes?: ReadonlyArray<BotaoZernio>,
+  opcoes: { utilidade?: boolean } = {},
+): Promise<ResultadoZernio> {
   const accountId = conta();
   if (accountId === null || chave() === null) return { ok: false, erro: "zernio não configurado" };
   if (conversationId === "") return { ok: false, erro: "sem conversa" };
@@ -138,6 +147,7 @@ export async function enviarTexto(conversationId: string, texto: string, botoes?
     accountId,
     message: texto,
     ...(lista.length > 0 ? { buttons: lista } : {}),
+    ...(opcoes.utilidade ? { category: "utility" } : {}),
   });
   return resultado(r);
 }

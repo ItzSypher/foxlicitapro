@@ -60,6 +60,8 @@ export interface Score {
   cnaesCasados: string[];
   /** Frente em que o objeto casou melhor; null sem match */
   frenteCasada: Frente | null;
+  /** Termo do foco da empresa que casou com o objeto; ausente quando nenhum casou */
+  foco?: string;
   /** Avisos curtos que merecem atenção antes de abrir o edital; ausente quando não há nenhum */
   alertas?: string[];
 }

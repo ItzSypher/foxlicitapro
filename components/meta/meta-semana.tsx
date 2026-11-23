@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { percentualDaBarra, posicaoDoMinimo, type PainelMeta, type StatusMeta } from "@/core/meta";
+import { plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 const ROTULO_STATUS: Record<StatusMeta, string> = {
@@ -27,6 +28,17 @@ function diaDaSemana(iso: string): string {
   return Number.isNaN(data.getTime()) ? "" : formatoDia.format(data);
 }
 
+/** Lembrete da semana: quantas disputas faltam para a meta mínima (ou, batida ela, para a ideal). Null com a ideal batida. */
+export function fraseDeLembrete(placar: PainelMeta["placar"]): string | null {
+  if (placar.status === "ideal") return null;
+  if (placar.status === "minimo") {
+    const n = placar.faltamParaIdeal;
+    return `Meta mínima batida, ${plural(n, "falta", "faltam")} ${n} para a ideal`;
+  }
+  const n = placar.faltamParaMinimo;
+  return `${plural(n, "Falta", "Faltam")} ${n} ${plural(n, "disputa", "disputas")} para a meta mínima até domingo`;
+}
+
 function Numero({ rotulo, valor }: { rotulo: string; valor: number }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
@@ -44,6 +56,7 @@ export function MetaSemana({ painel, className }: { painel: PainelMeta; classNam
   const { meta, placar, historico, propostas } = painel;
   const largura = percentualDaBarra(placar.disputas, meta);
   const marcaMinimo = posicaoDoMinimo(meta);
+  const lembrete = fraseDeLembrete(placar);
   const maiorHistorico = Math.max(1, meta.ideal, ...historico.map((s) => s.disputas));
 
   return (
@@ -84,6 +97,7 @@ export function MetaSemana({ painel, className }: { painel: PainelMeta; classNam
             />
             <span aria-hidden="true" className="absolute inset-y-0 w-0.5 bg-ink/60" style={{ left: `${marcaMinimo}%` }} />
           </span>
+          {lembrete === null ? null : <span className="text-xs text-muted-foreground">{lembrete}</span>}
         </summary>
 
         <div className="flex flex-col gap-3 px-4 pb-4">

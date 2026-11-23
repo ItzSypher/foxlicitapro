@@ -108,7 +108,7 @@ export interface PaginaRadar {
   falhas: ModalidadeId[];
 }
 
-/** Lista do ramo: casa com algum CNAE da empresa ou com uma palavra-chave guardada; só a nota ordena. */
+/** Lista do ramo: casa com o foco da empresa, com algum CNAE dela ou com uma palavra-chave guardada; só a nota ordena. */
 function listaDoRamo(
   base: ReadonlyArray<OportunidadeComScore>,
   palavrasSalvas: ReadonlyArray<string>,
@@ -116,6 +116,10 @@ function listaDoRamo(
   const termos = palavrasSalvas.map(normalizarBusca).filter((t) => t !== "");
   const achadas: Array<{ item: OportunidadeComScore; motivo: string }> = [];
   for (const item of base) {
+    if (item.score.foco !== undefined) {
+      achadas.push({ item, motivo: `Bate com o seu foco: ${item.score.foco}` });
+      continue;
+    }
     if (item.score.cnaesCasados.length > 0) {
       achadas.push({ item, motivo: `Casa com o CNAE ${item.score.cnaesCasados[0]}` });
       continue;

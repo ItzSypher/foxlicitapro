@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { frasePrazoEncerrado } from "@/core/encerradas";
 import type { PainelMeta } from "@/core/meta";
+import { useAgora } from "@/lib/relogio";
 import { MetaSemana } from "@/components/meta/meta-semana";
 import { Segmentado, TRILHO_SEGMENTADO, classeItemSegmentado } from "@/components/ui/segmentado";
 import { useFaixaRolavel } from "@/components/ui/usar-faixa-rolavel";
@@ -13,8 +14,10 @@ import { cn } from "@/lib/utils";
 import { AdicionarPeloLink } from "./adicionar-pelo-link";
 import { BlocoErro } from "./bloco-erro";
 import { Coluna } from "./coluna";
+import { FaixaPrazo } from "./faixa-prazo";
 import { FolhaFechamento, type FechamentoPendente } from "./folha-fechamento";
 import { linhaDeNumeros } from "./formato";
+import { ListaPorPrazo } from "./lista-por-prazo";
 import { useColunas } from "./midia";
 import {
   ETAPAS,
@@ -32,6 +35,14 @@ import {
 } from "./tipos";
 
 /** Troca parâmetros da URL sem navegar, preservando os demais; valor null remove o parâmetro. */
+/** "quadro" (colunas por etapa) ou "prazo" (lista única agrupada por dia). */
+export type VistaPipeline = "quadro" | "prazo";
+
+const OPCOES_VISTA: ReadonlyArray<{ valor: VistaPipeline; rotulo: string }> = [
+  { valor: "quadro", rotulo: "Quadro" },
+  { valor: "prazo", rotulo: "Por prazo" },
+];
+
 function atualizarUrl(mudancas: Record<string, string | null>) {
   const params = new URLSearchParams(window.location.search);
   for (const [chave, valor] of Object.entries(mudancas)) {
@@ -67,12 +78,16 @@ interface Props {
   encerradas: ResumoEncerrada[];
   etapaInicial: EtapaId;
   ufInicial: FiltroUfPipeline;
+  /** Vista guardada na URL (?vista=prazo); por padrão, o quadro */
+  vistaInicial: VistaPipeline;
   /** UFs das áreas da empresa, para os chips do filtro */
   ufsDasAreas: string[];
   agoraInicial: number;
   usuarioId: string;
   /** Pessoas ativas que podem assumir um item */
   pessoas: PessoaPipeline[];
+  /** Tem "editar_propostas": a faixa de prazos oferece "Fazer proposta" */
+  podeCriarProposta: boolean;
   /** Quem só consulta não vê os controles de mover, remover, responsável e notas */
   podeEditar: boolean;
   /** Pode marcar o checklist da revisão jurídica */
@@ -81,7 +96,7 @@ interface Props {
   meta: PainelMeta | null;
 }
 
-export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, ufInicial, ufsDasAreas, agoraInicial, usuarioId, pessoas, podeEditar, podeRevisar, meta }: Props) {
+export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, ufInicial, vistaInicial, ufsDasAreas, agoraInicial, usuarioId, pessoas, podeCriarProposta, podeEditar, podeRevisar, meta }: Props) {
   if (itensServidor === null) {
     return (
       <div data-largura-total className="flex flex-col gap-4 lg:gap-6">
@@ -96,10 +111,12 @@ export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, u
       encerradas={encerradas}
       etapaInicial={etapaInicial}
       ufInicial={ufInicial}
+      vistaInicial={vistaInicial}
       ufsDasAreas={ufsDasAreas}
       agoraInicial={agoraInicial}
       usuarioId={usuarioId}
       pessoas={pessoas}
+      podeCriarProposta={podeCriarProposta}
       podeEditar={podeEditar}
       podeRevisar={podeRevisar}
       meta={meta}
@@ -112,10 +129,12 @@ function Quadro({
   encerradas,
   etapaInicial,
   ufInicial,
+  vistaInicial,
   ufsDasAreas,
   agoraInicial,
   usuarioId,
   pessoas,
+  podeCriarProposta,
   podeEditar,
   podeRevisar,
   meta,
@@ -124,10 +143,12 @@ function Quadro({
   encerradas: ResumoEncerrada[];
   etapaInicial: EtapaId;
   ufInicial: FiltroUfPipeline;
+  vistaInicial: VistaPipeline;
   ufsDasAreas: string[];
   agoraInicial: number;
   usuarioId: string;
   pessoas: PessoaPipeline[];
+  podeCriarProposta: boolean;
   podeEditar: boolean;
   podeRevisar: boolean;
   /** Meta da semana; null quando não foi possível ler */
@@ -136,6 +157,8 @@ function Quadro({
   const [todos, aplicar] = useOptimistic(itensServidor, reduzir);
   const [soMeus, setSoMeus] = useState(false);
   const [uf, setUf] = useState<FiltroUfPipeline>(ufInicial);
+  const [vista, setVista] = useState<VistaPipeline>(vistaInicial);
+  const agora = useAgora(null, agoraInicial);
   const [abertas, setAbertas] = useState<ReadonlySet<EtapaId>>(() => new Set());
   const [bordas, setBordas] = useState({ esquerda: false, direita: false });
   const doUsuario = useMemo(() => (soMeus ? todos.filter((i) => ehMeu(i, usuarioId)) : todos), [todos, soMeus, usuarioId]);
@@ -236,6 +259,11 @@ function Quadro({
   function escolherAba(id: EtapaId) {
     setAba(id);
     atualizarUrl({ etapa: id });
+  }
+
+  function escolherVista(nova: VistaPipeline) {
+    setVista(nova);
+    atualizarUrl({ vista: nova === "prazo" ? "prazo" : null });
   }
 
   function escolherUf(id: FiltroUfPipeline) {
@@ -421,6 +449,8 @@ function Quadro({
 
       {meta && !vazio ? <MetaSemana painel={meta} className="shrink-0" /> : null}
 
+      {vazio ? null : <FaixaPrazo itens={itens} agora={agora} podeCriarProposta={podeCriarProposta} />}
+
       {vazio ? null : (
         <div className="flex items-center gap-2 lg:gap-3">
           <Segmentado
@@ -432,6 +462,13 @@ function Quadro({
             className="min-w-0"
           />
           <div className="min-w-0 flex-1" aria-hidden="true" />
+          <Segmentado
+            rotulo="Vista"
+            valor={vista}
+            aoMudar={escolherVista}
+            opcoes={OPCOES_VISTA}
+            className="shrink-0 max-md:hidden"
+          />
           <div className={cn(TRILHO_SEGMENTADO, "shrink-0")}>
             <button
               type="button"
@@ -468,10 +505,24 @@ function Quadro({
         </div>
       ) : (
         <>
+          <Segmentado
+            rotulo="Vista"
+            valor={vista}
+            aoMudar={escolherVista}
+            opcoes={OPCOES_VISTA}
+            larguraTotal
+            className="md:hidden"
+          />
+          {vista === "prazo" ? (
+            <div className="min-w-0 md:min-h-0 md:flex-1 md:overflow-y-auto">
+              <ListaPorPrazo itens={itens} agora={agora} />
+            </div>
+          ) : null}
           <div
             ref={ligarTablist}
             role="tablist"
             aria-label="Etapas"
+            hidden={vista === "prazo"}
             className="sem-barra relative -mx-4 flex gap-1 overflow-x-auto px-4 md:hidden"
           >
             {ETAPAS.map((e) => {
@@ -496,7 +547,7 @@ function Quadro({
             })}
           </div>
 
-          <div data-tour="pipeline-colunas" className="relative min-w-0 md:min-h-0 md:flex-1">
+          <div data-tour="pipeline-colunas" hidden={vista === "prazo"} className="relative min-w-0 md:min-h-0 md:flex-1">
           {colunas && bordas.esquerda ? (
             <button
               type="button"
@@ -536,6 +587,7 @@ function Quadro({
                 aberta={abertas.has(e.id)}
                 aoAlternar={alternarColuna}
                 agoraInicial={agoraInicial}
+                agora={agora}
                 pessoas={pessoas}
                 aoResponsavel={trocarResponsavel}
                 podeEditar={podeEditar}

@@ -38,7 +38,7 @@ export function escolherParaProposta(
   for (const lista of listas) {
     for (const o of lista) {
       if (comProposta.has(o.id) || o.orgaoCnpj === "") continue;
-      if (o.score.cnaesCasados.length === 0 || o.score.faixa === "nogo") continue;
+      if ((o.score.cnaesCasados.length === 0 && !o.score.foco) || o.score.faixa === "nogo") continue;
       const encerra = Date.parse(o.dataEncerramento);
       if (Number.isNaN(encerra) || encerra <= inicio || encerra > fim) continue;
       const atual = melhores.get(o.id);

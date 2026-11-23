@@ -12,6 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { motivoPrincipal } from "@/core/motivo-nota";
 import { resumirObjeto } from "@/core/objeto";
 import { EXPLICACAO_CRITERIO } from "@/lib/glossario";
 import { formatarCnpj, formatarEncerramento, formatarMoeda } from "@/lib/formato";
@@ -131,6 +132,14 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
 
               <Secao titulo="Por que essa nota" dica={<DicaNota score={item.score} className="-my-3.5" />}>
                 <Termometro score={item.score} />
+                {item.score.foco !== undefined ? (
+                  <Pilula tom="positivo" className="mb-2">
+                    Seu foco
+                  </Pilula>
+                ) : null}
+                {motivoPrincipal(item.score) !== null ? (
+                  <p className="mb-3 text-sm text-ink">{motivoPrincipal(item.score)}</p>
+                ) : null}
                 {item.score.alertas && item.score.alertas.length > 0 ? (
                   <ul className="mb-3 flex flex-col gap-1">
                     {item.score.alertas.map((alerta) => (

@@ -19,7 +19,7 @@ Serviço de **acompanhamento de licitações no CNPJ do cliente**. O sistema ach
 | Área | O que entrega |
 |---|---|
 | **Radar** | Licitações abertas do ramo, com nota, filtros (estados, valor, modalidade, fonte), busca por palavra e busca direta no PNCP. Abas de novas, fechando e desertas. |
-| **Pipeline** | Quadro por etapa até o resultado. Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. |
+| **Pipeline** | Quadro por etapa até o resultado, ordenado por prazo, com alerta do que fecha hoje sem proposta e vista "Por prazo". Item novo já entra com o responsável padrão (gestor). Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. |
 | **Licitação** | Edital, itens, ficha resumida, semelhantes em outros órgãos, concorrentes. |
 | **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação, envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
 | **Resultados** | O que fechou: ganho, perdido, preços praticados. |
@@ -39,7 +39,7 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 
 ## Dados que o sistema guarda
 
-- **Empresa:** CNPJ, razão social, endereço, CNAEs (consultados na Receita), estados atendidos, meta.
+- **Empresa:** CNPJ, razão social, endereço, CNAEs (consultados na Receita), foco (termos que mais quer vender), estados atendidos, meta.
 - **Pessoas:** nome, e-mail, senha (cifrada, nunca legível), papel, WhatsApp.
 - **Proposta:** representante (nome, CPF, RG), dados bancários, imagem da assinatura, propostas, comprovantes de envio.
 - **Uso:** Pipeline, histórico de etapas, conversas do conselheiro, mensagens trocadas com o WhatsApp do sistema.
@@ -54,7 +54,8 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 ## Regras do WhatsApp
 
 - Só resumo das 7h e prazo urgente (2 h e 24 h). Gestor com várias empresas recebe uma mensagem com um bloco por empresa.
-- O WhatsApp só permite mensagem até 24 h depois da última mensagem da pessoa. Quem fica um dia sem responder deixa de receber até mandar qualquer coisa. A tela Alertas mostra a situação de cada um.
+- O WhatsApp só permite texto livre até 24 h depois da última mensagem da pessoa. Com a janela fechada, o resumo das 7h sai como mensagem utilitária (cobrada pela Meta); se ela falhar, o resumo do dia vai na primeira mensagem que a pessoa mandar. A tela Alertas mostra a situação de cada um.
+- O gestor recebe "Propostas para hoje" e responde *gerar 1* para receber o rascunho com link e botão Aprovar; o dono é avisado.
 
 ---
 
@@ -118,6 +119,6 @@ Cache do Radar em `radar_cache` por UF e modalidade; a tela só lê o cache (abr
 
 ## Variáveis de ambiente
 
-`DATABASE_URL`, `APP_SECRET`, `CRON_SECRET`, `ALERTAS_CRON_SECRET`, `APP_URL`, `ZERNIO_API_KEY` e segredo do webhook, `ALERTA_LICITACAO_TOKEN`, `ALERTA_LICITACAO_MAX_DIA`, `WA_LIMITE_ALERTAS`, `PROPOSTA_PRONTA_ATIVA`, `DESERTAS_ATIVA` (as duas últimas ligadas por padrão; `false` desliga). Lista completa em `.env.example`.
+`DATABASE_URL`, `APP_SECRET`, `CRON_SECRET`, `ALERTAS_CRON_SECRET`, `APP_URL`, `ZERNIO_API_KEY` e segredo do webhook, `ALERTA_LICITACAO_TOKEN`, `ALERTA_LICITACAO_MAX_DIA`, `WA_LIMITE_ALERTAS`, `PROPOSTA_PRONTA_ATIVA`, `DESERTAS_ATIVA`, `WA_ENVIO_UTILIDADE` (as três últimas ligadas por padrão; `false` desliga). Lista completa em `.env.example`.
 
 Histórico de decisões: `docs/LOG.md`.

@@ -26,6 +26,9 @@ const m = vi.hoisted(() => ({
   registrarMensagem: vi.fn(),
   montarSistemaDoChat: vi.fn(),
   adicionarChave: vi.fn(),
+  enviarResumoAtrasado: vi.fn(),
+  gerarPropostaPeloWhatsapp: vi.fn(),
+  aprovarPropostaPeloWhatsapp: vi.fn(),
 }));
 
 vi.mock("@/db/whatsapp", () => ({
@@ -45,6 +48,11 @@ vi.mock("@/db/pipeline", () => ({
   definirResponsavel: m.definirResponsavel,
 }));
 vi.mock("@/lib/whatsapp-envio", () => ({ enviarParaPessoa: m.enviarParaPessoa, enviarFila: m.enviarFila }));
+vi.mock("@/lib/whatsapp-alertas-cron", () => ({ enviarResumoAtrasado: m.enviarResumoAtrasado }));
+vi.mock("@/lib/whatsapp-propostas", () => ({
+  gerarPropostaPeloWhatsapp: m.gerarPropostaPeloWhatsapp,
+  aprovarPropostaPeloWhatsapp: m.aprovarPropostaPeloWhatsapp,
+}));
 vi.mock("@/lib/zernio", () => ({ enviarTexto: m.enviarTexto, mostrarDigitando: m.mostrarDigitando }));
 vi.mock("@/lib/gemini", () => ({ gerarTexto: m.gerarTexto, assistenteDisponivel: m.assistenteDisponivel }));
 vi.mock("@/lib/assistente/limite", () => ({ registrarMensagem: m.registrarMensagem }));
@@ -98,6 +106,7 @@ beforeEach(() => {
   m.assistenteDisponivel.mockReturnValue(true);
   m.registrarMensagem.mockReturnValue({ permitido: true, tentarEmMs: 0 });
   m.montarSistemaDoChat.mockResolvedValue("SISTEMA");
+  m.enviarResumoAtrasado.mockResolvedValue(false);
 });
 
 describe("processarMensagem", () => {
@@ -207,7 +216,52 @@ describe("processarMensagem", () => {
   it("falha do assistente responde em uma linha e não lança", async () => {
     m.gerarTexto.mockRejectedValue(new Error("falhou"));
     await expect(processarMensagem(mensagem("e aí?"), AGORA)).resolves.toBeUndefined();
-    expect(textosEnviados()[0]).toBe("Não consegui responder agora. Tente de novo em instantes.");
+    const texto = textosEnviados()[0] ?? "";
+    expect(texto).toContain("Prazos dos próximos 7 dias");
+    expect(texto).toContain("*gerar N*");
+    expect(texto).toContain("O assistente está ocupado; tente a pergunta de novo em alguns minutos.");
+  });
+
+  it("saudação não chama o modelo: responde com prazos e comandos", async () => {
+    for (const oi of ["alô", "Bom dia", "oi"]) await processarMensagem(mensagem(oi), AGORA);
+    expect(m.gerarTexto).not.toHaveBeenCalled();
+    expect(textosEnviados()).toHaveLength(3);
+    for (const t of textosEnviados()) {
+      expect(t).toContain("Prazos dos próximos 7 dias");
+      expect(t).toContain("*analisar <link>*");
+      expect(t).not.toContain("ocupado");
+    }
+  });
+
+  it("saudação com o resumo atrasado pendente: manda o resumo e não a resposta curta", async () => {
+    m.enviarResumoAtrasado.mockResolvedValueOnce(true);
+    await processarMensagem(mensagem("oi"), AGORA);
+    expect(m.enviarResumoAtrasado).toHaveBeenCalledTimes(1);
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+    expect(m.gerarTexto).not.toHaveBeenCalled();
+  });
+
+  it("qualquer outra mensagem do dia também dispara o resumo atrasado (uma tentativa por mensagem)", async () => {
+    await processarMensagem(mensagem("pipeline"), AGORA);
+    expect(m.enviarResumoAtrasado).toHaveBeenCalledTimes(1);
+    await processarMensagem(mensagem("Parar"), AGORA);
+    expect(m.enviarResumoAtrasado).toHaveBeenCalledTimes(1);
+  });
+
+  it("gerar N e o botão Gerar montam o rascunho; Aprovar aprova pela mesma função da tela", async () => {
+    m.gerarPropostaPeloWhatsapp.mockResolvedValue({ texto: "📝 Rascunho pronto", botoes: [{ titulo: "Aprovar", payload: "apr:p1" }] });
+    await processarMensagem(mensagem("gerar 2"), AGORA);
+    expect(m.gerarPropostaPeloWhatsapp).toHaveBeenLastCalledWith(expect.objectContaining({ usuarioId: "u1" }), { numero: 2 }, AGORA);
+    expect(m.enviarParaPessoa.mock.calls[0]?.[3]).toEqual({ resposta: true, botoes: [{ titulo: "Aprovar", payload: "apr:p1" }] });
+
+    await processarMensagem(mensagem("", "ger:i1"), AGORA);
+    expect(m.gerarPropostaPeloWhatsapp).toHaveBeenLastCalledWith(expect.anything(), { itemId: "i1" }, AGORA);
+
+    m.aprovarPropostaPeloWhatsapp.mockResolvedValue({ texto: "✅ Proposta aprovada" });
+    await processarMensagem(mensagem("", "apr:p1"), AGORA);
+    expect(m.aprovarPropostaPeloWhatsapp).toHaveBeenCalledWith(expect.anything(), "p1", AGORA);
+    expect(textosEnviados()[2]).toBe("✅ Proposta aprovada");
+    expect(m.gerarTexto).not.toHaveBeenCalled();
   });
 
   describe("analisar link", () => {

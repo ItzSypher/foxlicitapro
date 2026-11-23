@@ -12,7 +12,7 @@ import { precoSugeridoDoItem } from "@/core/preco-sugerido";
 import { temPermissao } from "@/core/permissoes";
 import { perfilAtual, ufsDasAreasAtuais } from "@/lib/empresa-atual";
 import { exigirSessao } from "@/lib/sessao";
-import { PipelineView } from "@/components/pipeline/pipeline-view";
+import { PipelineView, type VistaPipeline } from "@/components/pipeline/pipeline-view";
 import {
   ehEtapa,
   lerFiltroUf,
@@ -87,6 +87,9 @@ export default async function PipelinePage({
   const ufBruta = Array.isArray(params.uf) ? params.uf[0] : params.uf;
   const ufInicial = lerFiltroUf(ufBruta);
 
+  const vistaBruta = Array.isArray(params.vista) ? params.vista[0] : params.vista;
+  const vistaInicial: VistaPipeline = vistaBruta === "prazo" ? "prazo" : "quadro";
+
   let itens: ItemPipeline[] | null;
   try {
     itens = await listarPipeline(sessao.empresaId);
@@ -116,10 +119,12 @@ export default async function PipelinePage({
       encerradas={encerradas}
       etapaInicial={etapaInicial}
       ufInicial={ufInicial}
+      vistaInicial={vistaInicial}
       ufsDasAreas={ufsDasAreas}
       agoraInicial={agora}
       usuarioId={sessao.usuarioId}
       pessoas={pessoas}
+      podeCriarProposta={temPermissao(sessao, "editar_propostas")}
       podeEditar={temPermissao(sessao, "mover_pipeline")}
       podeRevisar={temPermissao(sessao, "revisao_juridica")}
       meta={meta}

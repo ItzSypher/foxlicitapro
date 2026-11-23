@@ -178,6 +178,8 @@ export interface ItemAlerta {
   /** ISO 8601 */
   dataEncerramento: string;
   responsavelId: string | null;
+  /** Valor estimado em reais (null ou ausente: sigiloso) */
+  valor?: number | null;
 }
 
 export interface PessoaWa {
@@ -302,10 +304,68 @@ export interface MovimentoEquipe {
   porNome: string | null;
 }
 
+/** Item que ganha uma proposta hoje: aparece numerado no resumo e vira botão "Gerar N". */
+export interface PropostaDoDia {
+  itemId: string;
+  objeto: string;
+  valor: number | null;
+  /** ISO 8601 */
+  dataEncerramento: string;
+}
+
+/** Etapas em que ainda falta a proposta. */
+export const ETAPAS_DA_PROPOSTA: ReadonlyArray<string> = ["radar", "analisando", "cotando", "revisao_juridica", "proposta"];
+export const MAX_PROPOSTAS_DO_DIA = 3;
+
+/**
+ * Itens que pedem proposta hoje: etapas anteriores à disputa, sem proposta aprovada, pronta ou enviada
+ * (`comProposta`: ids dos itens que já têm), que fecham hoje ou amanhã (dia de São Paulo) e ainda não fecharam.
+ * O mais próximo de fechar vem primeiro; no máximo 3.
+ */
+export function escolherPropostasDoDia(
+  itens: ReadonlyArray<ItemAlerta>,
+  comProposta: ReadonlySet<string>,
+  agora: Date,
+): PropostaDoDia[] {
+  const hoje = diaDeSaoPaulo(agora);
+  const amanha = diaDeSaoPaulo(new Date(agora.getTime() + 24 * MS_HORA));
+  return itens
+    .map((i) => ({ item: i, fim: new Date(i.dataEncerramento).getTime() }))
+    .filter((x) => {
+      if (!ETAPAS_DA_PROPOSTA.includes(x.item.etapa) || comProposta.has(x.item.id)) return false;
+      if (Number.isNaN(x.fim) || x.fim <= agora.getTime()) return false;
+      const dia = diaDeSaoPaulo(new Date(x.fim));
+      return dia === hoje || dia === amanha;
+    })
+    .sort((a, b) => a.fim - b.fim || a.item.id.localeCompare(b.item.id))
+    .slice(0, MAX_PROPOSTAS_DO_DIA)
+    .map((x) => ({ itemId: x.item.id, objeto: x.item.objeto, valor: x.item.valor ?? null, dataEncerramento: x.item.dataEncerramento }));
+}
+
+/** Onde o resumo guarda as propostas do dia: "gerar N" usa a mesma lista, mesmo depois que algum item fecha. */
+export function chavePropostasDoDia(usuarioId: string, dia: string): string {
+  return `propdia:${usuarioId}:${dia}`;
+}
+
+/** Movimento de proposta (gerada, aprovada ou enviada) nas últimas 24 h. */
+export interface MovimentoProposta {
+  propostaId: string;
+  objeto: string;
+  acao: "gerou" | "aprovou" | "enviou";
+  porId: string | null;
+  porNome: string | null;
+  /** Em reais */
+  total: number;
+}
+
 export interface DadosResumoManha {
   usuarioId: string;
   nome: string;
   escolhas: EscolhasAlerta;
+  /** Propostas para fazer hoje, numeradas na ordem (só o gestor recebe) */
+  propostasHoje: ReadonlyArray<PropostaDoDia>;
+  /** Propostas geradas, aprovadas ou enviadas nas últimas 24 h */
+  propostasMovidas: ReadonlyArray<MovimentoProposta>;
   /** Novas do ramo que esta pessoa ainda não viu, da mais indicada para a menos */
   novas: ReadonlyArray<NovaDoRamo>;
   itens: ReadonlyArray<ItemAlerta>;
@@ -373,19 +433,63 @@ function linhaDaNova(n: NovaDoRamo, posicao: number): string {
 
 function linhaDoMovimento(m: MovimentoEquipe): string {
   const quem = m.porNome ? `${primeiroNome(m.porNome)}: ` : "";
-  return `• ${quem}${objetoCurto(m.objeto, MAX_OBJETO_LISTA)} → ${rotuloDaEtapa(m.para)}`;
+  const trecho = m.de !== null && m.de !== m.para ? `${rotuloDaEtapa(m.de)} → ${rotuloDaEtapa(m.para)}` : rotuloDaEtapa(m.para);
+  return `• ${quem}${objetoCurto(m.objeto, MAX_OBJETO_LISTA)} (${trecho})`;
+}
+
+function linhaDaPropostaMovida(m: MovimentoProposta): string {
+  const quem = m.porNome ? primeiroNome(m.porNome) : "Alguém";
+  const valor = m.total > 0 ? ` (${reais(m.total)})` : "";
+  return `• ${quem} ${m.acao} a proposta de ${objetoCurto(m.objeto, MAX_OBJETO_LISTA)}${valor}`;
+}
+
+/** "14h" ou "9h30": só a hora de uma data ISO, em São Paulo. */
+function horaDeFechar(iso: string): string {
+  return quandoFecha(iso).split(" às ")[1] ?? "";
+}
+
+/** "hoje às 14h" ou "amanhã às 9h30", em São Paulo. */
+function quandoFechaRelativo(iso: string, agora: Date): string {
+  const dia = diaDeSaoPaulo(new Date(iso));
+  const onde = dia === diaDeSaoPaulo(agora) ? "hoje" : "amanhã";
+  return `${onde} às ${horaDeFechar(iso)}`;
+}
+
+function linhaDaPropostaDoDia(p: PropostaDoDia, posicao: number, agora: Date): string {
+  const valor = p.valor === null ? "Valor sigiloso" : reais(p.valor);
+  return `${posicao}. *${objetoCurto(p.objeto, MAX_OBJETO_LISTA)}*\n${valor} · fecha ${quandoFechaRelativo(p.dataEncerramento, agora)}`;
 }
 
 function comResto(linhas: string[], total: number): string[] {
   return total > linhas.length ? [...linhas, `+${total - linhas.length}`] : linhas;
 }
 
-function textoDaMeta(feitas: number, meta: MetaConfig): string {
-  const placar = `🎯 Meta da semana: ${feitas} de ${meta.ideal} (mínimo ${meta.minimo})`;
-  if (feitas >= meta.ideal) return `${placar}. Ideal batido!`;
-  if (feitas >= meta.minimo) return `${placar}. Meta batida!`;
+/** Item que ainda não chegou à disputa e fecha primeiro: o que priorizar para a meta. */
+export function itemParaPriorizar(itens: ReadonlyArray<ItemAlerta>, agora: Date): ItemAlerta | null {
+  let melhor: { item: ItemAlerta; fim: number } | null = null;
+  for (const item of itens) {
+    if (!ETAPAS_DA_PROPOSTA.includes(item.etapa)) continue;
+    const fim = new Date(item.dataEncerramento).getTime();
+    if (Number.isNaN(fim) || fim <= agora.getTime()) continue;
+    if (melhor === null || fim < melhor.fim) melhor = { item, fim };
+  }
+  return melhor === null ? null : melhor.item;
+}
+
+/**
+ * "Meta: 2/5 disputas · faltam 3 até domingo". Com o mínimo batido o alvo passa a ser o ideal.
+ * `priorizar`: o que fecha primeiro, só quando ainda falta para o mínimo.
+ */
+export function textoDaMeta(feitas: number, meta: MetaConfig, priorizar: { objeto: string; restanteMs: number } | null = null): string {
+  if (feitas >= meta.ideal) return `🎯 Meta: ${feitas}/${meta.ideal} disputas · ideal batido!`;
+  if (feitas >= meta.minimo) {
+    const faltam = meta.ideal - feitas;
+    return `🎯 Meta: ${feitas}/${meta.ideal} disputas · mínimo batido, ${faltam === 1 ? "falta 1" : `faltam ${faltam}`} até domingo para o ideal`;
+  }
   const faltam = meta.minimo - feitas;
-  return `${placar}. ${faltam === 1 ? "Falta 1" : `Faltam ${faltam}`} para o mínimo.`;
+  const placar = `🎯 Meta: ${feitas}/${meta.minimo} disputas · ${faltam === 1 ? "falta 1" : `faltam ${faltam}`} até domingo`;
+  if (priorizar === null) return placar;
+  return `${placar}\nPriorize: ${objetoCurto(priorizar.objeto, MAX_OBJETO_LISTA)} (fecha em ${textoRestante(priorizar.restanteMs)})`;
 }
 
 /** As partes do resumo (cada uma é um trecho com título e lista) e as novas que apareceram nelas. */
@@ -399,6 +503,13 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
   const e = d.escolhas;
   const partes: string[] = [];
   const mostradas = new Set<string>();
+
+  if (e.pendencias && d.propostasHoje.length > 0) {
+    const linhas = d.propostasHoje.map((p, i) => linhaDaPropostaDoDia(p, i + 1, agora));
+    const instrucao = "Responda *gerar 1* (ou toque no botão) que eu monto o rascunho.";
+    const titulo = `📝 Propostas para hoje: ${d.propostasHoje.length}`;
+    partes.push([titulo, ...linhas, instrucao].join("\n\n"));
+  }
 
   if (e.novas && d.novas.length > 0) {
     const lista = d.novas.slice(0, MAX_LISTA_RESUMO);
@@ -457,6 +568,14 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
     }
   }
 
+  if (e.movimentos) {
+    const daEquipe = d.propostasMovidas.filter((m) => m.porId !== d.usuarioId);
+    if (daEquipe.length > 0) {
+      const linhas = daEquipe.slice(0, MAX_LISTA_RESUMO).map(linhaDaPropostaMovida);
+      partes.push([`📄 Propostas nas últimas 24 h: ${daEquipe.length}`, ...comResto(linhas, daEquipe.length)].join("\n"));
+    }
+  }
+
   if (e.disputa) {
     const vistos = new Set<string>();
     const entraram = d.movimentos.filter((m) => {
@@ -470,7 +589,11 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
     }
   }
 
-  if (e.meta) partes.push(textoDaMeta(d.disputasNaSemana, d.meta));
+  if (e.meta) {
+    const prioridade = e.perfil === "operacional" && d.disputasNaSemana < d.meta.minimo ? itemParaPriorizar(d.itens, agora) : null;
+    const priorizar = prioridade === null ? null : { objeto: prioridade.objeto, restanteMs: new Date(prioridade.dataEncerramento).getTime() - agora.getTime() };
+    partes.push(textoDaMeta(d.disputasNaSemana, d.meta, priorizar));
+  }
 
   return { partes, novasMostradas: [...mostradas] };
 }
@@ -565,6 +688,10 @@ export type Comando =
   | { tipo: "nao" }
   /** Pedido para pôr licitações no Pipeline pelo link; `texto` é a mensagem inteira */
   | { tipo: "analisar"; texto: string }
+  /** "gerar 2" / "gerar proposta 2": monta o rascunho da proposta de número N da lista do dia (null: sem número) */
+  | { tipo: "gerar"; numero: number | null }
+  /** Cumprimento curto: responde sem chamar o assistente */
+  | { tipo: "saudacao" }
   | { tipo: "livre"; texto: string };
 
 function simplificar(texto: string): string {
@@ -576,6 +703,9 @@ function simplificar(texto: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+const PEDIDO_GERAR = /^gerar(?:\s+(?:a\s+)?proposta)?(?:\s+(?:n\s*)?(\d{1,2}))?$/;
+const SAUDACOES: ReadonlySet<string> = new Set(["oi", "oii", "ola", "alo", "opa", "bom dia", "boa tarde", "boa noite", "ok"]);
 
 const PEDIDO_ANALISAR = /^(?:analisar|analisa|analise|adicionar|adiciona)(?:\s|$)/;
 const MAX_PALAVRAS_SOBRANDO = 3;
@@ -593,6 +723,9 @@ export function lerComando(texto: string): Comando {
   const limpo = simplificar(texto);
   const ativar = /^ativar\s+([a-z0-9]{6})$/.exec(limpo);
   if (ativar?.[1]) return { tipo: "ativar", codigo: ativar[1].toUpperCase() };
+  const gerar = PEDIDO_GERAR.exec(limpo);
+  if (gerar) return { tipo: "gerar", numero: gerar[1] === undefined ? null : Number(gerar[1]) };
+  if (SAUDACOES.has(limpo)) return { tipo: "saudacao" };
   switch (limpo) {
     case "pipeline":
       return { tipo: "pipeline" };
@@ -624,15 +757,18 @@ export function lerComando(texto: string): Comando {
 /* ---------- botões ---------- */
 
 export type AcaoBotao =
-  | { tipo: "participar" | "atribuir" | "descartar"; itemId: string }
+  | { tipo: "participar" | "atribuir" | "descartar" | "gerar"; itemId: string }
+  /** Aprova o rascunho pelo mesmo caminho da tela de propostas */
+  | { tipo: "aprovar"; propostaId: string }
   | { tipo: "confirmar" }
   | { tipo: "cancelar" }
   | { tipo: "continuar" };
 
-const PREFIXO_BOTAO: Readonly<Record<"participar" | "atribuir" | "descartar", string>> = {
+const PREFIXO_BOTAO: Readonly<Record<"participar" | "atribuir" | "descartar" | "gerar", string>> = {
   participar: "part",
   atribuir: "atr",
   descartar: "desc",
+  gerar: "ger",
 };
 
 /** Texto que volta no webhook quando a pessoa toca o botão (máx. 256 caracteres). */
@@ -641,7 +777,10 @@ export function payloadDoBotao(acao: AcaoBotao): string {
     case "participar":
     case "atribuir":
     case "descartar":
+    case "gerar":
       return `${PREFIXO_BOTAO[acao.tipo]}:${acao.itemId}`;
+    case "aprovar":
+      return `apr:${acao.propostaId}`;
     case "confirmar":
       return "sim";
     case "cancelar":
@@ -663,6 +802,8 @@ export function lerPayload(payload: string): AcaoBotao | null {
   if (prefixo === "part") return { tipo: "participar", itemId };
   if (prefixo === "atr") return { tipo: "atribuir", itemId };
   if (prefixo === "desc") return { tipo: "descartar", itemId };
+  if (prefixo === "ger") return { tipo: "gerar", itemId };
+  if (prefixo === "apr") return { tipo: "aprovar", propostaId: itemId };
   return null;
 }
 
@@ -690,6 +831,34 @@ export function botoesDoAlerta(
     { titulo: tituloAtribuir(responsavelPadrao), payload: payloadDoBotao({ tipo: "atribuir", itemId }) },
     { titulo: "Descartar", payload: payloadDoBotao({ tipo: "descartar", itemId }) },
   ];
+}
+
+/** Botões do resumo das 7h: "Gerar 1/2/3" (um por proposta do dia) e, se sobrar lugar, "Continuar recebendo". Máx. 3. */
+export function botoesDoResumoManha(propostas: ReadonlyArray<{ itemId: string }>): Array<{ titulo: string; payload: string }> {
+  const gerar = propostas.slice(0, MAX_PROPOSTAS_DO_DIA).map((p, i) => ({
+    titulo: `Gerar ${i + 1}`,
+    payload: payloadDoBotao({ tipo: "gerar", itemId: p.itemId }),
+  }));
+  return gerar.length < MAX_PROPOSTAS_DO_DIA ? [...gerar, { titulo: "Continuar recebendo", payload: "continuar" }] : gerar;
+}
+
+/** Resposta ao "gerar N": objeto, valor total do rascunho, itens e o link para revisar. */
+export function textoRascunhoPronto(p: { objeto: string; total: number; itens: number; link: string; reaproveitado: boolean; podeAprovar: boolean }): string {
+  const abertura = p.reaproveitado ? "📝 Esse rascunho já estava pronto" : "📝 Rascunho pronto";
+  const itens = `${p.itens} ${p.itens === 1 ? "item" : "itens"}`;
+  return [
+    abertura,
+    `*${objetoCurto(p.objeto, MAX_OBJETO_LISTA)}*`,
+    `Valor total: ${reais(p.total)} · ${itens}`,
+    p.link,
+    p.podeAprovar ? "Revise e aprove pelo link (ou toque em Aprovar)." : "Revise e aprove pelo link.",
+  ].join("\n");
+}
+
+/** Aviso ao dono: "Paulo gerou a proposta de Toner (R$ 12.500): <link>". */
+export function textoAvisoAoDono(p: { nome: string; acao: "gerou" | "aprovou"; objeto: string; total: number; link: string }): string {
+  const quem = primeiroNome(p.nome) === "" ? "Alguém da equipe" : primeiroNome(p.nome);
+  return `${quem} ${p.acao} a proposta de ${objetoCurto(p.objeto, MAX_OBJETO_LISTA)} (${reais(p.total)}): ${p.link}`;
 }
 
 /* ---------- ativação ---------- */

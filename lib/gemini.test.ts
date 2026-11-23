@@ -133,12 +133,12 @@ describe("chamadas", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it("falha em português depois da segunda resposta 5xx", async () => {
+  it("falha em português depois da terceira resposta 5xx", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(new Response("{}", { status: 503 })));
     await expect(gerarTexto({ sistema: "S", historico: [{ papel: "usuario", texto: "oi" }], maxTokens: 10 }, { ...OPCOES, fetchImpl })).rejects.toMatchObject({
       codigo: "indisponivel",
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
   it("pede correção uma vez quando o JSON não passa na validação", async () => {

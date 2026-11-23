@@ -4,13 +4,16 @@ import { casarCnaesComForca } from "@/core/cnae-keywords";
 import { META_PADRAO, type MetaConfig } from "@/core/meta";
 import { descricaoDoCnae, nomeExibicao, type PerfilEmpresa } from "@/core/perfil";
 import { recomendar } from "@/core/recomendacao";
+import { estaAprovada } from "@/core/revisao";
 import type { OportunidadeComScore } from "@/core/types";
 import {
   alertasDePrazo,
+  botoesDoResumoManha,
+  chavePropostasDoDia,
   dentroDoHorario,
+  escolherPropostasDoDia,
   horaDeSaoPaulo,
   inicioDaSemana,
-  janelaAberta,
   juntarResumos,
   partesDoResumoManha,
   textoResumoManha,
@@ -19,13 +22,16 @@ import {
   type DadosResumoManha,
   type ItemAlerta,
   type MovimentoEquipe,
+  type MovimentoProposta,
   type NovaDoRamo,
   type PessoaWa,
+  type PropostaDoDia,
 } from "@/core/whatsapp-alertas";
 import { listarPessoasDeAviso } from "@/db/avisos";
 import { lerEmpresa, listarIdsEmpresasAtivas } from "@/db/empresas";
 import { lerMetaDisputas } from "@/db/meta";
 import { listarPipeline } from "@/db/pipeline";
+import { listarMovimentosDePropostas, listarPropostas } from "@/db/propostas";
 import { lerPreferencias } from "@/db/preferencias";
 import { listarIdsEmpresasExtras } from "@/db/usuario-empresas";
 import {
@@ -168,6 +174,8 @@ interface ContextoResumo {
   itens: ReadonlyArray<ItemAlerta>;
   novas: () => Promise<NovaDoRamo[]>;
   movimentos: () => Promise<MovimentoEquipe[]>;
+  propostasHoje: () => Promise<PropostaDoDia[]>;
+  propostasMovidas: () => Promise<MovimentoProposta[]>;
   disputasNaSemana: () => Promise<number>;
   meta: () => Promise<MetaConfig>;
 }
@@ -198,8 +206,27 @@ function contextoDaEmpresa(empresaId: string, itens: ReadonlyArray<ItemAlerta>, 
     const mudancas = await listarMudancasDesde(empresaId, inicioDaSemana(agora));
     return new Set(mudancas.filter((m) => m.para === "disputa").map((m) => m.itemId)).size;
   });
+  const propostasHoje = sobDemanda(async (): Promise<PropostaDoDia[]> => {
+    try {
+      const propostas = await listarPropostas(empresaId);
+      const fechadas = new Set(
+        propostas.flatMap((p) => (p.compraId !== null && (estaAprovada(p.status) || p.status === "enviada") ? [p.compraId] : [])),
+      );
+      return escolherPropostasDoDia(itens, fechadas, agora);
+    } catch (e) {
+      console.error("[whatsapp] propostas do dia:", mensagemDe(e));
+      return [];
+    }
+  });
+  const propostasMovidas = sobDemanda(
+    (): Promise<MovimentoProposta[]> =>
+      listarMovimentosDePropostas(empresaId, new Date(agora.getTime() - 24 * MS_HORA)).catch((e: unknown): MovimentoProposta[] => {
+        console.error("[whatsapp] propostas movidas:", mensagemDe(e));
+        return [];
+      }),
+  );
   const meta = sobDemanda(() => lerMetaDisputas(empresaId));
-  return { empresaId, itens, novas, movimentos, disputasNaSemana, meta };
+  return { empresaId, itens, novas, movimentos, propostasHoje, propostasMovidas, disputasNaSemana, meta };
 }
 
 /** Leituras que valem para a rodada inteira: o nome curto e o contexto de cada empresa extra, lidos uma vez só. */
@@ -234,12 +261,19 @@ function nomeCurtoDaEmpresa(empresaId: string, cache: CacheRodada): Promise<stri
 interface ItemDoPipeline {
   id: string;
   etapa: string;
-  item: { objeto: string; dataEncerramento: string };
+  item: { objeto: string; dataEncerramento: string; valorEstimado?: number | null };
   responsavelId: string | null;
 }
 
 function itemDeAlerta(i: ItemDoPipeline): ItemAlerta {
-  return { id: i.id, etapa: i.etapa, objeto: i.item.objeto, dataEncerramento: i.item.dataEncerramento, responsavelId: i.responsavelId };
+  return {
+    id: i.id,
+    etapa: i.etapa,
+    objeto: i.item.objeto,
+    dataEncerramento: i.item.dataEncerramento,
+    responsavelId: i.responsavelId,
+    valor: i.item.valorEstimado ?? null,
+  };
 }
 
 function contextoDaExtra(empresaId: string, agora: Date, cache: CacheRodada): Promise<ContextoResumo | null> {
@@ -306,12 +340,15 @@ async function dadosDoResumo(
   v: VinculoWa,
   novas: ReadonlyArray<NovaDoRamo>,
   pendencias: ReadonlyArray<string>,
+  daPropriaEmpresa: boolean,
 ): Promise<DadosResumoManha> {
   const e = v.escolhas;
   return {
     usuarioId: v.usuarioId,
     nome: v.nome,
     escolhas: e,
+    propostasHoje: daPropriaEmpresa && e.pendencias ? await ctx.propostasHoje() : [],
+    propostasMovidas: e.movimentos ? await ctx.propostasMovidas() : [],
     novas,
     itens: ctx.itens,
     movimentos: e.movimentos || e.disputa ? await ctx.movimentos() : [],
@@ -336,9 +373,58 @@ function registroDeNovas(usuarioId: string, novas: ReadonlyArray<NovaDoRamo>, mo
 }
 
 /**
- * Resumo das 7h: uma vez por dia por pessoa, só com a janela aberta. Quem é gestor de outras empresas recebe
- * uma mensagem só, com um bloco por empresa. Devolve quantos foram enviados.
+ * Monta e envia o resumo do dia de uma pessoa. Devolve se saiu; nada a dizer ou envio recusado: não grava nada.
+ * Quem é gestor de outras empresas recebe uma mensagem só, com um bloco por empresa.
  */
+async function enviarResumoDaPessoa(
+  empresaId: string,
+  v: VinculoWa,
+  propria: ContextoResumo,
+  agora: Date,
+  cache: CacheRodada,
+): Promise<boolean> {
+  const dia = diaDeSaoPaulo(agora);
+  const e = v.escolhas;
+
+  const suasNovas = await novasDaPessoa(propria, v);
+  const pendentes = e.pendencias ? (await listarPendentes(v.usuarioId, agora)).filter((p) => p.tipo === "aviso") : [];
+  const dadosProprios = await dadosDoResumo(propria, v, suasNovas, pendentes.map((p) => p.texto), true);
+  const extras = await empresasExtrasDaPessoa(v.usuarioId, empresaId, cache);
+
+  let texto: string;
+  const registros: Array<{ empresaId: string; alertas: AlertaWa[] }> = [];
+  if (extras.length === 0) {
+    const resumo = textoResumoManha(dadosProprios, agora);
+    texto = resumo.texto;
+    registros.push({ empresaId, alertas: registroDeNovas(v.usuarioId, suasNovas, resumo.novasMostradas) });
+  } else {
+    const proprias = partesDoResumoManha(dadosProprios, agora);
+    const nomeProprio = (await nomeCurtoDaEmpresa(empresaId, cache)) ?? "Sua empresa";
+    const blocos: BlocoResumo[] = [{ empresa: nomeProprio, partes: proprias.partes }];
+    registros.push({ empresaId, alertas: registroDeNovas(v.usuarioId, suasNovas, proprias.novasMostradas) });
+    for (const extra of extras) {
+      const ctx = await contextoDaExtra(extra.id, agora, cache);
+      if (ctx === null) continue;
+      const novasExtra = await novasDaPessoa(ctx, v);
+      const partes = partesDoResumoManha(await dadosDoResumo(ctx, v, novasExtra, [], false), agora);
+      blocos.push({ empresa: extra.nome, partes: partes.partes });
+      registros.push({ empresaId: extra.id, alertas: registroDeNovas(v.usuarioId, novasExtra, partes.novasMostradas) });
+    }
+    texto = juntarResumos(v.nome, blocos);
+  }
+  if (texto === "") return false;
+  const doDia = dadosProprios.propostasHoje;
+  const botoes = doDia.length > 0 ? botoesDoResumoManha(doDia) : [{ titulo: "Continuar recebendo", payload: "continuar" }];
+  const ok = await enviarParaPessoa(v, texto, agora, { botoes, critico: true, utilidade: true });
+  if (!ok) return false;
+  await gravarConfig(`manha:${v.usuarioId}:${dia}`, agora.toISOString());
+  if (doDia.length > 0) await gravarConfig(chavePropostasDoDia(v.usuarioId, dia), JSON.stringify(doDia.map((p) => p.itemId)));
+  for (const r of registros) await registrarEnviados(r.empresaId, r.alertas, agora);
+  if (pendentes.length > 0) await marcarEnviados(pendentes.map((p) => p.id), agora);
+  return true;
+}
+
+/** Resumo das 7h: uma vez por dia por pessoa; com a janela fechada vai como mensagem utilitária. Devolve quantos foram enviados. */
 async function enviarResumosDaManha(
   empresaId: string,
   vinculos: ReadonlyArray<VinculoWa>,
@@ -352,52 +438,35 @@ async function enviarResumosDaManha(
   let enviados = 0;
   for (const v of vinculos) {
     try {
-      const chave = `manha:${v.usuarioId}:${dia}`;
-      if ((await lerConfig(chave)) !== null) continue;
-      if (!janelaAberta(v.ultimaEntrada, agora)) continue;
-      const e = v.escolhas;
-
-      const suasNovas = await novasDaPessoa(propria, v);
-      const pendentes = e.pendencias ? (await listarPendentes(v.usuarioId, agora)).filter((p) => p.tipo === "aviso") : [];
-      const dadosProprios = await dadosDoResumo(propria, v, suasNovas, pendentes.map((p) => p.texto));
-      const extras = await empresasExtrasDaPessoa(v.usuarioId, empresaId, cache);
-
-      let texto: string;
-      const registros: Array<{ empresaId: string; alertas: AlertaWa[] }> = [];
-      if (extras.length === 0) {
-        const resumo = textoResumoManha(dadosProprios, agora);
-        texto = resumo.texto;
-        registros.push({ empresaId, alertas: registroDeNovas(v.usuarioId, suasNovas, resumo.novasMostradas) });
-      } else {
-        const proprias = partesDoResumoManha(dadosProprios, agora);
-        const nomeProprio = (await nomeCurtoDaEmpresa(empresaId, cache)) ?? "Sua empresa";
-        const blocos: BlocoResumo[] = [{ empresa: nomeProprio, partes: proprias.partes }];
-        registros.push({ empresaId, alertas: registroDeNovas(v.usuarioId, suasNovas, proprias.novasMostradas) });
-        for (const extra of extras) {
-          const ctx = await contextoDaExtra(extra.id, agora, cache);
-          if (ctx === null) continue;
-          const novasExtra = await novasDaPessoa(ctx, v);
-          const partes = partesDoResumoManha(await dadosDoResumo(ctx, v, novasExtra, []), agora);
-          blocos.push({ empresa: extra.nome, partes: partes.partes });
-          registros.push({ empresaId: extra.id, alertas: registroDeNovas(v.usuarioId, novasExtra, partes.novasMostradas) });
-        }
-        texto = juntarResumos(v.nome, blocos);
-      }
-      if (texto === "") continue;
-      const ok = await enviarParaPessoa(v, texto, agora, {
-        botoes: [{ titulo: "Continuar recebendo", payload: "continuar" }],
-        critico: true,
-      });
-      if (!ok) continue;
-      await gravarConfig(chave, agora.toISOString());
-      for (const r of registros) await registrarEnviados(r.empresaId, r.alertas, agora);
-      if (pendentes.length > 0) await marcarEnviados(pendentes.map((p) => p.id), agora);
-      enviados += 1;
+      if ((await lerConfig(`manha:${v.usuarioId}:${dia}`)) !== null) continue;
+      // Janela fechada não pula mais: o resumo sai como mensagem utilitária (enviarParaPessoa decide).
+      if (await enviarResumoDaPessoa(empresaId, v, propria, agora, cache)) enviados += 1;
     } catch (e) {
       console.error("[whatsapp] resumo:", mensagemDe(e));
     }
   }
   return enviados;
+}
+
+/**
+ * Resumo atrasado: o das 7h foi pulado porque a janela estava fechada. Na primeira mensagem da pessoa no mesmo dia
+ * (até as 20h) ele sai, uma vez só. Devolve se enviou. Nunca lança.
+ */
+export async function enviarResumoAtrasado(v: VinculoWa, agora: Date): Promise<boolean> {
+  try {
+    if (!v.avisoWhatsapp || v.conversaId === null || !dentroDoHorario(agora) || !zernioConfigurado()) return false;
+    const dia = diaDeSaoPaulo(agora);
+    if ((await lerConfig(`manha:${v.usuarioId}:${dia}`)) !== null) return false;
+    const chaveTentativa = `atrasado:${v.usuarioId}:${dia}`;
+    if ((await lerConfig(chaveTentativa)) !== null) return false;
+    await gravarConfig(chaveTentativa, agora.toISOString());
+    const pipeline = await listarPipeline(v.empresaId);
+    const propria = contextoDaEmpresa(v.empresaId, pipeline.map(itemDeAlerta), agora);
+    return await enviarResumoDaPessoa(v.empresaId, v, propria, agora, novoCache());
+  } catch (e) {
+    console.error("[whatsapp] resumo atrasado:", mensagemDe(e));
+    return false;
+  }
 }
 
 async function rodarEmpresa(

@@ -42,6 +42,7 @@ const PERFIL: PerfilEmpresa = {
   regioes: ["nova-iguacu", "baixada"],
   areas: { ufs: [], municipiosIbge: ["3303500"], base: { uf: "RJ", municipioIbge: "3303500" } },
   radarTudoDoRamo: false,
+  foco: [],
   endereco: null,
   cep: null,
   telefone: null,

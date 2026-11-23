@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { PERFIL_ORIGEM } from "./empresa";
+import type { PerfilEmpresa } from "./perfil";
 import { calcularScore, limiteMeiAnual } from "./score";
 import { LOCAL_DA_REGIAO } from "./teste-local";
 import type { Criterio, CriterioId, Frente, Oportunidade } from "./types";
@@ -73,6 +75,66 @@ describe("critério cnae", () => {
     expect(s.frenteCasada).toBe("servicos");
     expect(calcularScore(oportunidade(), "servicos", AGORA).frenteCasada).toBe("servicos");
     expect(calcularScore(oportunidade({ objeto: "Seguro" }), "servicos", AGORA).frenteCasada).toBeNull();
+  });
+});
+
+describe("foco da empresa", () => {
+  const COM_FOCO: PerfilEmpresa = { ...PERFIL_ORIGEM, foco: ["site institucional", "redesign"] };
+  const SITE = { objeto: "Contratação de site institucional e redesign do portal", valorEstimado: 5000 } as const;
+
+  it("site institucional por pregão dentro do limite MEI sai go com 75 ou mais", () => {
+    const s = calcularScore(oportunidade({ ...SITE, modalidadeId: 6 }), "servicos", AGORA, undefined, COM_FOCO);
+    expect(s.total).toBeGreaterThanOrEqual(75);
+    expect(s.faixa).toBe("go");
+    expect(s.foco).toBe("site institucional");
+  });
+
+  it("por dispensa sai 100", () => {
+    const s = calcularScore(oportunidade({ ...SITE, modalidadeId: 8 }), "servicos", AGORA, undefined, COM_FOCO);
+    expect(s.total).toBe(100);
+  });
+
+  it("o critério vira Ramo e foco, com 30 pontos e o termo no motivo", () => {
+    const s = calcularScore(oportunidade({ ...SITE }), "servicos", AGORA, undefined, COM_FOCO);
+    const c = s.criterios.find((x) => x.id === "cnae");
+    expect(c).toMatchObject({ rotulo: "Ramo e foco", pontos: 30, maximo: 30, motivo: "Bate com o seu foco: site institucional" });
+    expect(s.frenteCasada).toBe("servicos");
+  });
+
+  it("casou só pelo foco: alerta sobre o CNAE e nenhum CNAE casado", () => {
+    const s = calcularScore(oportunidade({ ...SITE }), "servicos", AGORA, undefined, COM_FOCO);
+    expect(s.cnaesCasados).toEqual([]);
+    expect(s.alertas).toContain("Nenhum CNAE do CNPJ cobre este objeto: confira se o edital exige CNAE compatível");
+  });
+
+  it("aceita plural simples e ignora acento e maiúsculas", () => {
+    const perfil: PerfilEmpresa = { ...PERFIL_ORIGEM, foco: ["Licença de Site"] };
+    const maiusculas = calcularScore(oportunidade({ objeto: "LICENCA DE SITE" }), "servicos", AGORA, undefined, perfil);
+    expect(maiusculas.foco).toBe("Licença de Site");
+    const plural = calcularScore(oportunidade({ objeto: "Aquisição de licenças de sites" }), "servicos", AGORA, undefined, perfil);
+    expect(plural.foco).toBe("Licença de Site");
+  });
+
+  it("com CNAE casado também, não há alerta de CNAE", () => {
+    const perfil: PerfilEmpresa = { ...PERFIL_ORIGEM, foco: ["manutenção de computadores"] };
+    const s = calcularScore(oportunidade(), "servicos", AGORA, undefined, perfil);
+    expect(s.foco).toBe("manutenção de computadores");
+    expect(s.alertas ?? []).not.toContain("Nenhum CNAE do CNPJ cobre este objeto: confira se o edital exige CNAE compatível");
+  });
+
+  it("sem foco continua como antes", () => {
+    const o = oportunidade({ ...SITE, modalidadeId: 6 });
+    const s = calcularScore(o, "servicos", AGORA);
+    expect(s.foco).toBeUndefined();
+    expect(s.criterios.find((x) => x.id === "cnae")).toMatchObject({ pontos: 0, rotulo: "Atividade (CNAE)" });
+    expect(s.total).toBe(46);
+    expect(s.faixa).toBe("nogo");
+  });
+
+  it("foco que não casa não muda a nota", () => {
+    const perfil: PerfilEmpresa = { ...PERFIL_ORIGEM, foco: ["uniforme escolar"] };
+    const o = oportunidade({ ...SITE, modalidadeId: 6 });
+    expect(calcularScore(o, "servicos", AGORA, undefined, perfil)).toEqual(calcularScore(o, "servicos", AGORA));
   });
 });
 

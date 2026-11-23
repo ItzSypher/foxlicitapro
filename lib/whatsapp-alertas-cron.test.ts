@@ -27,6 +27,8 @@ const m = vi.hoisted(() => ({
   entregarAlertasWa: vi.fn(),
   enviarParaPessoa: vi.fn(),
   lerMetaDisputas: vi.fn(),
+  listarPropostas: vi.fn(),
+  listarMovimentosDePropostas: vi.fn(),
 }));
 
 vi.mock("@/lib/zernio", () => ({ zernioConfigurado: m.zernioConfigurado, garantirWebhook: m.garantirWebhook }));
@@ -48,12 +50,13 @@ vi.mock("@/db/empresas", () => ({ listarIdsEmpresasAtivas: m.listarIdsEmpresasAt
 vi.mock("@/db/usuario-empresas", () => ({ listarIdsEmpresasExtras: m.listarIdsEmpresasExtras }));
 vi.mock("@/db/avisos",() => ({ listarPessoasDeAviso: m.listarPessoasDeAviso }));
 vi.mock("@/db/pipeline", () => ({ listarPipeline: m.listarPipeline }));
+vi.mock("@/db/propostas", () => ({ listarPropostas: m.listarPropostas, listarMovimentosDePropostas: m.listarMovimentosDePropostas }));
 vi.mock("@/db/meta", () => ({ lerMetaDisputas: m.lerMetaDisputas }));
 vi.mock("@/db/preferencias", () => ({ lerPreferencias: m.lerPreferencias }));
 vi.mock("@/lib/radar-dados", () => ({ obterRadar: vi.fn() }));
 vi.mock("@/lib/whatsapp-envio", () => ({ entregarAlertasWa: m.entregarAlertasWa, enviarParaPessoa: m.enviarParaPessoa }));
 
-import { executarAlertasWa, garantirWebhookConfigurado } from "./whatsapp-alertas-cron";
+import { enviarResumoAtrasado, executarAlertasWa, garantirWebhookConfigurado } from "./whatsapp-alertas-cron";
 
 /** 10h UTC = 7h em São Paulo */
 const SETE_DA_MANHA = new Date("2026-11-16T10:00:00Z");
@@ -115,6 +118,8 @@ beforeEach(() => {
   m.entregarAlertasWa.mockResolvedValue({ novos: 0, enviados: 0 });
   m.enviarParaPessoa.mockResolvedValue(true);
   m.lerMetaDisputas.mockResolvedValue({ minimo: 5, ideal: 10 });
+  m.listarPropostas.mockResolvedValue([]);
+  m.listarMovimentosDePropostas.mockResolvedValue([]);
 });
 
 describe("executarAlertasWa", () => {
@@ -193,9 +198,9 @@ describe("executarAlertasWa", () => {
     await executarAlertasWa(SETE_DA_MANHA);
     const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
     expect(texto).toContain("☀️ Bom dia, Pessoa!");
-    expect(texto).toContain("• Paulo: Notebooks → Em disputa");
+    expect(texto).toContain("• Paulo: Notebooks (Proposta pronta → Em disputa)");
     expect(texto).toContain("🏁 Entraram em disputa: 1");
-    expect(texto).toContain("🎯 Meta da semana: 1 de 10 (mínimo 5)");
+    expect(texto).toContain("🎯 Meta: 1/5 disputas · faltam 4 até domingo");
     expect(texto).not.toContain("Fecham em 48 h");
   });
 
@@ -204,7 +209,7 @@ describe("executarAlertasWa", () => {
     m.lerMetaDisputas.mockResolvedValue({ minimo: 3, ideal: 7 });
     await executarAlertasWa(SETE_DA_MANHA);
     expect(m.lerMetaDisputas).toHaveBeenCalledWith(EMPRESA);
-    expect(String(m.enviarParaPessoa.mock.calls[0]?.[1])).toContain("🎯 Meta da semana: 0 de 7 (mínimo 3)");
+    expect(String(m.enviarParaPessoa.mock.calls[0]?.[1])).toContain("🎯 Meta: 0/3 disputas · faltam 3 até domingo");
   });
 
   it("gestor recebe o operacional e os avisos da fila saem como enviados", async () => {
@@ -224,13 +229,13 @@ describe("executarAlertasWa", () => {
     expect(m.marcarEnviados).toHaveBeenCalledWith(["a1"], SETE_DA_MANHA);
   });
 
-  it("o resumo da manhã não sai com a janela fechada", async () => {
+  it("com a janela fechada, o resumo da manhã é pedido como mensagem utilitária", async () => {
     m.listarVinculosAtivos.mockImplementation(async () => [
       { ...vinculo(SETE_DA_MANHA), ultimaEntrada: new Date(SETE_DA_MANHA.getTime() - 30 * 3_600_000) },
     ]);
-    const r = await executarAlertasWa(SETE_DA_MANHA);
-    expect(r.resumos).toBe(0);
-    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+    await executarAlertasWa(SETE_DA_MANHA);
+    expect(m.enviarParaPessoa).toHaveBeenCalledTimes(1);
+    expect(m.enviarParaPessoa.mock.calls[0]?.[3]).toMatchObject({ utilidade: true });
   });
 
   it("falha numa empresa não derruba as outras", async () => {
@@ -278,7 +283,7 @@ describe("gestor de várias empresas", () => {
     await executarAlertasWa(SETE_DA_MANHA);
     const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
     expect(texto).not.toContain("🏢");
-    expect(texto.startsWith("☀️ Bom dia, Pessoa!\n\n🎯 Meta da semana")).toBe(true);
+    expect(texto.startsWith("☀️ Bom dia, Pessoa!\n\n🎯 Meta")).toBe(true);
   });
 
   it("sem a tabela usuario_empresas o cron segue como hoje", async () => {
@@ -356,5 +361,72 @@ describe("garantirWebhookConfigurado", () => {
     m.garantirWebhook.mockClear();
     expect(await garantirWebhookConfigurado()).toBe(false);
     expect(m.garantirWebhook).not.toHaveBeenCalled();
+  });
+});
+
+describe("propostas do dia no resumo do gestor", () => {
+  const itemDoDia = {
+    id: "item-1",
+    etapa: "cotando",
+    responsavelId: null,
+    item: { objeto: "Toner", valorEstimado: 8000, dataEncerramento: new Date(SETE_DA_MANHA.getTime() + 30 * 3_600_000).toISOString() },
+  };
+
+  it("traz a seção, os botões Gerar e guarda a lista do dia", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [vinculo(SETE_DA_MANHA, "gestor")]);
+    m.listarPipeline.mockResolvedValue([itemDoDia]);
+    await executarAlertasWa(SETE_DA_MANHA);
+    const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
+    expect(texto).toContain("📝 Propostas para hoje: 1");
+    expect(texto).toContain("R$ 8.000");
+    expect(texto).toContain("Responda *gerar 1*");
+    const opcoes = m.enviarParaPessoa.mock.calls[0]?.[3] as { botoes: Array<{ titulo: string; payload: string }> };
+    expect(opcoes.botoes[0]).toEqual({ titulo: "Gerar 1", payload: "ger:item-1" });
+    expect(m.gravarConfig).toHaveBeenCalledWith(`propdia:${USUARIO}:2026-11-16`, JSON.stringify(["item-1"]));
+  });
+
+  it("item que já tem proposta aprovada fica de fora", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [vinculo(SETE_DA_MANHA, "gestor")]);
+    m.listarPipeline.mockResolvedValue([itemDoDia]);
+    m.listarPropostas.mockResolvedValue([{ compraId: "item-1", status: "aprovada" }]);
+    await executarAlertasWa(SETE_DA_MANHA);
+    expect(String(m.enviarParaPessoa.mock.calls[0]?.[1])).not.toContain("Propostas para hoje");
+  });
+
+  it("o dono vê o que a equipe fez com as propostas", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [vinculo(SETE_DA_MANHA, "dono")]);
+    m.listarMovimentosDePropostas.mockResolvedValue([
+      { propostaId: "p1", objeto: "Toner", acao: "gerou", porId: "paulo", porNome: "Paulo Henrique", total: 8000 },
+    ]);
+    await executarAlertasWa(SETE_DA_MANHA);
+    expect(String(m.enviarParaPessoa.mock.calls[0]?.[1])).toContain("• Paulo gerou a proposta de Toner (R$ 8.000)");
+  });
+});
+
+describe("resumo atrasado", () => {
+  const DEPOIS = new Date("2026-11-16T14:00:00Z");
+
+  it("sai na primeira mensagem do dia quando o das 7h foi pulado, uma vez só", async () => {
+    const v = vinculo(DEPOIS, "gestor");
+    expect(await enviarResumoAtrasado(v, DEPOIS)).toBe(true);
+    expect(m.gravarConfig).toHaveBeenCalledWith(`manha:${USUARIO}:2026-11-16`, DEPOIS.toISOString());
+    expect(await enviarResumoAtrasado(v, DEPOIS)).toBe(false);
+    expect(m.enviarParaPessoa).toHaveBeenCalledTimes(1);
+  });
+
+  it("não sai se o das 7h já foi enviado, fora do horário ou com alertas pausados", async () => {
+    m.lerConfig.mockImplementation(async (chave) => (chave.startsWith("manha:") ? "2026-11-16T10:00:00Z" : null));
+    expect(await enviarResumoAtrasado(vinculo(DEPOIS, "gestor"), DEPOIS)).toBe(false);
+    m.lerConfig.mockResolvedValue(null);
+    expect(await enviarResumoAtrasado(vinculo(MADRUGADA, "gestor"), MADRUGADA)).toBe(false);
+    expect(await enviarResumoAtrasado({ ...vinculo(DEPOIS, "gestor"), avisoWhatsapp: false }, DEPOIS)).toBe(false);
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+  });
+
+  it("sem nada a dizer não grava o envio, mas não tenta de novo no dia", async () => {
+    const v = { ...vinculo(DEPOIS, "gestor"), escolhas: { ...escolhasDoPerfil("operacional"), meta: false, novas: false, grandes: false, pendencias: false, fechando: false, aguardando: false } };
+    expect(await enviarResumoAtrasado(v, DEPOIS)).toBe(false);
+    expect(m.gravarConfig).not.toHaveBeenCalledWith(`manha:${USUARIO}:2026-11-16`, expect.anything());
+    expect(m.gravarConfig).toHaveBeenCalledWith(`atrasado:${USUARIO}:2026-11-16`, DEPOIS.toISOString());
   });
 });

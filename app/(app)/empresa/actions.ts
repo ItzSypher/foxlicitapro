@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { normalizarAreas, ufsDeColeta } from "@/core/areas";
-import { acharUf, ufDoCodigoIbge } from "@/core/ufs";
+import { LIMITE_FOCO_CARACTERES, LIMITE_FOCO_TERMOS, normalizarFoco } from "@/core/perfil";
+import { acharUf,ufDoCodigoIbge } from "@/core/ufs";
 import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema, lerEmpresa } from "@/db/empresas";
 import { pedirColeta } from "@/lib/coleta-separada";
 import { META_LIMITE } from "@/core/meta";
@@ -32,6 +33,7 @@ const EdicaoSchema = z.object({
       { message: "O município-base precisa estar entre os municípios ou estados marcados." },
     ),
   radarTudoDoRamo: z.boolean(),
+  foco: z.array(z.string().trim().min(1).max(LIMITE_FOCO_CARACTERES)).max(LIMITE_FOCO_TERMOS),
 });
 
 /** Só o dono edita, e sempre a empresa da própria sessão. */
@@ -52,6 +54,7 @@ export async function salvarEmpresaAction(entrada: unknown): Promise<ResultadoEm
       cnaes: lido.data.cnaes,
       areas,
       radarTudoDoRamo: lido.data.radarTudoDoRamo,
+      foco: normalizarFoco(lido.data.foco),
     });
     if (!gravou) return { ok: false, erro: "Empresa não encontrada." };
   } catch (e) {
@@ -85,6 +88,7 @@ export async function adicionarUfAoRadarAction(uf: unknown): Promise<ResultadoEm
         cnaes: empresa.cnaes,
         areas,
         radarTudoDoRamo: empresa.radarTudoDoRamo,
+        foco: empresa.foco,
       });
       if (!gravou) return { ok: false, erro: "Empresa não encontrada." };
     }

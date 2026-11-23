@@ -29,7 +29,9 @@ import { registrarMensagem } from "@/lib/assistente/limite";
 import { interpretarRota } from "@/lib/assistente/rota";
 import { lerFrente } from "@/lib/frente";
 import { assistenteDisponivel, gerarTexto } from "@/lib/gemini";
+import { enviarResumoAtrasado } from "@/lib/whatsapp-alertas-cron";
 import { enviarFila, enviarParaPessoa } from "@/lib/whatsapp-envio";
+import { aprovarPropostaPeloWhatsapp, gerarPropostaPeloWhatsapp } from "@/lib/whatsapp-propostas";
 import { enviarTexto, mostrarDigitando } from "@/lib/zernio";
 
 /**
@@ -48,6 +50,9 @@ const BOTOES_CONFIRMA = [
   { titulo: "Sim", payload: "sim" },
   { titulo: "Não", payload: "nao" },
 ];
+
+const COMANDOS_LOCAIS = "Comandos: *pipeline*, *prazos*, *analisar <link>*, *gerar N*.";
+const AVISO_OCUPADO = "O assistente está ocupado; tente a pergunta de novo em alguns minutos.";
 
 const INSTRUCAO_WHATSAPP =
   "Você responde pelo WhatsApp. No máximo 4 linhas curtas, sem tabelas nem títulos. " +
@@ -109,6 +114,16 @@ function textoPrazos(itens: ReadonlyArray<ItemPipeline>, agora: Date): string {
   const linhas = proximos.slice(0, MAX_LINHAS_PRAZOS).map((p) => `• ${objetoCurto(p.item)} — em ${textoRestante(p.restanteMs)}`);
   const resto = proximos.length - linhas.length;
   return [`*Prazos dos próximos 7 dias*`, ...linhas, ...(resto > 0 ? [`+${resto}`] : [])].join("\n");
+}
+
+/** Resposta que não depende do modelo: os prazos do Pipeline e os comandos (com o aviso de assistente ocupado, se for o caso). */
+async function respostaLocal(v: VinculoWa, agora: Date, assistenteOcupado: boolean): Promise<string> {
+  try {
+    const prazos = textoPrazos(await listarPipeline(v.empresaId), agora);
+    return [prazos, COMANDOS_LOCAIS, ...(assistenteOcupado ? [AVISO_OCUPADO] : [])].join("\n\n");
+  } catch {
+    return assistenteOcupado ? `${COMANDOS_LOCAIS}\n\n${AVISO_OCUPADO}` : COMANDOS_LOCAIS;
+  }
 }
 
 /** Executa participar, atribuir ou descartar. Devolve o texto da resposta. */
@@ -199,9 +214,9 @@ async function responderLivre(v: VinculoWa, texto: string, agora: Date): Promise
         }
       }
     }
-    return { texto: limpa === "" ? "Não consegui responder agora. Tente de novo em instantes." : limpa };
+    return { texto: limpa === "" ? await respostaLocal(v, agora, true) : limpa };
   } catch {
-    return { texto: "Não consegui responder agora. Tente de novo em instantes." };
+    return { texto: await respostaLocal(v, agora, true) };
   }
 }
 
@@ -249,7 +264,20 @@ async function tratar(msg: MensagemRecebida, agora: Date): Promise<void> {
   const cancelar = acao?.tipo === "cancelar" || (acao === null && comando.tipo === "nao");
   const continuar = acao?.tipo === "continuar" || (acao === null && comando.tipo === "voltar");
 
-  if (acao && (acao.tipo === "participar" || acao.tipo === "atribuir" || acao.tipo === "descartar")) {
+  let resumoFeito = false;
+  if (acao?.tipo === "gerar") {
+    const r = await gerarPropostaPeloWhatsapp(atual, { itemId: acao.itemId }, agora);
+    await responder(r.texto, r.botoes);
+  } else if (acao?.tipo === "aprovar") {
+    const r = await aprovarPropostaPeloWhatsapp(atual, acao.propostaId, agora);
+    await responder(r.texto, r.botoes);
+  } else if (acao === null && comando.tipo === "gerar") {
+    const r = await gerarPropostaPeloWhatsapp(atual, { numero: comando.numero }, agora);
+    await responder(r.texto, r.botoes);
+  } else if (acao === null && comando.tipo === "saudacao") {
+    resumoFeito = true;
+    if (!(await enviarResumoAtrasado(atual, agora))) await responder(await respostaLocal(atual, agora, false));
+  } else if (acao && (acao.tipo === "participar" || acao.tipo === "atribuir" || acao.tipo === "descartar")) {
     await responder(await executarAcao(atual, acao));
   } else if (confirmar) {
     const pendente = await lerPendencia(atual.usuarioId, agora);
@@ -282,6 +310,9 @@ async function tratar(msg: MensagemRecebida, agora: Date): Promise<void> {
     const r = await responderLivre(atual, comando.texto, agora);
     await responder(r.texto, r.botoes);
   }
+
+  // Primeira mensagem do dia com o resumo das 7h pulado (janela fechada): o resumo do dia sai agora, uma vez só.
+  if (!resumoFeito && comando.tipo !== "parar") await enviarResumoAtrasado(atual, agora);
 
   // Só o prazo urgente que ficou na fila sai agora; o resto espera o resumo das 7h.
   if (atual.avisoWhatsapp) await enviarFila(atual, agora);

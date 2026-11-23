@@ -4,11 +4,14 @@ import {
   aceitaAlerta,
   alertasDePrazo,
   botoesDoAlerta,
+  botoesDoResumoManha,
   dentroDoHorario,
   escolhasDoPerfil,
+  escolherPropostasDoDia,
   faixaDoPrazo,
   gerarCodigoAtivacao,
   inicioDaSemana,
+  itemParaPriorizar,
   janelaAberta,
   juntarResumos,
   lerComando,
@@ -20,7 +23,9 @@ import {
   partesDoResumoManha,
   payloadDoBotao,
   quandoFecha,
+  textoAvisoAoDono,
   textoDoResumo,
+  textoRascunhoPronto,
   textoResumoManha,
   tituloAtribuir,
   type AcaoBotao,
@@ -202,6 +207,8 @@ function dados(parcial: Partial<DadosResumoManha> = {}): DadosResumoManha {
     novas: [],
     itens: [],
     movimentos: [],
+    propostasHoje: [],
+    propostasMovidas: [],
     pendencias: [],
     disputasNaSemana: 0,
     meta: { minimo: 5, ideal: 10 },
@@ -242,7 +249,7 @@ describe("textoResumoManha", () => {
     expect(r.texto).toContain("⌛ Aguardando resultado: 1\n• Cadeiras");
     expect(r.texto).toContain("📌 Para você: 1\n• 📝 Proposta para revisar");
     expect(r.texto).not.toContain("Detalhe");
-    expect(r.texto).toContain("🎯 Meta da semana: 2 de 10 (mínimo 5). Faltam 3 para o mínimo.");
+    expect(r.texto).toContain("🎯 Meta: 2/5 disputas · faltam 3 até domingo\nPriorize: ");
   });
   it("acompanhamento: movimentos da equipe, disputas, grandes e meta; sem o operacional", () => {
     const movimentos: MovimentoEquipe[] = [
@@ -264,7 +271,7 @@ describe("textoResumoManha", () => {
       AGORA,
     );
     expect(r.texto).toContain("👥 A equipe moveu 2 itens nas últimas 24 h");
-    expect(r.texto).toContain("• Paulo: Notebooks → Em disputa");
+    expect(r.texto).toContain("• Paulo: Notebooks (Proposta pronta → Em disputa)");
     expect(r.texto).not.toContain("Feito por mim");
     expect(r.texto).toContain("🏁 Entraram em disputa: 1\n• Notebooks");
     expect(r.texto).toContain("💰 Acima de R$ 100 mil: 1");
@@ -272,15 +279,16 @@ describe("textoResumoManha", () => {
     expect(r.texto).not.toContain("novas do seu ramo");
     expect(r.texto).not.toContain("Fecham em 48 h");
     expect(r.texto).not.toContain("não deve aparecer");
-    expect(r.texto).toContain("Meta batida!");
+    expect(r.texto).toContain("🎯 Meta: 5/10 disputas · mínimo batido, faltam 5 até domingo para o ideal");
+    expect(r.texto).not.toContain("Priorize");
     expect(r.novasMostradas).toEqual(["g1"]);
   });
   it("ideal batido", () => {
-    expect(textoResumoManha(dados({ disputasNaSemana: 10 }), AGORA).texto).toContain("🎯 Meta da semana: 10 de 10 (mínimo 5). Ideal batido!");
+    expect(textoResumoManha(dados({ disputasNaSemana: 10 }), AGORA).texto).toContain("🎯 Meta: 10/10 disputas · ideal batido!");
   });
   it("usa a meta configurada pela empresa", () => {
     const r = textoResumoManha(dados({ disputasNaSemana: 2, meta: { minimo: 3, ideal: 6 } }), AGORA);
-    expect(r.texto).toContain("🎯 Meta da semana: 2 de 6 (mínimo 3). Falta 1 para o mínimo.");
+    expect(r.texto).toContain("🎯 Meta: 2/3 disputas · falta 1 até domingo");
   });
   it("nada escolhido ou nada a dizer: vazio", () => {
     const nada = { ...escolhasDoPerfil("operacional"), meta: false };
@@ -532,5 +540,107 @@ describe("lerEventoRecebido", () => {
     expect(lerEventoRecebido("texto", null)).toBeNull();
     expect(lerEventoRecebido({ event: "message.received" }, null)).toBeNull();
     expect(lerEventoRecebido({ event: "message.received", message: { sender: {} } }, "x")).toBeNull();
+  });
+});
+
+describe("propostas do dia", () => {
+  // 12h em São Paulo (AGORA); fecha às 18h de hoje = 21:00Z; amanhã 9h = 12:00Z do dia 13
+  const hoje18 = "2026-05-12T21:00:00Z";
+  const amanha9 = "2026-05-13T12:00:00Z";
+  const depoisDeAmanha = "2026-05-14T12:00:00Z";
+  const comValor = (parcial: Partial<ItemAlerta> & { id: string }): ItemAlerta => ({ ...item(parcial), valor: 5000 });
+
+  it("escolhe só as etapas anteriores à disputa que fecham hoje ou amanhã, o mais próximo primeiro, no máximo 3", () => {
+    const itens = [
+      comValor({ id: "amanha", etapa: "cotando", dataEncerramento: amanha9 }),
+      comValor({ id: "hoje", etapa: "radar", dataEncerramento: hoje18 }),
+      comValor({ id: "longe", dataEncerramento: depoisDeAmanha }),
+      comValor({ id: "disputa", etapa: "disputa", dataEncerramento: hoje18 }),
+      comValor({ id: "fechou", dataEncerramento: "2026-05-12T14:00:00Z" }),
+      comValor({ id: "a", etapa: "proposta", dataEncerramento: "2026-05-13T10:00:00Z" }),
+      comValor({ id: "b", etapa: "analisando", dataEncerramento: "2026-05-13T11:00:00Z" }),
+    ];
+    const r = escolherPropostasDoDia(itens, new Set(), AGORA);
+    expect(r.map((p) => p.itemId)).toEqual(["hoje", "a", "b"]);
+    expect(r[0]).toMatchObject({ valor: 5000, dataEncerramento: hoje18 });
+  });
+  it("tira quem já tem proposta aprovada, pronta ou enviada", () => {
+    const itens = [comValor({ id: "x", dataEncerramento: hoje18 }), comValor({ id: "y", dataEncerramento: amanha9 })];
+    expect(escolherPropostasDoDia(itens, new Set(["x"]), AGORA).map((p) => p.itemId)).toEqual(["y"]);
+  });
+  it("o dia é o de São Paulo: 23h de hoje vale hoje, 1h de amanhã (UTC ainda hoje) vale amanhã", () => {
+    const itens = [
+      comValor({ id: "noite", dataEncerramento: "2026-05-13T02:30:00Z" }),
+      comValor({ id: "madrugada", dataEncerramento: "2026-05-14T03:30:00Z" }),
+    ];
+    expect(escolherPropostasDoDia(itens, new Set(), AGORA).map((p) => p.itemId)).toEqual(["noite"]);
+  });
+  it("o resumo do gestor traz a seção numerada, a instrução e a meta com o que priorizar", () => {
+    const propostasHoje = escolherPropostasDoDia(
+      [comValor({ id: "h", etapa: "cotando", objeto: "Aquisição de toner", dataEncerramento: hoje18 }), comValor({ id: "m", dataEncerramento: amanha9, valor: null } as never)],
+      new Set(),
+      AGORA,
+    );
+    const r = textoResumoManha(dados({ propostasHoje, itens: [comValor({ id: "h", etapa: "cotando", dataEncerramento: hoje18 })], disputasNaSemana: 1 }), AGORA);
+    expect(r.texto).toContain("📝 Propostas para hoje: 2");
+    expect(r.texto).toContain("1. *");
+    expect(r.texto).toContain("R$ 5.000 · fecha hoje às 18h");
+    expect(r.texto).toContain("fecha amanhã às 09h");
+    expect(r.texto).toContain("Responda *gerar 1* (ou toque no botão) que eu monto o rascunho.");
+    expect(r.texto).toContain("🎯 Meta: 1/5 disputas · faltam 4 até domingo\nPriorize: ");
+  });
+  it("sem propostas do dia a seção não aparece", () => {
+    expect(textoResumoManha(dados(), AGORA).texto).not.toContain("Propostas para hoje");
+  });
+  it("itemParaPriorizar pega o que fecha primeiro antes da disputa", () => {
+    const itens = [item({ id: "a", dataEncerramento: depois(30 * HORA) }), item({ id: "b", dataEncerramento: depois(5 * HORA) }), item({ id: "c", etapa: "disputa", dataEncerramento: depois(1 * HORA) })];
+    expect(itemParaPriorizar(itens, AGORA)?.id).toBe("b");
+    expect(itemParaPriorizar([], AGORA)).toBeNull();
+  });
+  it("o dono vê o que a equipe fez com as propostas e as etapas com de/para", () => {
+    const propostasMovidas = [
+      { propostaId: "p1", objeto: "Toner", acao: "gerou" as const, porId: "paulo", porNome: "Paulo Henrique", total: 12_500 },
+      { propostaId: "p2", objeto: "Papel", acao: "aprovou" as const, porId: "dono", porNome: "Dono", total: 800 },
+    ];
+    const r = textoResumoManha(dados({ usuarioId: "dono", escolhas: escolhasDoPerfil("acompanhamento"), propostasMovidas }), AGORA);
+    expect(r.texto).toContain("📄 Propostas nas últimas 24 h: 1\n• Paulo gerou a proposta de Toner (R$ 12.500)");
+    expect(r.texto).not.toContain("Papel");
+  });
+  it("botões do resumo: Gerar 1..3 com payload ger:, e Continuar só se sobrar lugar", () => {
+    const tres = botoesDoResumoManha([{ itemId: "a" }, { itemId: "b" }, { itemId: "c" }]);
+    expect(tres).toEqual([
+      { titulo: "Gerar 1", payload: "ger:a" },
+      { titulo: "Gerar 2", payload: "ger:b" },
+      { titulo: "Gerar 3", payload: "ger:c" },
+    ]);
+    const duas = botoesDoResumoManha([{ itemId: "a" }, { itemId: "b" }]);
+    expect(duas.map((b) => b.titulo)).toEqual(["Gerar 1", "Gerar 2", "Continuar recebendo"]);
+    expect(botoesDoResumoManha([]).map((b) => b.titulo)).toEqual(["Continuar recebendo"]);
+  });
+  it("comando gerar N e payload ger:/apr:", () => {
+    expect(lerComando("gerar 1")).toEqual({ tipo: "gerar", numero: 1 });
+    expect(lerComando("Gerar proposta 2!")).toEqual({ tipo: "gerar", numero: 2 });
+    expect(lerComando("gerar")).toEqual({ tipo: "gerar", numero: null });
+    expect(lerComando("gerar um relatório bonito").tipo).toBe("livre");
+    expect(lerPayload("ger:12345678000190-1-000123/2025")).toEqual({ tipo: "gerar", itemId: "12345678000190-1-000123/2025" });
+    expect(lerPayload(payloadDoBotao({ tipo: "aprovar", propostaId: "abc" }))).toEqual({ tipo: "aprovar", propostaId: "abc" });
+    expect(payloadDoBotao({ tipo: "gerar", itemId: "x" })).toBe("ger:x");
+  });
+  it("saudações curtas viram comando local; 'continuar recebendo' segue como voltar", () => {
+    for (const t of ["oi", "Olá!", "alô", "alo", "Bom dia", "boa tarde", "Boa noite", "ok"]) expect(lerComando(t)).toEqual({ tipo: "saudacao" });
+    expect(lerComando("continuar recebendo")).toEqual({ tipo: "voltar" });
+    expect(lerComando("oi, quanto custa o plano?").tipo).toBe("livre");
+  });
+  it("texto do rascunho pronto e aviso ao dono", () => {
+    const texto = textoRascunhoPronto({ objeto: "Toner", total: 12_500, itens: 3, link: "https://x.test/propostas/p1", reaproveitado: false, podeAprovar: true });
+    expect(texto).toContain("Rascunho pronto");
+    expect(texto).toContain("Valor total: R$ 12.500 · 3 itens");
+    expect(texto).toContain("https://x.test/propostas/p1");
+    expect(texto).toContain("Revise e aprove pelo link");
+    expect(textoRascunhoPronto({ objeto: "T", total: 1, itens: 1, link: "l", reaproveitado: true, podeAprovar: false })).toContain("já estava pronto");
+    expect(textoAvisoAoDono({ nome: "Paulo Henrique", acao: "gerou", objeto: "Toner", total: 12_500, link: "https://x.test/p" })).toBe(
+      "Paulo gerou a proposta de Toner (R$ 12.500): https://x.test/p",
+    );
+    expect(textoAvisoAoDono({ nome: "Paulo", acao: "aprovou", objeto: "Toner", total: 800, link: "l" })).toContain("Paulo aprovou a proposta de Toner (R$ 800)");
   });
 });
