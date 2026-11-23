@@ -649,6 +649,9 @@ describe("propostas do dia", () => {
     expect(subiu).toContain("Paulo subiu a proposta de Toner (R$ 1.200) para você revisar");
     expect(subiu).toContain("https://x.test/p");
     expect(subiu).toContain("*Aprovar*");
+    const comLeitura = textoAvisoAoDono({ nome: "Paulo", acao: "subiu", objeto: "Toner", total: 1, link: "https://x.test/p", leitura: "https://x.test/p/abc" });
+    expect(comLeitura).toContain("Ler o documento (abre sem login): https://x.test/p/abc");
+    expect(comLeitura.indexOf("Ler o documento")).toBeLessThan(comLeitura.indexOf("Aprovar ou devolver"));
     expect(textoAvisoAoDono({ nome: "Paulo", acao: "enviou", objeto: "Toner", total: 0, link: "l" })).toBe(
       "📤 Paulo enviou no portal a proposta de Toner.\nComprovante e detalhes: l",
     );

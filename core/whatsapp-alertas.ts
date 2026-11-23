@@ -859,15 +859,26 @@ export function textoRascunhoPronto(p: { objeto: string; total: number; itens: n
 /** O que aconteceu com a proposta: gerou/aprovou (WhatsApp ou tela), subiu para revisão, enviou no portal, registrou externa. */
 export type AcaoAvisoProposta = "gerou" | "aprovou" | "subiu" | "enviou" | "registrou";
 
-export function textoAvisoAoDono(p: { nome: string; acao: AcaoAvisoProposta; objeto: string; total: number; link: string }): string {
+/** `leitura`: link do documento que abre sem login (só no "subiu", para ler antes de aprovar). */
+export function textoAvisoAoDono(p: {
+  nome: string;
+  acao: AcaoAvisoProposta;
+  objeto: string;
+  total: number;
+  link: string;
+  leitura?: string | null;
+}): string {
   const quem = primeiroNome(p.nome) === "" ? "Alguém da equipe" : primeiroNome(p.nome);
   const objeto = objetoCurto(p.objeto, MAX_OBJETO_LISTA);
   const valor = p.total > 0 ? ` (${reais(p.total)})` : "";
   switch (p.acao) {
     case "subiu":
-      return `📄 ${quem} subiu a proposta de ${objeto}${valor} para você revisar.
-Abra e confira: ${p.link}
-Está certa? Toque em *Aprovar*.`;
+      return [
+        `📄 ${quem} subiu a proposta de ${objeto}${valor} para você revisar.`,
+        ...(p.leitura ? [`Ler o documento (abre sem login): ${p.leitura}`] : []),
+        `Aprovar ou devolver no sistema: ${p.link}`,
+        "Leu e está certa? Toque em *Aprovar*.",
+      ].join("\n");
     case "enviou":
       return `📤 ${quem} enviou no portal a proposta de ${objeto}${valor}.
 Comprovante e detalhes: ${p.link}`;

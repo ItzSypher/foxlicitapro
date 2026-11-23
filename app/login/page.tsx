@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { FundoLogin } from "./fundo-login";
 import { LoginForm } from "./login-form";
 import { MarcaNome } from "./marca-nome";
@@ -15,7 +16,15 @@ export default function LoginPage() {
           <LoginForm />
         </div>
       </div>
-      <footer className="px-4 pb-6 text-center text-xs text-faint">© FoxTI Solutions</footer>
+      <footer className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 pb-6 text-center text-xs text-faint">
+        <span>© FoxTI Solutions</span>
+        <Link
+          href="/documentacao"
+          className="inline-flex min-h-8 items-center underline underline-offset-2 outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Documentação
+        </Link>
+      </footer>
     </main>
   );
 }

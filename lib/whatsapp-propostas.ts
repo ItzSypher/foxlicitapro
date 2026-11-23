@@ -16,7 +16,7 @@ import {
 } from "@/core/whatsapp-alertas";
 import { estaAprovada } from "@/core/revisao";
 import type { ItemPipeline } from "@/components/pipeline/tipos";
-import { lerProposta, listarPropostas, propostaRecenteDoAssistente } from "@/db/propostas";
+import { gerarTokenPublico, lerProposta, listarPropostas, propostaRecenteDoAssistente } from "@/db/propostas";
 import { listarPipeline } from "@/db/pipeline";
 import { lerConfig, listarVinculosDaEmpresa, listarVinculosGestoresExtras, type VinculoWa } from "@/db/whatsapp";
 import { montarPropostaComAssistente } from "@/lib/assistente/proposta";
@@ -114,12 +114,14 @@ export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProp
       (x) => x.usuarioId !== autor.usuarioId && x.avisoWhatsapp && x.conversaId !== null && (paraDono ? x.papel === "dono" : x.papel === "gestor"),
     );
     if (destinos.length === 0) return;
+    const leitura = acao === "subiu" && paraDono ? await linkDeLeitura(autor.empresaId, proposta) : null;
     const texto = textoAvisoAoDono({
       nome: autor.nome,
       acao,
       objeto: objetoDaProposta(proposta),
       total: proposta.total,
       link: linkAbsoluto(`/propostas/${proposta.id}`),
+      leitura,
     });
     const botoes =
       acao === "subiu" && paraDono ? [{ titulo: "Aprovar", payload: payloadDoBotao({ tipo: "aprovar", propostaId: proposta.id }) }] : undefined;
@@ -131,6 +133,23 @@ export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProp
     }
   } catch (e) {
     console.error("[whatsapp] aviso de proposta:", e instanceof Error ? e.name : "erro");
+  }
+}
+
+const DIAS_LINK_LEITURA = 3;
+
+/**
+ * Link do documento que abre sem login (/p/<token>), para o dono ler antes de aprovar. Reaproveita o link público
+ * ainda válido (o que já foi mandado ao órgão continua valendo); senão cria um de 3 dias, trocado ao gerar o link oficial.
+ */
+async function linkDeLeitura(empresaId: string, proposta: Proposta): Promise<string | null> {
+  if (proposta.externa) return null;
+  try {
+    const valido = proposta.tokenPublico !== null && proposta.tokenExpira !== null && Date.parse(proposta.tokenExpira) > Date.now();
+    const token = valido ? proposta.tokenPublico : (await gerarTokenPublico(empresaId, proposta.id, DIAS_LINK_LEITURA))?.token ?? null;
+    return token ? linkAbsoluto(`/p/${token}`) : null;
+  } catch {
+    return null;
   }
 }
 

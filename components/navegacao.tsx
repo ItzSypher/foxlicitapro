@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Archive,
   BellRing,
+  BookOpen,
   Building2,
   Calculator,
   ChartColumn,
@@ -303,6 +304,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
     ...visiveis([RESULTADOS], usuario),
     ...visiveis(SECUNDARIOS, usuario),
     { href: "/equipe/conta", rotulo: "Minha conta", rotuloCurto: "Conta", icone: UserRound },
+    { href: "/documentacao", rotulo: "Documentação", rotuloCurto: "Docs", icone: BookOpen },
   ];
   return (
     <>

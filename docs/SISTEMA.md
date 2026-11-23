@@ -1,6 +1,6 @@
 # FoxLicita Pro
 
-Documento interno. Atualizado em 19/11/2026. Parte 1 é o produto; parte 2 é a técnica.
+Documento interno. Atualizado em 23/11/2026. A versão pública (sem a parte técnica) fica em https://licitapro.foxtisolutions.com.br/documentacao. Parte 1 é o produto; parte 2 é a técnica.
 
 ---
 
@@ -18,13 +18,13 @@ Serviço de **acompanhamento de licitações no CNPJ do cliente**. O sistema ach
 
 | Área | O que entrega |
 |---|---|
-| **Radar** | Licitações abertas do ramo, com nota, filtros (estados, valor, modalidade, fonte), busca por palavra e busca direta no PNCP. Abas de novas, fechando e desertas. |
+| **Radar** | Licitações abertas do ramo, com nota (selo "Seu foco" e o motivo principal em uma linha), filtros (estados, valor, modalidade, fonte), busca por palavra e busca direta no PNCP. Abas de novas, fechando e desertas. |
 | **Pipeline** | Quadro por etapa até o resultado, ordenado por prazo, com alerta do que fecha hoje sem proposta e vista "Por prazo". Item novo já entra com o responsável padrão (gestor). Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. |
 | **Licitação** | Edital, itens, ficha resumida, semelhantes em outros órgãos, concorrentes. |
-| **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação, envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
+| **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação (ao subir para revisão o dono recebe no WhatsApp o link de leitura sem login, o link do sistema e o botão Aprovar; ao aprovar, o gestor é avisado), envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
 | **Resultados** | O que fechou: ganho, perdido, preços praticados. |
 | **Conselheiro** | Assistente que responde sobre a tela aberta e guarda as conversas. |
-| **WhatsApp** | Resumo das 7h e prazos urgentes. O gestor recebe o operacional; o dono, o acompanhamento. |
+| **WhatsApp** | Resumo das 7h (com "Propostas para hoje" e meta da semana) e prazos urgentes. O gestor recebe o operacional; o dono, o acompanhamento e os avisos de proposta (subiu, aprovou, enviou, registrou fora). |
 
 ## Quem acessa
 
@@ -64,9 +64,9 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 ## Arquitetura
 
 - **App:** Next.js 16 (App Router, Server Components, Server Actions), TypeScript estrito, Tailwind. Hospedagem Vercel (região gru1), deploy a cada push na `main`.
-- **Banco:** Postgres no Supabase, pelo pooler em **modo sessão (porta 5432)** — o modo transação travava com consultas paralelas. Driver `postgres`, `max: 3` por instância. Migrations manuais em `db/migrations`, aplicadas com `npm run db:migrar` e só com ok.
+- **Banco:** Postgres no Supabase, pelo pooler em **modo sessão (porta 5432)** — o modo transação travava com consultas paralelas. Driver `postgres`, `max: 2` e `idle_timeout: 2` por instância (o modo sessão aceita 15 clientes). Migrations manuais em `db/migrations`, aplicadas com `npm run db:migrar` e só com ok.
 - **Camadas:** `core/` regras puras e testadas; `db/` consultas (sempre filtradas por `empresa_id`); `lib/` integrações e orquestração; `app/` telas e rotas; `components/` interface.
-- **Testes:** Vitest (~920 testes), `tsc --noEmit` e ESLint antes de cada commit.
+- **Testes:** Vitest (~1.000 testes de unidade e testes de banco em série), `tsc --noEmit` e ESLint antes de cada commit.
 
 ## Integrações
 
@@ -91,6 +91,22 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 | Sob demanda | `/api/cron/coleta?ufs=` | Coleta pedida pelo Radar ou estado novo, em chamada separada |
 
 Cache do Radar em `radar_cache` por UF e modalidade; a tela só lê o cache (abre em ~1 s). Cache com mais de 30 min pede nova coleta em segundo plano.
+
+## Como a nota é calculada
+
+| Critério | Máximo | Regra |
+|---|---|---|
+| Ramo e foco | 30 | CNAE da frente ativa ou termo do **foco da empresa** (tela Empresa). Casou só pelo foco: alerta de que nenhum CNAE cobre o objeto. |
+| Modalidade | 25 | Dispensa 25; pregão 10. |
+| Local | 20 | Pela distância da base. Serviço feito à distância (site, sistema web, hospedagem) vale 20 dentro das áreas. |
+| Documentação | 15 | Dispensa 15; pregão 6. |
+| Valor x teto MEI | 10 | Cabe no limite do ano: 10; até 2x: 5; acima: 0. |
+
+Faixas: 75 ou mais é "boa"; de 50 a 74, "atenção"; abaixo de 50, "evitar". Fecha em menos de 6 h rebaixa "boa" para "atenção". MEI acima de R$ 81 mil nunca fica verde.
+
+## Página pública
+
+`/documentacao` é pública e indexável (visão geral, lógica e operação). A seção técnica só aparece para superadmin. `robots.txt` libera só `/documentacao` e `/login`; o resto do sistema não é indexado.
 
 ## Rapidez
 
