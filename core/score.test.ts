@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PERFIL_ORIGEM } from "./empresa";
 import type { PerfilEmpresa } from "./perfil";
-import { calcularScore, limiteMeiAnual } from "./score";
+import { calcularScore, limiteMeiAnual, servicoRemoto } from "./score";
 import { LOCAL_DA_REGIAO } from "./teste-local";
 import type { Criterio, CriterioId, Frente, Oportunidade } from "./types";
 
@@ -485,5 +485,13 @@ describe("critério caixa (limites do dono)", () => {
     const ruim = calcularScore(oportunidade(), "servicos", AGORA, { limites, custoTotal: 99_999, diasParado: 1 });
     expect(bom.total - ruim.total).toBeLessThanOrEqual(5);
     expect(bom.total - ruim.total).toBeGreaterThan(0);
+  });
+});
+
+describe("serviço feito à distância", () => {
+  it("reconhece site e sistema web, mas não instalação de CFTV", () => {
+    expect(servicoRemoto("Redesign e manutenção do site institucional")).toBe(true);
+    expect(servicoRemoto("Locação de sistema web de gestão escolar")).toBe(true);
+    expect(servicoRemoto("Instalação de sistema de CFTV")).toBe(false);
   });
 });

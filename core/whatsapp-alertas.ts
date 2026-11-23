@@ -856,9 +856,28 @@ export function textoRascunhoPronto(p: { objeto: string; total: number; itens: n
 }
 
 /** Aviso ao dono: "Paulo gerou a proposta de Toner (R$ 12.500): <link>". */
-export function textoAvisoAoDono(p: { nome: string; acao: "gerou" | "aprovou"; objeto: string; total: number; link: string }): string {
+/** O que aconteceu com a proposta: gerou/aprovou (WhatsApp ou tela), subiu para revisão, enviou no portal, registrou externa. */
+export type AcaoAvisoProposta = "gerou" | "aprovou" | "subiu" | "enviou" | "registrou";
+
+export function textoAvisoAoDono(p: { nome: string; acao: AcaoAvisoProposta; objeto: string; total: number; link: string }): string {
   const quem = primeiroNome(p.nome) === "" ? "Alguém da equipe" : primeiroNome(p.nome);
-  return `${quem} ${p.acao} a proposta de ${objetoCurto(p.objeto, MAX_OBJETO_LISTA)} (${reais(p.total)}): ${p.link}`;
+  const objeto = objetoCurto(p.objeto, MAX_OBJETO_LISTA);
+  const valor = p.total > 0 ? ` (${reais(p.total)})` : "";
+  switch (p.acao) {
+    case "subiu":
+      return `📄 ${quem} subiu a proposta de ${objeto}${valor} para você revisar.
+Abra e confira: ${p.link}
+Está certa? Toque em *Aprovar*.`;
+    case "enviou":
+      return `📤 ${quem} enviou no portal a proposta de ${objeto}${valor}.
+Comprovante e detalhes: ${p.link}`;
+    case "registrou":
+      return `📤 ${quem} registrou uma proposta enviada fora do sistema: ${objeto}${valor}.
+Ver: ${p.link}`;
+    case "gerou":
+    case "aprovou":
+      return `${quem} ${p.acao} a proposta de ${objeto}${valor}: ${p.link}`;
+  }
 }
 
 /* ---------- ativação ---------- */

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { Permissao } from "@/core/permissoes";
@@ -12,6 +13,7 @@ import { podeGerarLink, statusAposEdicao, podeEditar, type AcaoRevisao } from "@
 import type { Sessao, StatusPropostaEquipe } from "@/core/types-equipe";
 import { criarPropostaExterna, marcarEnviada } from "@/db/proposta-eventos";
 import { executarAcaoRevisao } from "@/lib/revisao-proposta";
+import { avisarPropostaDaTela } from "@/lib/whatsapp-propostas";
 import { criarRascunho } from "./rascunho";
 import {
   atualizarProposta,
@@ -99,7 +101,12 @@ export async function acaoRevisaoAction(id: string, acao: AcaoRevisao, nota?: st
   if (!IdSchema.safeParse(id).success || !acaoLida.success) return { ok: false, mensagem: NAO_ENCONTRADA };
 
   const r = await executarAcaoRevisao(sessao, id, acaoLida.data, nota);
-  if (r.ok) revalidatePath("/propostas");
+  if (r.ok) {
+    revalidatePath("/propostas");
+    // Subiu para revisão: o dono recebe o link com o botão Aprovar. Aprovou na tela: o outro lado fica sabendo.
+    if (acaoLida.data === "enviar") after(() => avisarPropostaDaTela(sessao, id, "subiu"));
+    if (acaoLida.data === "aprovar") after(() => avisarPropostaDaTela(sessao, id, "aprovou"));
+  }
   return r;
 }
 
@@ -157,6 +164,8 @@ export async function marcarEnviadaAction(id: string, entrada: unknown): Promise
     const gravou = await marcarEnviada(a.sessao.empresaId, id, a.sessao.usuarioId, envio.valor, ["aprovada", "pronta", "enviada"]);
     if (!gravou) return { ok: false, mensagem: "A proposta mudou enquanto você olhava. Recarregue a página." };
     revalidatePath("/propostas");
+    const sessao = a.sessao;
+    after(() => avisarPropostaDaTela(sessao, id, "enviou"));
     return { ok: true, status: "enviada", enviadaEm: p.enviadaEm ?? new Date().toISOString() };
   } catch {
     return { ok: false, mensagem: FALHA };
@@ -199,6 +208,9 @@ export async function registrarExternaAction(entrada: unknown): Promise<{ ok: fa
     return { ok: false, mensagem: FALHA };
   }
   revalidatePath("/propostas");
+  const sessao = a.sessao;
+  const criada = id;
+  after(() => avisarPropostaDaTela(sessao, criada, "registrou"));
   redirect(`/propostas/${id}`);
 }
 

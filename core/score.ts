@@ -1,5 +1,5 @@
 import { avaliarLimites, capitalNecessario, type LimitesCaixa } from "./caixa";
-import { casarCnaesComForca, casarFoco, type CasamentoCnae } from "./cnae-keywords";
+import { casarCnaesComForca, casarFoco, normalizarTexto, regexDoTermo, type CasamentoCnae } from "./cnae-keywords";
 import { PERFIL_ORIGEM } from "./empresa";
 import { pontuacaoLocal, type NivelLocal } from "./areas";
 import { ehMei, type PerfilEmpresa } from "./perfil";
@@ -95,9 +95,42 @@ function criterioModalidade(o: Oportunidade): Criterio {
   return { ...base, pontos: 10, motivo: "Pregão eletrônico: disputa por lances, mais concorrida" };
 }
 
+/** Serviços entregues à distância: site, sistema, hospedagem. Para eles o deslocamento não pesa. */
+const TERMOS_REMOTOS = [
+  "site",
+  "website",
+  "sitio eletronico",
+  "portal institucional",
+  "portal da transparencia",
+  "landing page",
+  "redesign",
+  "identidade visual",
+  "sistema informatizado",
+  "sistema de gestao",
+  "sistema web",
+  "software",
+  "aplicativo",
+  "saas",
+  "hospedagem",
+  "plataforma digital",
+  "computacao em nuvem",
+].map(regexDoTermo);
+
+export function servicoRemoto(objeto: string): boolean {
+  const texto = normalizarTexto(objeto);
+  return TERMOS_REMOTOS.some((r) => r.test(texto));
+}
+
 function criterioLocal(o: Oportunidade, frente: Frente, perfil: PerfilEmpresa): Criterio {
   const base = { id: "local" as const, rotulo: "Local da entrega", maximo: 20, aConfirmar: false };
   const local = pontuacaoLocal(o, perfil.areas);
+  if (frente === "servicos" && servicoRemoto(o.objeto)) {
+    return {
+      ...base,
+      pontos: local.dentro ? 20 : 16,
+      motivo: "Serviço feito à distância (site, sistema ou hospedagem): o local quase não pesa",
+    };
+  }
   if (frente === "produtos") {
     // Produto viaja: dentro das áreas vale o máximo, fora delas o frete pesa.
     return { ...base, pontos: local.dentro ? 20 : 8, motivo: MOTIVO_LOCAL_PRODUTO[local.nivel] };

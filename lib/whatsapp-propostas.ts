@@ -11,13 +11,14 @@ import {
   payloadDoBotao,
   textoAvisoAoDono,
   textoRascunhoPronto,
+  type AcaoAvisoProposta,
   type ItemAlerta,
 } from "@/core/whatsapp-alertas";
 import { estaAprovada } from "@/core/revisao";
 import type { ItemPipeline } from "@/components/pipeline/tipos";
 import { lerProposta, listarPropostas, propostaRecenteDoAssistente } from "@/db/propostas";
 import { listarPipeline } from "@/db/pipeline";
-import { lerConfig, listarVinculosDaEmpresa, type VinculoWa } from "@/db/whatsapp";
+import { lerConfig, listarVinculosDaEmpresa, listarVinculosGestoresExtras, type VinculoWa } from "@/db/whatsapp";
 import { montarPropostaComAssistente } from "@/lib/assistente/proposta";
 import { linkAbsoluto } from "@/lib/email";
 import { assistenteDisponivel } from "@/lib/gemini";
@@ -90,24 +91,67 @@ function objetoDaProposta(p: Proposta): string {
   return texto.length <= MAX_OBJETO ? texto : `${texto.slice(0, MAX_OBJETO - 1).trimEnd()}…`;
 }
 
-/** Avisa o dono com o link se ele tem WhatsApp e a janela aberta; senão o movimento aparece no resumo dele. Nunca lança. */
-async function avisarDono(v: VinculoWa, acao: "gerou" | "aprovou", proposta: Proposta, agora: Date): Promise<void> {
+/** Quem agiu na proposta: basta identidade e empresa (vem da sessão da tela ou do vínculo do WhatsApp). */
+export interface AutorAviso {
+  empresaId: string;
+  usuarioId: string;
+  nome: string;
+  papel: string;
+}
+
+/**
+ * Avisa o outro lado com o link: ação de quem não é dono vai para o dono (com botão Aprovar quando subiu para revisão);
+ * ação do dono vai para os gestores (os da empresa e os ligados pelo Admin). Com a janela de 24 h fechada sai como
+ * mensagem utilitária. Fora do horário não envia: o movimento aparece no resumo da manhã. Nunca lança.
+ */
+export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProposta, proposta: Proposta, agora: Date): Promise<void> {
   try {
     if (!dentroDoHorario(agora)) return;
-    const vinculos = await listarVinculosDaEmpresa(v.empresaId);
-    const dono = vinculos.find((x) => x.papel === "dono" && x.usuarioId !== v.usuarioId && x.avisoWhatsapp && x.conversaId !== null);
-    if (!dono) return;
+    const paraDono = autor.papel !== "dono";
+    const daEmpresa = await listarVinculosDaEmpresa(autor.empresaId);
+    const extras = paraDono ? [] : await listarVinculosGestoresExtras(autor.empresaId).catch(() => []);
+    const destinos = [...daEmpresa, ...extras].filter(
+      (x) => x.usuarioId !== autor.usuarioId && x.avisoWhatsapp && x.conversaId !== null && (paraDono ? x.papel === "dono" : x.papel === "gestor"),
+    );
+    if (destinos.length === 0) return;
     const texto = textoAvisoAoDono({
-      nome: v.nome,
+      nome: autor.nome,
       acao,
       objeto: objetoDaProposta(proposta),
       total: proposta.total,
       link: linkAbsoluto(`/propostas/${proposta.id}`),
     });
-    await enviarParaPessoa(dono, texto, agora);
+    const botoes =
+      acao === "subiu" && paraDono ? [{ titulo: "Aprovar", payload: payloadDoBotao({ tipo: "aprovar", propostaId: proposta.id }) }] : undefined;
+    const vistos = new Set<string>();
+    for (const d of destinos) {
+      if (vistos.has(d.usuarioId)) continue;
+      vistos.add(d.usuarioId);
+      await enviarParaPessoa(d, texto, agora, { botoes, utilidade: true });
+    }
   } catch (e) {
-    console.error("[whatsapp] aviso ao dono:", e instanceof Error ? e.name : "erro");
+    console.error("[whatsapp] aviso de proposta:", e instanceof Error ? e.name : "erro");
   }
+}
+
+/** Para as ações da tela: lê a proposta e avisa. Nunca lança (roda depois da resposta). */
+export async function avisarPropostaDaTela(sessao: Sessao, propostaId: string, acao: AcaoAvisoProposta): Promise<void> {
+  try {
+    const proposta = await lerProposta(sessao.empresaId, propostaId);
+    if (proposta === null) return;
+    await avisarSobreProposta(
+      { empresaId: sessao.empresaId, usuarioId: sessao.usuarioId, nome: sessao.nome, papel: sessao.papel },
+      acao,
+      proposta,
+      new Date(),
+    );
+  } catch (e) {
+    console.error("[whatsapp] aviso de proposta:", e instanceof Error ? e.name : "erro");
+  }
+}
+
+function autorDoVinculo(v: VinculoWa): AutorAviso {
+  return { empresaId: v.empresaId, usuarioId: v.usuarioId, nome: v.nome, papel: v.papel };
 }
 
 /** "gerar N" (número da lista do dia) ou botão "Gerar N" (id do item): monta o rascunho e responde com o link para revisar. */
@@ -172,13 +216,13 @@ export async function gerarPropostaPeloWhatsapp(
     reaproveitado,
     podeAprovar,
   });
-  if (!reaproveitado) await avisarDono(v, "gerou", proposta, agora);
+  if (!reaproveitado) await avisarSobreProposta(autorDoVinculo(v), "gerou", proposta, agora);
   return podeAprovar
     ? { texto, botoes: [{ titulo: "Aprovar", payload: payloadDoBotao({ tipo: "aprovar", propostaId: proposta.id }) }] }
     : { texto };
 }
 
-/** Botão "Aprovar": aprova pela mesma função da tela de propostas e avisa o dono. */
+/** Botão "Aprovar": aprova pela mesma função da tela de propostas e avisa o outro lado (dono ou gestores). */
 export async function aprovarPropostaPeloWhatsapp(v: VinculoWa, propostaId: string, agora: Date): Promise<RespostaWa> {
   const sessao = sessaoDe(v);
   if (sessao === null || !podeAgirNaRevisao(sessao, "aprovar")) return { texto: "Seu perfil não pode aprovar propostas." };
@@ -186,6 +230,6 @@ export async function aprovarPropostaPeloWhatsapp(v: VinculoWa, propostaId: stri
   if (!r.ok) return { texto: `⚠️ ${r.mensagem}` };
   const proposta = await lerProposta(v.empresaId, propostaId);
   if (proposta === null) return { texto: "✅ Proposta aprovada." };
-  await avisarDono(v, "aprovou", proposta, agora);
+  await avisarSobreProposta(autorDoVinculo(v), "aprovou", proposta, agora);
   return { texto: `✅ Proposta aprovada: ${objetoDaProposta(proposta)}\n${linkAbsoluto(`/propostas/${proposta.id}`)}` };
 }

@@ -643,4 +643,15 @@ describe("propostas do dia", () => {
     );
     expect(textoAvisoAoDono({ nome: "Paulo", acao: "aprovou", objeto: "Toner", total: 800, link: "l" })).toContain("Paulo aprovou a proposta de Toner (R$ 800)");
   });
+
+  it("aviso de proposta que subiu, foi enviada ou registrada fora traz o link", () => {
+    const subiu = textoAvisoAoDono({ nome: "Paulo Henrique", acao: "subiu", objeto: "Toner", total: 1_200, link: "https://x.test/p" });
+    expect(subiu).toContain("Paulo subiu a proposta de Toner (R$ 1.200) para você revisar");
+    expect(subiu).toContain("https://x.test/p");
+    expect(subiu).toContain("*Aprovar*");
+    expect(textoAvisoAoDono({ nome: "Paulo", acao: "enviou", objeto: "Toner", total: 0, link: "l" })).toBe(
+      "📤 Paulo enviou no portal a proposta de Toner.\nComprovante e detalhes: l",
+    );
+    expect(textoAvisoAoDono({ nome: "", acao: "registrou", objeto: "Toner", total: 50, link: "l" })).toContain("Alguém da equipe registrou");
+  });
 });
