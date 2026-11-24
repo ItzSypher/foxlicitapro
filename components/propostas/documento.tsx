@@ -14,7 +14,7 @@ export function quantidadeTexto(n: number): string {
 function Condicao({ rotulo, valor }: { rotulo: string; valor: string }) {
   if (valor.trim() === "") return null;
   return (
-    <div className="grid grid-cols-[34mm_1fr] gap-x-3">
+    <div className="grid break-inside-avoid grid-cols-[34mm_1fr] gap-x-3">
       <dt className="font-semibold">{rotulo}</dt>
       <dd className="whitespace-pre-line">{valor}</dd>
     </div>
@@ -76,16 +76,16 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
 
       <table className="mt-4 w-full table-fixed border-collapse text-[9pt]">
         <colgroup>
-          <col className="w-[9mm]" />
+          <col className="w-[11mm]" />
           <col />
-          <col className="w-[28mm]" />
-          <col className="w-[10mm]" />
+          <col className="w-[26mm]" />
+          <col className="w-[16mm]" />
           <col className="w-[13mm]" />
           <col className="w-[22mm]" />
           <col className="w-[24mm]" />
         </colgroup>
         <thead className="table-header-group">
-          <tr className="bg-[#e8e8e8] text-left">
+          <tr className="bg-[#e8e8e8] text-left print:bg-transparent">
             <th className="border border-black px-1.5 py-1 font-semibold">Item</th>
             <th className="border border-black px-1.5 py-1 font-semibold">Descrição</th>
             <th className="border border-black px-1.5 py-1 font-semibold">Marca/modelo</th>
@@ -101,7 +101,7 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
               <td className="border border-black px-1.5 py-1">{item.numero}</td>
               <td className="border border-black px-1.5 py-1 break-words">{item.descricao}</td>
               <td className="border border-black px-1.5 py-1 break-words">{item.marcaModelo}</td>
-              <td className="border border-black px-1.5 py-1">{item.unidade}</td>
+              <td className="border border-black px-1.5 py-1 break-words">{item.unidade}</td>
               <td className="border border-black px-1.5 py-1 text-right tabular-nums">{quantidadeTexto(item.quantidade)}</td>
               <td className="border border-black px-1.5 py-1 text-right tabular-nums">{formatarMoeda(item.valorUnitario)}</td>
               <td className="border border-black px-1.5 py-1 text-right tabular-nums">
@@ -117,8 +117,8 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
         <p className="text-[9.5pt]">({valorPorExtenso(total)})</p>
       </div>
 
-      <section className="mt-5 break-inside-avoid">
-        <h2 className="mb-1 text-[10.5pt] font-bold">Condições da proposta</h2>
+      <section className="mt-5">
+        <h2 className="doc-titulo mb-1 text-[10.5pt] font-bold">Condições da proposta</h2>
         <dl className="flex flex-col gap-0.5">
           <Condicao rotulo="Validade" valor={`${dados.validadeDias} dias, contados da data desta proposta`} />
           <Condicao rotulo="Prazo de entrega" valor={dados.prazoEntrega} />
@@ -132,7 +132,7 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
       </section>
 
       <section className="mt-5">
-        <h2 className="mb-1 text-[10.5pt] font-bold">Declarações</h2>
+        <h2 className="doc-titulo mb-1 text-[10.5pt] font-bold">Declarações</h2>
         <ol className="flex list-decimal flex-col gap-1 pl-5 text-justify">
           {modelo.textos.declaracoes.map((texto) => (
             <li key={texto} className="break-inside-avoid">
@@ -142,10 +142,10 @@ export function DocumentoProposta({ dados, modeloId, emitente }: { dados: DadosP
         </ol>
       </section>
 
-      <p className="mt-5 text-justify">{modelo.textos.fechamento}</p>
+      <p className="doc-titulo mt-5 text-justify">{modelo.textos.fechamento}</p>
 
-      <div className="mt-6 break-inside-avoid">
-        <p>
+      <div className="doc-bloco mt-6 break-inside-avoid">
+        <p className="doc-titulo">
           {emitente.cidade}, {dataPorExtenso(dados.data)}.
         </p>
         {mostrarAssinatura && (
