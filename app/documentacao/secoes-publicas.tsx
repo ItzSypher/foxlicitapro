@@ -256,6 +256,7 @@ const COMANDOS: ReadonlyArray<readonly [string, string]> = [
   ["prazos", "Lista o que fecha em breve."],
   ["analisar <link>", "Analisa a licitação do link do PNCP e adiciona ao Pipeline."],
   ["gerar N", "Gera o rascunho da proposta de número N da lista “Propostas para hoje”, com link e botão Aprovar."],
+  ["propostas", "Lista numerada das propostas que pedem ação (em revisão primeiro). Responda o número para ler o documento e aprovar."],
   ["parar", "Interrompe os avisos."],
 ];
 

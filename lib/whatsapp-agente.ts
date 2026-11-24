@@ -31,7 +31,12 @@ import { lerFrente } from "@/lib/frente";
 import { assistenteDisponivel, gerarTexto } from "@/lib/gemini";
 import { enviarResumoAtrasado } from "@/lib/whatsapp-alertas-cron";
 import { enviarFila, enviarParaPessoa } from "@/lib/whatsapp-envio";
-import { aprovarPropostaPeloWhatsapp, gerarPropostaPeloWhatsapp } from "@/lib/whatsapp-propostas";
+import {
+  abrirPropostaPeloWhatsapp,
+  aprovarPropostaPeloWhatsapp,
+  gerarPropostaPeloWhatsapp,
+  listarPropostasPeloWhatsapp,
+} from "@/lib/whatsapp-propostas";
 import { enviarTexto, mostrarDigitando } from "@/lib/zernio";
 
 /**
@@ -274,6 +279,12 @@ async function tratar(msg: MensagemRecebida, agora: Date): Promise<void> {
   } else if (acao === null && comando.tipo === "gerar") {
     const r = await gerarPropostaPeloWhatsapp(atual, { numero: comando.numero }, agora);
     await responder(r.texto, r.botoes);
+  } else if (acao === null && comando.tipo === "propostas") {
+    const r = await listarPropostasPeloWhatsapp(atual, agora);
+    await responder(r.texto, r.botoes);
+  } else if (acao === null && comando.tipo === "numero") {
+    const r = await abrirPropostaPeloWhatsapp(atual, comando.numero, agora);
+    await responder(r?.texto ?? "Mande *propostas* para ver a lista e responda o número da que quer abrir.", r?.botoes);
   } else if (acao === null && comando.tipo === "saudacao") {
     resumoFeito = true;
     if (!(await enviarResumoAtrasado(atual, agora))) await responder(await respostaLocal(atual, agora, false));

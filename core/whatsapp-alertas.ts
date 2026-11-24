@@ -2,6 +2,7 @@
  * Regras dos alertas de WhatsApp pelo Zernio (funções puras, sem banco nem rede; o relógio entra por parâmetro).
  * Janela de 24 h, horário permitido, perfil de alerta, prazos urgentes, resumo da manhã, comandos, botões e leitura do webhook.
  */
+import { lerNumeroEscolhido } from "./whatsapp-propostas-lista";
 import { diaDeSaoPaulo, textoRestante } from "@/core/avisos";
 import { inicioDaSemana, type MetaConfig } from "@/core/meta";
 import { lerLinksPncp } from "@/core/link-pncp";
@@ -692,6 +693,10 @@ export type Comando =
   | { tipo: "gerar"; numero: number | null }
   /** Cumprimento curto: responde sem chamar o assistente */
   | { tipo: "saudacao" }
+  /** "propostas": lista numerada das propostas que pedem ação */
+  | { tipo: "propostas" }
+  /** Número sozinho ("3"): escolhe da última lista de propostas */
+  | { tipo: "numero"; numero: number }
   | { tipo: "livre"; texto: string };
 
 function simplificar(texto: string): string {
@@ -726,7 +731,14 @@ export function lerComando(texto: string): Comando {
   const gerar = PEDIDO_GERAR.exec(limpo);
   if (gerar) return { tipo: "gerar", numero: gerar[1] === undefined ? null : Number(gerar[1]) };
   if (SAUDACOES.has(limpo)) return { tipo: "saudacao" };
+  const numero = lerNumeroEscolhido(limpo);
+  if (numero !== null) return { tipo: "numero", numero };
   switch (limpo) {
+    case "proposta":
+    case "propostas":
+    case "minhas propostas":
+    case "ver propostas":
+      return { tipo: "propostas" };
     case "pipeline":
       return { tipo: "pipeline" };
     case "prazos":

@@ -56,6 +56,8 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 - Só resumo das 7h e prazo urgente (2 h e 24 h). Gestor com várias empresas recebe uma mensagem com um bloco por empresa.
 - O WhatsApp só permite texto livre até 24 h depois da última mensagem da pessoa. Com a janela fechada, o resumo das 7h sai como mensagem utilitária (cobrada pela Meta); se ela falhar, o resumo do dia vai na primeira mensagem que a pessoa mandar. A tela Alertas mostra a situação de cada um.
 - O gestor recebe "Propostas para hoje" e responde *gerar 1* para receber o rascunho com link e botão Aprovar; o dono é avisado.
+- Aviso de proposta (subiu, aprovou, enviou, registrou fora) sai a qualquer hora, porque nasce de uma ação da pessoa.
+- *propostas* lista as que pedem ação, numeradas (em revisão primeiro). Responder o número traz o link de leitura sem login, o link do sistema e, para quem aprova, o botão Aprovar. A lista vale 6 h.
 
 ---
 

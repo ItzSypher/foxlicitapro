@@ -375,6 +375,9 @@ describe("lerComando", () => {
   it("ativar com código em maiúsculas", () => {
     expect(lerComando("  ativar   ab3k9z ")).toEqual({ tipo: "ativar", codigo: "AB3K9Z" });
     expect(lerComando("ATIVAR AB3K9Z")).toEqual({ tipo: "ativar", codigo: "AB3K9Z" });
+    expect(lerComando("Propostas")).toEqual({ tipo: "propostas" });
+    expect(lerComando("proposta")).toEqual({ tipo: "propostas" });
+    expect(lerComando(" 2 ")).toEqual({ tipo: "numero", numero: 2 });
   });
   it("ativar com código de tamanho errado é texto livre", () => {
     expect(lerComando("ativar abc").tipo).toBe("livre");

@@ -6,7 +6,6 @@ import type { Proposta } from "@/db/propostas";
 import type { Sessao } from "@/core/types-equipe";
 import {
   chavePropostasDoDia,
-  dentroDoHorario,
   escolherPropostasDoDia,
   payloadDoBotao,
   textoAvisoAoDono,
@@ -18,7 +17,14 @@ import { estaAprovada } from "@/core/revisao";
 import type { ItemPipeline } from "@/components/pipeline/tipos";
 import { gerarTokenPublico, lerProposta, listarPropostas, propostaRecenteDoAssistente } from "@/db/propostas";
 import { listarPipeline } from "@/db/pipeline";
-import { lerConfig, listarVinculosDaEmpresa, listarVinculosGestoresExtras, type VinculoWa } from "@/db/whatsapp";
+import { gravarConfig, lerConfig, listarVinculosDaEmpresa, listarVinculosGestoresExtras, type VinculoWa } from "@/db/whatsapp";
+import {
+  chaveListaPropostas,
+  escolherPropostasDaLista,
+  lerListaGuardada,
+  textoDetalheProposta,
+  textoListaPropostas,
+} from "@/core/whatsapp-propostas-lista";
 import { montarPropostaComAssistente } from "@/lib/assistente/proposta";
 import { linkAbsoluto } from "@/lib/email";
 import { assistenteDisponivel } from "@/lib/gemini";
@@ -102,11 +108,11 @@ export interface AutorAviso {
 /**
  * Avisa o outro lado com o link: ação de quem não é dono vai para o dono (com botão Aprovar quando subiu para revisão);
  * ação do dono vai para os gestores (os da empresa e os ligados pelo Admin). Com a janela de 24 h fechada sai como
- * mensagem utilitária. Fora do horário não envia: o movimento aparece no resumo da manhã. Nunca lança.
+ * mensagem utilitária. Vale a qualquer hora. Nunca lança.
  */
 export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProposta, proposta: Proposta, agora: Date): Promise<void> {
   try {
-    if (!dentroDoHorario(agora)) return;
+    // Sem trava de horário: o aviso nasce de uma ação da pessoa (subiu, aprovou, enviou) e é esperado na hora.
     const paraDono = autor.papel !== "dono";
     const daEmpresa = await listarVinculosDaEmpresa(autor.empresaId);
     const extras = paraDono ? [] : await listarVinculosGestoresExtras(autor.empresaId).catch(() => []);
@@ -251,4 +257,49 @@ export async function aprovarPropostaPeloWhatsapp(v: VinculoWa, propostaId: stri
   if (proposta === null) return { texto: "✅ Proposta aprovada." };
   await avisarSobreProposta(autorDoVinculo(v), "aprovou", proposta, agora);
   return { texto: `✅ Proposta aprovada: ${objetoDaProposta(proposta)}\n${linkAbsoluto(`/propostas/${proposta.id}`)}` };
+}
+
+/** "propostas": lista numerada das que pedem ação e guarda a ordem para a pessoa responder o número. */
+export async function listarPropostasPeloWhatsapp(v: VinculoWa, agora: Date): Promise<RespostaWa> {
+  if (!permitido(v, "editar_propostas") && !permitido(v, "aprovar_propostas")) return { texto: "Seu perfil não vê propostas." };
+  const todas = await listarPropostas(v.empresaId);
+  const lista = escolherPropostasDaLista(
+    todas.map((p) => ({
+      id: p.id,
+      objeto: resumirObjeto(p.titulo.replace(/^(Nova )?[Pp]roposta · /, "")),
+      total: p.total,
+      status: p.status,
+      atualizadoEm: p.atualizadoEm,
+      criadoPorNome: p.criadoPorNome,
+      externa: p.externa,
+    })),
+  );
+  await gravarConfig(chaveListaPropostas(v.usuarioId), JSON.stringify({ ids: lista.map((p) => p.id), em: agora.toISOString() }));
+  return { texto: textoListaPropostas(lista) };
+}
+
+/** Número respondido depois de "propostas": manda o detalhe com o link de leitura e, se couber, o botão Aprovar. */
+export async function abrirPropostaPeloWhatsapp(v: VinculoWa, numero: number, agora: Date): Promise<RespostaWa | null> {
+  const guardada = lerListaGuardada(await lerConfig(chaveListaPropostas(v.usuarioId)), agora);
+  if (guardada === null) return null;
+  const id = guardada.ids[numero - 1];
+  if (id === undefined) return { texto: `A lista tem ${guardada.ids.length} propostas. Responda um número de 1 a ${guardada.ids.length}.` };
+  const proposta = await lerProposta(v.empresaId, id);
+  if (proposta === null) return { texto: "Essa proposta não existe mais. Mande *propostas* para ver a lista nova." };
+  const sessao = sessaoDe(v);
+  const podeAprovar = proposta.status === "em_revisao" && sessao !== null && podeAgirNaRevisao(sessao, "aprovar");
+  const texto = textoDetalheProposta({
+    objeto: objetoDaProposta(proposta),
+    orgao: proposta.dados.orgao,
+    total: proposta.total,
+    itens: proposta.dados.itens.length,
+    status: proposta.status,
+    criadoPorNome: proposta.criadoPorNome,
+    link: linkAbsoluto(`/propostas/${proposta.id}`),
+    leitura: await linkDeLeitura(v.empresaId, proposta),
+    podeAprovar,
+  });
+  return podeAprovar
+    ? { texto, botoes: [{ titulo: "Aprovar", payload: payloadDoBotao({ tipo: "aprovar", propostaId: proposta.id }) }] }
+    : { texto };
 }
