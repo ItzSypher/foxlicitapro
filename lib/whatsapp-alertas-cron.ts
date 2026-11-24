@@ -26,10 +26,11 @@ import {
   type NovaDoRamo,
   type PessoaWa,
   type PropostaDoDia,
+  type VencidasDaSemana,
 } from "@/core/whatsapp-alertas";
 import { listarPessoasDeAviso } from "@/db/avisos";
 import { lerEmpresa, listarIdsEmpresasAtivas } from "@/db/empresas";
-import { lerMetaDisputas } from "@/db/meta";
+import { lerGanhosDaSemana, lerMetaDisputas } from "@/db/meta";
 import { listarPipeline } from "@/db/pipeline";
 import { listarMovimentosDePropostas, listarPropostas } from "@/db/propostas";
 import { lerPreferencias } from "@/db/preferencias";
@@ -177,6 +178,7 @@ interface ContextoResumo {
   propostasHoje: () => Promise<PropostaDoDia[]>;
   propostasMovidas: () => Promise<MovimentoProposta[]>;
   disputasNaSemana: () => Promise<number>;
+  vencidasNaSemana: () => Promise<VencidasDaSemana>;
   meta: () => Promise<MetaConfig>;
 }
 
@@ -225,8 +227,12 @@ function contextoDaEmpresa(empresaId: string, itens: ReadonlyArray<ItemAlerta>, 
         return [];
       }),
   );
+  const vencidasNaSemana = sobDemanda(async (): Promise<VencidasDaSemana> => {
+    const g = await lerGanhosDaSemana(empresaId, agora);
+    return { vencidas: g.vencidas, valor: g.valorVencidas, estimado: g.estimadoVencidas };
+  });
   const meta = sobDemanda(() => lerMetaDisputas(empresaId));
-  return { empresaId, itens, novas, movimentos, propostasHoje, propostasMovidas, disputasNaSemana, meta };
+  return { empresaId, itens, novas, movimentos, propostasHoje, propostasMovidas, disputasNaSemana, vencidasNaSemana, meta };
 }
 
 /** Leituras que valem para a rodada inteira: o nome curto e o contexto de cada empresa extra, lidos uma vez só. */
@@ -354,6 +360,7 @@ async function dadosDoResumo(
     movimentos: e.movimentos || e.disputa ? await ctx.movimentos() : [],
     pendencias,
     disputasNaSemana: e.meta ? await ctx.disputasNaSemana() : 0,
+    vencidasNaSemana: e.meta ? await ctx.vencidasNaSemana() : { vencidas: 0, valor: 0, estimado: false },
     meta: e.meta ? await ctx.meta() : META_PADRAO,
   };
 }

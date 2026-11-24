@@ -3,11 +3,14 @@ import { z } from "zod";
 import { sql } from "@/db/client";
 import {
   META_PADRAO,
+  ganhosDaJanela,
   inicioDaSemana,
   inicioDoHistorico,
   montarPainelMeta,
   normalizarMeta,
   type EntradaEmDisputa,
+  type EntradaVencida,
+  type GanhosMeta,
   type MetaConfig,
   type PainelMeta,
   type PropostasDaSemana,
@@ -43,20 +46,59 @@ export async function gravarMetaDisputas(empresaId: string, minimo: number, idea
   return linhas.length > 0;
 }
 
-const entradaSchema = z.object({ item_id: z.string(), em: z.date() });
+const entradaSchema = z.object({
+  item_id: z.string(),
+  em: z.date(),
+  valor_proposto: z.number().nullable(),
+  valor_estimado: z.number().nullable(),
+});
 
-/** Entradas na etapa "disputa" desde `desde`, a partir do histórico de etapas do pipeline. */
-async function listarEntradasEmDisputa(empresaId: string, desde: Date): Promise<EntradaEmDisputa[]> {
+/**
+ * Entradas na etapa `etapa` desde `desde`, a partir do histórico de etapas do pipeline. O valor é o maior total
+ * entre as propostas aprovadas, prontas ou enviadas do item; sem proposta, o valor estimado (marcado como estimado).
+ */
+async function listarEntradasNaEtapa(empresaId: string, etapa: "disputa" | "ganha", desde: Date): Promise<EntradaEmDisputa[]> {
   const linhas = await sql`
-    select h.item_id, h.em
+    select h.item_id, h.em,
+           (select max(p.total)::float8 from propostas p
+            where p.empresa_id = i.empresa_id and p.compra_id = i.id and p.status in ('aprovada', 'pronta', 'enviada')) as valor_proposto,
+           i.valor_estimado::float8 as valor_estimado
     from pipeline_historico h
     join pipeline_itens i on i.empresa_id = h.empresa_id and i.id = h.item_id
-    where h.empresa_id = ${empresaId} and h.para = 'disputa' and h.em >= ${desde.toISOString()}::timestamptz
+    where h.empresa_id = ${empresaId} and h.para = ${etapa} and h.em >= ${desde.toISOString()}::timestamptz
   `;
   return linhas.map((linha) => {
     const l = entradaSchema.parse(linha);
-    return { itemId: l.item_id, em: l.em };
+    const proposto = l.valor_proposto !== null && l.valor_proposto > 0 ? l.valor_proposto : null;
+    if (proposto !== null) return { itemId: l.item_id, em: l.em, valor: proposto, estimado: false };
+    const estimado = l.valor_estimado !== null && l.valor_estimado > 0 ? l.valor_estimado : null;
+    return { itemId: l.item_id, em: l.em, valor: estimado, estimado: estimado !== null };
   });
+}
+
+/** Itens que entraram em "ganha" desde `desde`; sem a leitura, a lista vem vazia e o painel segue. */
+async function listarVencidas(empresaId: string, desde: Date): Promise<EntradaVencida[]> {
+  try {
+    return await listarEntradasNaEtapa(empresaId, "ganha", desde);
+  } catch (e) {
+    console.error("[meta] vencidas indisponíveis:", e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
+/** Disputadas e vencidas da semana de `agora`, com valores; para o resumo do WhatsApp. Zerado se a leitura falhar. */
+export async function lerGanhosDaSemana(empresaId: string, agora: Date): Promise<GanhosMeta> {
+  const inicio = inicioDaSemana(agora);
+  try {
+    const [disputas, vencidas] = await Promise.all([
+      listarEntradasNaEtapa(empresaId, "disputa", inicio),
+      listarEntradasNaEtapa(empresaId, "ganha", inicio),
+    ]);
+    return ganhosDaJanela(disputas, vencidas, inicio);
+  } catch (e) {
+    console.error("[meta] ganhos da semana indisponíveis:", e instanceof Error ? e.message : e);
+    return ganhosDaJanela([], [], inicio);
+  }
 }
 
 const contagemSchema = z.object({ enviadas: z.number().int(), aguardando: z.number().int(), ganhas: z.number().int() });
@@ -79,15 +121,17 @@ async function contarPropostas(empresaId: string, inicio: Date): Promise<Propost
 export async function carregarPainelMeta(empresaId: string, agora: Date): Promise<PainelMeta | null> {
   try {
     const inicio = inicioDaSemana(agora);
-    const [meta, entradas, propostas] = await Promise.all([
+    const desde = inicioDoHistorico(agora);
+    const [meta, entradas, vencidas, propostas] = await Promise.all([
       lerMetaDisputas(empresaId),
-      listarEntradasEmDisputa(empresaId, inicioDoHistorico(agora)),
+      listarEntradasNaEtapa(empresaId, "disputa", desde),
+      listarVencidas(empresaId, desde),
       contarPropostas(empresaId, inicio).catch((e: unknown): PropostasDaSemana => {
         console.error("[meta] propostas indisponíveis:", e instanceof Error ? e.message : e);
         return { enviadas: 0, aguardando: 0, ganhas: 0 };
       }),
     ]);
-    return montarPainelMeta(entradas, agora, meta, propostas);
+    return montarPainelMeta(entradas, agora, meta, propostas, vencidas);
   } catch (e) {
     console.error("[meta] painel indisponível:", e instanceof Error ? e.message : e);
     return null;

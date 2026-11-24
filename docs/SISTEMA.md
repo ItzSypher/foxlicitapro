@@ -22,7 +22,7 @@ Serviço de **acompanhamento de licitações no CNPJ do cliente**. O sistema ach
 | **Pipeline** | Quadro por etapa até o resultado, ordenado por prazo, com alerta do que fecha hoje sem proposta e vista "Por prazo". Item novo já entra com o responsável padrão (gestor). Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. |
 | **Licitação** | Edital, itens, ficha resumida, semelhantes em outros órgãos, concorrentes. |
 | **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação (ao subir para revisão o dono recebe no WhatsApp o link de leitura sem login, o link do sistema e o botão Aprovar; ao aprovar, o gestor é avisado), envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
-| **Resultados** | O que fechou: ganho, perdido, preços praticados. |
+| **Resultados** | O que fechou: ganho, perdido, preços praticados. A meta da semana mostra disputadas, vencidas e R$ ganhos. |
 | **Conselheiro** | Assistente que responde sobre a tela aberta e guarda as conversas. |
 | **WhatsApp** | Resumo das 7h (com "Propostas para hoje" e meta da semana) e prazos urgentes. O gestor recebe o operacional; o dono, o acompanhamento e os avisos de proposta (subiu, aprovou, enviou, registrou fora). |
 

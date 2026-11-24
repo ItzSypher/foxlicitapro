@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   META_PADRAO,
+  ganhosDaJanela,
+  ganhosDoPainel,
   inicioDaSemana,
   inicioDoHistorico,
+  linhaDeGanhos,
   montarPainelMeta,
   normalizarMeta,
   percentualDaBarra,
@@ -107,7 +110,80 @@ describe("ultimasSemanas", () => {
   });
 });
 
+function comValor(itemId: string, iso: string, valor: number | null, estimado = false): EntradaEmDisputa {
+  return { itemId, em: new Date(iso), valor, estimado };
+}
+
+describe("ganhosDoPainel", () => {
+  const disputas = [
+    comValor("a", "2026-05-12T10:00:00Z", 1000),
+    comValor("a", "2026-05-13T10:00:00Z", 1000), // o mesmo item: uma vez só
+    comValor("b", "2026-05-12T11:00:00Z", 500, true),
+    comValor("c", "2026-05-05T10:00:00Z", 300), // semana anterior
+  ];
+  const vencidas = [
+    comValor("a", "2026-05-12T12:00:00Z", 1000),
+    comValor("b", "2026-05-18T02:59:00Z", 500, true), // domingo 23h59: entra
+    comValor("d", "2026-05-18T03:00:00Z", 9999), // próxima semana: fora
+    comValor("e", "2026-05-05T10:00:00Z", 2000), // semana anterior
+    comValor("f", "2026-05-06T10:00:00Z", null), // sem valor: conta, não soma
+    comValor("g", "2026-04-01T10:00:00Z", 7000), // fora das quatro semanas
+  ];
+
+  it("semana atual: quantidades distintas e soma dos valores", () => {
+    const g = ganhosDoPainel(disputas, vencidas, AGORA).semana;
+    expect(g).toMatchObject({
+      inicio: "2026-05-11T03:00:00.000Z",
+      disputadas: 2,
+      valorDisputadas: 1500,
+      estimadoDisputadas: true,
+      vencidas: 2,
+      valorVencidas: 1500,
+      estimadoVencidas: true,
+    });
+  });
+  it("quatro semanas anteriores, da mais antiga para a mais recente", () => {
+    const h = ganhosDoPainel(disputas, vencidas, AGORA).historico;
+    expect(h.map((s) => s.inicio)).toEqual([
+      "2026-04-13T03:00:00.000Z",
+      "2026-04-20T03:00:00.000Z",
+      "2026-04-27T03:00:00.000Z",
+      "2026-05-04T03:00:00.000Z",
+    ]);
+    expect(h.map((s) => s.vencidas)).toEqual([0, 0, 0, 2]);
+    expect(h.map((s) => s.valorVencidas)).toEqual([0, 0, 0, 2000]);
+    expect(h[3]).toMatchObject({ disputadas: 1, valorDisputadas: 300, estimadoDisputadas: false, estimadoVencidas: false });
+  });
+  it("sem valor ou valor inválido não soma nem marca como estimado", () => {
+    const g = ganhosDaJanela([], [comValor("x", "2026-05-12T10:00:00Z", null, true), comValor("y", "2026-05-12T10:00:00Z", Number.NaN)], inicioDaSemana(AGORA));
+    expect(g).toMatchObject({ vencidas: 2, valorVencidas: 0, estimadoVencidas: false });
+  });
+  it("entradas sem valor (formato antigo) valem zero", () => {
+    expect(ganhosDoPainel([entrada("a", "2026-05-12T10:00:00Z")], [], AGORA).semana).toMatchObject({ disputadas: 1, valorDisputadas: 0, vencidas: 0 });
+  });
+});
+
+describe("linhaDeGanhos", () => {
+  const brl = (v: number): string => `R$ ${v}`;
+  const base = { disputadas: 3, valorDisputadas: 0, estimadoDisputadas: false, vencidas: 2, valorVencidas: 1500, estimadoVencidas: false };
+  it("disputadas, vencidas e valor ganho", () => {
+    expect(linhaDeGanhos(base, brl)).toBe("3 disputadas · 2 vencidas · R$ 1500 ganhos");
+  });
+  it("singular, estimado e sem vencidas", () => {
+    expect(linhaDeGanhos({ ...base, disputadas: 1, vencidas: 1, estimadoVencidas: true }, brl)).toBe("1 disputada · 1 vencida · ~R$ 1500 ganhos");
+    expect(linhaDeGanhos({ ...base, vencidas: 0, valorVencidas: 0 }, brl)).toBe("3 disputadas · 0 vencidas");
+  });
+});
+
 describe("montarPainelMeta e barra", () => {
+  it("inclui os ganhos da semana", () => {
+    const painel = montarPainelMeta([entrada("a", "2026-05-12T10:00:00Z")], AGORA, META_PADRAO, { enviadas: 0, aguardando: 0, ganhas: 0 }, [
+      comValor("v", "2026-05-12T10:00:00Z", 800),
+    ]);
+    expect(painel.ganhos.semana).toMatchObject({ disputadas: 1, vencidas: 1, valorVencidas: 800 });
+    expect(painel.ganhos.historico).toHaveLength(4);
+    expect(montarPainelMeta([], AGORA, META_PADRAO, { enviadas: 0, aguardando: 0, ganhas: 0 }).ganhos.semana.vencidas).toBe(0);
+  });
   it("junta placar, histórico e propostas", () => {
     const painel = montarPainelMeta([entrada("a", "2026-05-12T10:00:00Z")], AGORA, META_PADRAO, { enviadas: 2, aguardando: 3, ganhas: 1 });
     expect(painel.placar.disputas).toBe(1);

@@ -27,6 +27,7 @@ const m = vi.hoisted(() => ({
   entregarAlertasWa: vi.fn(),
   enviarParaPessoa: vi.fn(),
   lerMetaDisputas: vi.fn(),
+  lerGanhosDaSemana: vi.fn(),
   listarPropostas: vi.fn(),
   listarMovimentosDePropostas: vi.fn(),
 }));
@@ -51,7 +52,7 @@ vi.mock("@/db/usuario-empresas", () => ({ listarIdsEmpresasExtras: m.listarIdsEm
 vi.mock("@/db/avisos",() => ({ listarPessoasDeAviso: m.listarPessoasDeAviso }));
 vi.mock("@/db/pipeline", () => ({ listarPipeline: m.listarPipeline }));
 vi.mock("@/db/propostas", () => ({ listarPropostas: m.listarPropostas, listarMovimentosDePropostas: m.listarMovimentosDePropostas }));
-vi.mock("@/db/meta", () => ({ lerMetaDisputas: m.lerMetaDisputas }));
+vi.mock("@/db/meta", () => ({ lerMetaDisputas: m.lerMetaDisputas, lerGanhosDaSemana: m.lerGanhosDaSemana }));
 vi.mock("@/db/preferencias", () => ({ lerPreferencias: m.lerPreferencias }));
 vi.mock("@/lib/radar-dados", () => ({ obterRadar: vi.fn() }));
 vi.mock("@/lib/whatsapp-envio", () => ({ entregarAlertasWa: m.entregarAlertasWa, enviarParaPessoa: m.enviarParaPessoa }));
@@ -118,6 +119,7 @@ beforeEach(() => {
   m.entregarAlertasWa.mockResolvedValue({ novos: 0, enviados: 0 });
   m.enviarParaPessoa.mockResolvedValue(true);
   m.lerMetaDisputas.mockResolvedValue({ minimo: 5, ideal: 10 });
+  m.lerGanhosDaSemana.mockResolvedValue({ disputadas: 0, valorDisputadas: 0, estimadoDisputadas: false, vencidas: 0, valorVencidas: 0, estimadoVencidas: false });
   m.listarPropostas.mockResolvedValue([]);
   m.listarMovimentosDePropostas.mockResolvedValue([]);
 });

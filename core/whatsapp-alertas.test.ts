@@ -26,6 +26,7 @@ import {
   textoAvisoAoDono,
   textoDoResumo,
   textoRascunhoPronto,
+  textoDaMeta,
   textoResumoManha,
   tituloAtribuir,
   type AcaoBotao,
@@ -211,6 +212,7 @@ function dados(parcial: Partial<DadosResumoManha> = {}): DadosResumoManha {
     propostasMovidas: [],
     pendencias: [],
     disputasNaSemana: 0,
+    vencidasNaSemana: { vencidas: 0, valor: 0, estimado: false },
     meta: { minimo: 5, ideal: 10 },
     ...parcial,
   };
@@ -285,6 +287,18 @@ describe("textoResumoManha", () => {
   });
   it("ideal batido", () => {
     expect(textoResumoManha(dados({ disputasNaSemana: 10 }), AGORA).texto).toContain("🎯 Meta: 10/10 disputas · ideal batido!");
+  });
+  it("acrescenta as vencidas da semana com o valor, só quando há", () => {
+    const r = textoResumoManha(dados({ disputasNaSemana: 10, vencidasNaSemana: { vencidas: 2, valor: 12_500, estimado: false } }), AGORA);
+    expect(r.texto).toContain("🎯 Meta: 10/10 disputas · ideal batido! · 2 vencidas (R$ 12.500)");
+    expect(textoDaMeta(2, { minimo: 5, ideal: 10 }, { objeto: "Toner", restanteMs: 3 * HORA }, { vencidas: 1, valor: 8_000, estimado: true })).toContain(
+      "🎯 Meta: 2/5 disputas · faltam 3 até domingo · 1 vencida (~R$ 8.000)\nPriorize: ",
+    );
+    expect(textoDaMeta(5, { minimo: 5, ideal: 10 }, null, { vencidas: 3, valor: 0, estimado: false })).toBe(
+      "🎯 Meta: 5/10 disputas · mínimo batido, faltam 5 até domingo para o ideal · 3 vencidas",
+    );
+    expect(textoDaMeta(5, { minimo: 5, ideal: 10 }, null, { vencidas: 0, valor: 0, estimado: false })).not.toContain("vencida");
+    expect(textoResumoManha(dados({ disputasNaSemana: 2 }), AGORA).texto).not.toContain("vencida");
   });
   it("usa a meta configurada pela empresa", () => {
     const r = textoResumoManha(dados({ disputasNaSemana: 2, meta: { minimo: 3, ideal: 6 } }), AGORA);

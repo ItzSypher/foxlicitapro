@@ -376,6 +376,8 @@ export interface DadosResumoManha {
   pendencias: ReadonlyArray<string>;
   /** Itens distintos que chegaram em disputa desde segunda-feira */
   disputasNaSemana: number;
+  /** Itens que chegaram em "ganha" desde segunda-feira, com o valor somado */
+  vencidasNaSemana: VencidasDaSemana;
   /** Meta da semana da empresa */
   meta: MetaConfig;
 }
@@ -477,18 +479,38 @@ export function itemParaPriorizar(itens: ReadonlyArray<ItemAlerta>, agora: Date)
   return melhor === null ? null : melhor.item;
 }
 
+/** Licitações vencidas na semana (entraram em "ganha") e a soma dos valores; `estimado` quando algum valor não vem de proposta. */
+export interface VencidasDaSemana {
+  vencidas: number;
+  valor: number;
+  estimado: boolean;
+}
+
+/** " · 2 vencidas (R$ 12.500)"; vazio sem vencidas. */
+function textoDasVencidas(v: VencidasDaSemana | null): string {
+  if (v === null || v.vencidas <= 0) return "";
+  const rotulo = `${v.vencidas} ${v.vencidas === 1 ? "vencida" : "vencidas"}`;
+  return v.valor > 0 ? ` · ${rotulo} (${v.estimado ? "~" : ""}${reais(v.valor)})` : ` · ${rotulo}`;
+}
+
 /**
  * "Meta: 2/5 disputas · faltam 3 até domingo". Com o mínimo batido o alvo passa a ser o ideal.
  * `priorizar`: o que fecha primeiro, só quando ainda falta para o mínimo.
  */
-export function textoDaMeta(feitas: number, meta: MetaConfig, priorizar: { objeto: string; restanteMs: number } | null = null): string {
-  if (feitas >= meta.ideal) return `🎯 Meta: ${feitas}/${meta.ideal} disputas · ideal batido!`;
+export function textoDaMeta(
+  feitas: number,
+  meta: MetaConfig,
+  priorizar: { objeto: string; restanteMs: number } | null = null,
+  vencidas: VencidasDaSemana | null = null,
+): string {
+  const ganhas = textoDasVencidas(vencidas);
+  if (feitas >= meta.ideal) return `🎯 Meta: ${feitas}/${meta.ideal} disputas · ideal batido!${ganhas}`;
   if (feitas >= meta.minimo) {
     const faltam = meta.ideal - feitas;
-    return `🎯 Meta: ${feitas}/${meta.ideal} disputas · mínimo batido, ${faltam === 1 ? "falta 1" : `faltam ${faltam}`} até domingo para o ideal`;
+    return `🎯 Meta: ${feitas}/${meta.ideal} disputas · mínimo batido, ${faltam === 1 ? "falta 1" : `faltam ${faltam}`} até domingo para o ideal${ganhas}`;
   }
   const faltam = meta.minimo - feitas;
-  const placar = `🎯 Meta: ${feitas}/${meta.minimo} disputas · ${faltam === 1 ? "falta 1" : `faltam ${faltam}`} até domingo`;
+  const placar = `🎯 Meta: ${feitas}/${meta.minimo} disputas · ${faltam === 1 ? "falta 1" : `faltam ${faltam}`} até domingo${ganhas}`;
   if (priorizar === null) return placar;
   return `${placar}\nPriorize: ${objetoCurto(priorizar.objeto, MAX_OBJETO_LISTA)} (fecha em ${textoRestante(priorizar.restanteMs)})`;
 }
@@ -593,7 +615,7 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
   if (e.meta) {
     const prioridade = e.perfil === "operacional" && d.disputasNaSemana < d.meta.minimo ? itemParaPriorizar(d.itens, agora) : null;
     const priorizar = prioridade === null ? null : { objeto: prioridade.objeto, restanteMs: new Date(prioridade.dataEncerramento).getTime() - agora.getTime() };
-    partes.push(textoDaMeta(d.disputasNaSemana, d.meta, priorizar));
+    partes.push(textoDaMeta(d.disputasNaSemana, d.meta, priorizar, d.vencidasNaSemana));
   }
 
   return { partes, novasMostradas: [...mostradas] };

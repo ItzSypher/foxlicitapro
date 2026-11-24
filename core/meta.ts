@@ -22,10 +22,41 @@ export const META_PADRAO: MetaConfig = { minimo: META_MINIMO_PADRAO, ideal: META
 
 export type StatusMeta = "abaixo" | "minimo" | "ideal";
 
-/** Um item que entrou em disputa, e quando. */
+/**
+ * Um item que entrou numa etapa (disputa ou ganha), e quando. `valor` é o total da proposta aprovada, pronta ou
+ * enviada do item; sem proposta, o valor estimado do item (e `estimado` fica verdadeiro). Sem nenhum dos dois, null.
+ */
 export interface EntradaEmDisputa {
   itemId: string;
   em: Date;
+  valor?: number | null;
+  estimado?: boolean;
+}
+
+/** Item que entrou na etapa "ganha" (mesmo formato da entrada em disputa). */
+export type EntradaVencida = EntradaEmDisputa;
+
+/** Disputadas e vencidas de uma janela, com a soma dos valores. */
+export interface GanhosMeta {
+  disputadas: number;
+  valorDisputadas: number;
+  /** Algum valor somado nas disputadas veio do valor estimado do item, não de proposta */
+  estimadoDisputadas: boolean;
+  vencidas: number;
+  valorVencidas: number;
+  /** Algum valor somado nas vencidas veio do valor estimado do item, não de proposta */
+  estimadoVencidas: boolean;
+}
+
+export interface SemanaGanhos extends GanhosMeta {
+  /** ISO 8601: segunda-feira 0h (São Paulo) */
+  inicio: string;
+}
+
+export interface GanhosDoPainel {
+  semana: SemanaGanhos;
+  /** As quatro semanas anteriores, da mais antiga para a mais recente */
+  historico: SemanaGanhos[];
 }
 
 export interface SemanaMeta {
@@ -57,6 +88,7 @@ export interface PainelMeta {
   /** As quatro semanas anteriores, da mais antiga para a mais recente */
   historico: SemanaMeta[];
   propostas: PropostasDaSemana;
+  ganhos: GanhosDoPainel;
 }
 
 function inteiroEntre(valor: number, de: number, ate: number): number {
@@ -129,13 +161,90 @@ export function inicioDoHistorico(agora: Date, semanas: number = SEMANAS_DO_HIST
   return new Date(inicioDaSemana(agora).getTime() - semanas * MS_SEMANA);
 }
 
+/** Itens distintos de [de, ate): quantos são e a soma dos valores (cada item conta uma vez, pela primeira entrada). */
+function somarNaJanela(
+  entradas: ReadonlyArray<EntradaEmDisputa>,
+  de: Date,
+  ate: Date,
+): { quantidade: number; valor: number; estimado: boolean } {
+  const itens = new Map<string, EntradaEmDisputa>();
+  for (const e of entradas) {
+    const t = e.em.getTime();
+    if (t < de.getTime() || t >= ate.getTime()) continue;
+    const antes = itens.get(e.itemId);
+    if (antes === undefined || t < antes.em.getTime()) itens.set(e.itemId, e);
+  }
+  let valor = 0;
+  let estimado = false;
+  for (const e of itens.values()) {
+    if (e.valor === undefined || e.valor === null || !Number.isFinite(e.valor) || e.valor <= 0) continue;
+    valor += e.valor;
+    if (e.estimado === true) estimado = true;
+  }
+  return { quantidade: itens.size, valor, estimado };
+}
+
+/** Disputadas e vencidas (com valores) dentro da semana que começa em `inicio`. */
+export function ganhosDaJanela(
+  disputas: ReadonlyArray<EntradaEmDisputa>,
+  vencidas: ReadonlyArray<EntradaVencida>,
+  inicio: Date,
+): SemanaGanhos {
+  const fim = new Date(inicio.getTime() + MS_SEMANA);
+  const d = somarNaJanela(disputas, inicio, fim);
+  const v = somarNaJanela(vencidas, inicio, fim);
+  return {
+    inicio: inicio.toISOString(),
+    disputadas: d.quantidade,
+    valorDisputadas: d.valor,
+    estimadoDisputadas: d.estimado,
+    vencidas: v.quantidade,
+    valorVencidas: v.valor,
+    estimadoVencidas: v.estimado,
+  };
+}
+
+/** A semana de `agora` e as `semanas` anteriores, com disputadas, vencidas e valores. */
+export function ganhosDoPainel(
+  disputas: ReadonlyArray<EntradaEmDisputa>,
+  vencidas: ReadonlyArray<EntradaVencida>,
+  agora: Date,
+  semanas: number = SEMANAS_DO_HISTORICO,
+): GanhosDoPainel {
+  const atual = inicioDaSemana(agora);
+  const historico: SemanaGanhos[] = [];
+  for (let atras = semanas; atras >= 1; atras -= 1) {
+    historico.push(ganhosDaJanela(disputas, vencidas, new Date(atual.getTime() - atras * MS_SEMANA)));
+  }
+  return { semana: ganhosDaJanela(disputas, vencidas, atual), historico };
+}
+
+/** "3 disputadas · 1 vencida · R$ 12.500 ganhos" (valor estimado leva "~"); sem valor, a parte do dinheiro some. */
+export function linhaDeGanhos(g: GanhosMeta, formatarValor: (valor: number) => string): string {
+  const partes = [
+    `${g.disputadas} ${g.disputadas === 1 ? "disputada" : "disputadas"}`,
+    `${g.vencidas} ${g.vencidas === 1 ? "vencida" : "vencidas"}`,
+  ];
+  if (g.vencidas > 0 && g.valorVencidas > 0) {
+    partes.push(`${g.estimadoVencidas ? "~" : ""}${formatarValor(g.valorVencidas)} ganhos`);
+  }
+  return partes.join(" · ");
+}
+
 export function montarPainelMeta(
   entradas: ReadonlyArray<EntradaEmDisputa>,
   agora: Date,
   meta: MetaConfig,
   propostas: PropostasDaSemana,
+  vencidas: ReadonlyArray<EntradaVencida> = [],
 ): PainelMeta {
-  return { meta, placar: placar(entradas, agora, meta), historico: ultimasSemanas(entradas, agora, meta), propostas };
+  return {
+    meta,
+    placar: placar(entradas, agora, meta),
+    historico: ultimasSemanas(entradas, agora, meta),
+    propostas,
+    ganhos: ganhosDoPainel(entradas, vencidas, agora),
+  };
 }
 
 /** Largura da barra em %, limitada ao ideal. */

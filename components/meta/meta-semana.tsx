@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
-import { percentualDaBarra, posicaoDoMinimo, type PainelMeta, type StatusMeta } from "@/core/meta";
-import { plural } from "@/lib/formato";
+import { linhaDeGanhos, percentualDaBarra, posicaoDoMinimo, type PainelMeta, type StatusMeta } from "@/core/meta";
+import { formatarMoedaCurta, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 const ROTULO_STATUS: Record<StatusMeta, string> = {
@@ -39,6 +39,10 @@ export function fraseDeLembrete(placar: PainelMeta["placar"]): string | null {
   return `${plural(n, "Falta", "Faltam")} ${n} ${plural(n, "disputa", "disputas")} para a meta mínima até domingo`;
 }
 
+function formatarValorDaSemana(valor: number, estimado: boolean): string {
+  return valor > 0 ? `${estimado ? "~" : ""}${formatarMoedaCurta(valor)}` : "R$ 0";
+}
+
 function Numero({ rotulo, valor }: { rotulo: string; valor: number }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
@@ -53,7 +57,7 @@ function Numero({ rotulo, valor }: { rotulo: string; valor: number }) {
  * Sempre à vista: placar e barra. Propostas e as quatro semanas anteriores abrem num toque.
  */
 export function MetaSemana({ painel, className }: { painel: PainelMeta; className?: string }) {
-  const { meta, placar, historico, propostas } = painel;
+  const { meta, placar, historico, propostas, ganhos } = painel;
   const largura = percentualDaBarra(placar.disputas, meta);
   const marcaMinimo = posicaoDoMinimo(meta);
   const lembrete = fraseDeLembrete(placar);
@@ -98,6 +102,7 @@ export function MetaSemana({ painel, className }: { painel: PainelMeta; classNam
             <span aria-hidden="true" className="absolute inset-y-0 w-0.5 bg-ink/60" style={{ left: `${marcaMinimo}%` }} />
           </span>
           {lembrete === null ? null : <span className="text-xs text-muted-foreground">{lembrete}</span>}
+          <span className="text-xs font-medium tabular-nums text-ink">{linhaDeGanhos(ganhos.semana, formatarMoedaCurta)}</span>
         </summary>
 
         <div className="flex flex-col gap-3 px-4 pb-4">
@@ -110,6 +115,27 @@ export function MetaSemana({ painel, className }: { painel: PainelMeta; classNam
             <Numero rotulo="Enviadas na semana" valor={propostas.enviadas} />
             <Numero rotulo="Aguardando resultado" valor={propostas.aguardando} />
             <Numero rotulo="Ganhas na semana" valor={propostas.ganhas} />
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-border pt-3">
+            <span className="text-xs text-muted-foreground">Disputadas e vencidas por semana</span>
+            <ul className="flex flex-col gap-1">
+              {[...ganhos.historico, ganhos.semana].map((s, i, todas) => (
+                <li key={s.inicio} className="flex items-baseline justify-between gap-3 text-xs tabular-nums">
+                  <span className="text-muted-foreground">
+                    {i === todas.length - 1 ? "Esta semana" : `Semana de ${diaDaSemana(s.inicio)}`}
+                  </span>
+                  <span className="text-right text-ink">
+                    {s.disputadas} {s.disputadas === 1 ? "disputada" : "disputadas"} ({formatarValorDaSemana(s.valorDisputadas, s.estimadoDisputadas)})
+                    {" · "}
+                    {s.vencidas} {s.vencidas === 1 ? "vencida" : "vencidas"} ({formatarValorDaSemana(s.valorVencidas, s.estimadoVencidas)})
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <span className="text-[11px] text-muted-foreground">
+              Valor da proposta aprovada, pronta ou enviada; sem proposta, o valor estimado do item (com ~).
+            </span>
           </div>
 
           <div className="flex flex-col gap-2 border-t border-border pt-3">
