@@ -14,8 +14,8 @@ export function quantidadeTexto(n: number): string {
 function Condicao({ rotulo, valor }: { rotulo: string; valor: string }) {
   if (valor.trim() === "") return null;
   return (
-    <div className="grid break-inside-avoid grid-cols-[34mm_1fr] gap-x-3">
-      <dt className="font-semibold">{rotulo}</dt>
+    <div className="grid break-inside-avoid grid-cols-[38mm_1fr] gap-x-3">
+      <dt className="font-semibold whitespace-nowrap">{rotulo}</dt>
       <dd className="whitespace-pre-line">{valor}</dd>
     </div>
   );
