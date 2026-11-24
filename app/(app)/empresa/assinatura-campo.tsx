@@ -277,7 +277,7 @@ export function AssinaturaCampo({ valor, aoMudar }: Props) {
 
       <div role="group" aria-label="Como informar a assinatura" className="flex gap-2">
         <button type="button" aria-pressed={modo === "desenhar"} onClick={() => trocarModo("desenhar")} className={aba(modo === "desenhar")}>
-          Desenhar
+          Assinar na tela
         </button>
         <button type="button" aria-pressed={modo === "foto"} onClick={() => trocarModo("foto")} className={aba(modo === "foto")}>
           Enviar foto
@@ -293,7 +293,7 @@ export function AssinaturaCampo({ valor, aoMudar }: Props) {
             onPointerMove={mover}
             onPointerUp={terminar}
             onPointerCancel={terminar}
-            className="block aspect-[3/1] w-full max-w-[600px] cursor-crosshair rounded-control border border-border bg-white"
+            className="block aspect-[3/1] w-full max-w-[600px] cursor-crosshair rounded-xl border border-border bg-white"
             style={{ touchAction: "none" }}
           />
           <p className="text-[13px] text-muted-foreground">Assine com o dedo, a caneta ou o mouse.</p>
