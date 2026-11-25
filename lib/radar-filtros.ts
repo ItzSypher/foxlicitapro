@@ -2,6 +2,7 @@ import type { Faixa, ModalidadeId, OportunidadeComScore } from "@/core/types";
 import { normalizarTexto } from "@/core/cnae-keywords";
 import { acharUf } from "@/core/ufs";
 import { FONTES, fonteDaOportunidade, type Fonte } from "@/core/fonte";
+import { nivelCaixa } from "@/core/caminho-dinheiro";
 
 export type FiltroModalidade = "todas" | "dispensa" | "pregao";
 export type Ordem = "sinal" | "prazo" | "valor" | "recentes";
@@ -18,6 +19,8 @@ export interface Filtros {
   fontes: Fonte[];
   /** "Tudo do meu ramo" pedido na URL; null segue o padrão do perfil */
   tudoDoRamo: boolean | null;
+  /** "Pouco caixa": só oportunidades de nível de caixa baixo (?caixa=1) */
+  poucoCaixa: boolean;
 }
 
 export type Visao = "cards" | "lista";
@@ -62,6 +65,7 @@ export const FILTROS_PADRAO: Filtros = {
   valorMax: null,
   fontes: [],
   tudoDoRamo: null,
+  poucoCaixa: false,
 };
 
 export const MODALIDADES: ReadonlyArray<{ id: FiltroModalidade; rotulo: string }> = [
@@ -126,6 +130,7 @@ export function lerFiltros(params: { get(nome: string): string | null }): Filtro
     valorMax,
     fontes: lerLista(params.get("fonte"), FONTES.length).filter((f): f is Fonte => (FONTES as readonly string[]).includes(f)),
     tudoDoRamo: ramo === "1" ? true : ramo === "0" ? false : null,
+    poucoCaixa: params.get("caixa") === "1",
   };
 }
 
@@ -168,14 +173,15 @@ function dentroDaFaixaDeValor(valor: number | null, filtros: Filtros): boolean {
   return (filtros.valorMin === null || valor >= filtros.valorMin) && (filtros.valorMax === null || valor <= filtros.valorMax);
 }
 
-/** Aplica os filtros de UF, modalidade, faixa de valor e fonte, sem ordenar. */
+/** Aplica os filtros de UF, modalidade, faixa de valor, fonte e pouco caixa, sem ordenar. */
 export function filtrar(lista: ReadonlyArray<OportunidadeComScore>, filtros: Filtros): OportunidadeComScore[] {
   return lista.filter(
     (item) =>
       (filtros.ufs.length === 0 || filtros.ufs.includes(item.uf)) &&
       pertenceAModalidade(item.modalidadeId, filtros.modalidade) &&
       dentroDaFaixaDeValor(item.valorEstimado, filtros) &&
-      (filtros.fontes.length === 0 || filtros.fontes.includes(fonteDaOportunidade(item.linkOrigem, item.linkAlerta))),
+      (filtros.fontes.length === 0 || filtros.fontes.includes(fonteDaOportunidade(item.linkOrigem, item.linkAlerta))) &&
+      (!filtros.poucoCaixa || nivelCaixa(item) === "baixo"),
   );
 }
 
@@ -238,7 +244,7 @@ export function itensPaginacao(atual: number, total: number): ItemPaginacao[] {
 }
 
 /**
- * Quantos filtros da folha (UF, valor, modalidade, fonte, "tudo do ramo" e ordem) estão fora do padrão.
+ * Quantos filtros da folha (UF, valor, modalidade, fonte, "tudo do ramo", pouco caixa e ordem) estão fora do padrão.
  * Em "Para você" a ordem é a da recomendação e não conta.
  */
 export function contarFiltrosAtivos(filtros: Filtros, contarOrdem = true): number {
@@ -247,6 +253,7 @@ export function contarFiltrosAtivos(filtros: Filtros, contarOrdem = true): numbe
   if (filtros.valorMin !== null || filtros.valorMax !== null) n += 1;
   if (filtros.fontes.length > 0) n += 1;
   if (filtros.tudoDoRamo !== null) n += 1;
+  if (filtros.poucoCaixa) n += 1;
   if (filtros.modalidade !== FILTROS_PADRAO.modalidade) n += 1;
   if (contarOrdem && filtros.ordem !== FILTROS_PADRAO.ordem) n += 1;
   return n;

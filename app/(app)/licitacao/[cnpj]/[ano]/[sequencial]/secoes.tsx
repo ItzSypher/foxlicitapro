@@ -32,6 +32,8 @@ import type { FichaSalva } from "@/core/ficha";
 import { acharSemelhantes } from "@/core/semelhantes";
 import type { OportunidadeComScore, RespostaRadar } from "@/core/types";
 import { Semelhantes } from "@/components/licitacao/semelhantes";
+import { CaminhoDinheiro } from "@/components/licitacao/caminho-dinheiro";
+import { SugestoesAcervo } from "@/components/acervo/sugestoes-acervo";
 import { obterRadar } from "@/lib/radar-dados";
 import { lerAmostrasEmCache, lerBuscaRecente } from "@/db/concorrentes";
 import { listarCotacoes, resumirCotacoesDoItem } from "@/db/cotacoes";
@@ -193,8 +195,11 @@ export async function SecaoFicha({ chave }: { chave: ChaveUrl }) {
 
 export async function SecaoCaixa({ chave }: { chave: ChaveUrl }) {
   const d = await dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial);
+  const oportunidade = { objeto: d.detalhe.objeto, valorEstimado: d.detalhe.valorEstimado, ...(d.score ? { score: d.score } : {}) };
   return (
-    <PagamentoCaixa
+    <>
+      <CaminhoDinheiro ficha={d.ficha?.ficha ?? null} oportunidade={oportunidade} />
+      <PagamentoCaixa
       numeroControle={d.detalhe.numeroControle}
       custoCotado={d.custoCotado}
       origemCusto={
@@ -206,7 +211,8 @@ export async function SecaoCaixa({ chave }: { chave: ChaveUrl }) {
       valorEstimado={d.detalhe.valorEstimado}
       limites={d.limites}
       agoraInicial={d.agora}
-    />
+      />
+    </>
   );
 }
 
@@ -309,6 +315,12 @@ export async function SecaoSemelhantes({ chave }: { chave: ChaveUrl }) {
     ? acharSemelhantes({ id: d.detalhe.numeroControle, objeto: d.detalhe.objeto, orgaoCnpj: chave.cnpj }, radar.oportunidades)
     : [];
   return <Semelhantes itens={achadas} />;
+}
+
+/** O que do acervo da empresa serve para esta licitação (atestados, notas, contratos, certidões). */
+export async function SecaoAcervo({ chave }: { chave: ChaveUrl }) {
+  const d = await dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial);
+  return <SugestoesAcervo empresaId={d.sessao.empresaId} objeto={d.detalhe.objeto} />;
 }
 
 export async function SecaoNota({ chave }: { chave: ChaveUrl }) {

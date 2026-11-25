@@ -152,6 +152,8 @@ interface Props {
   onValor: (min: number | null, max: number | null) => void;
   onFontes: (valor: Fonte[]) => void;
   onTudoDoRamo: (valor: boolean) => void;
+  /** Liga ou desliga o filtro "Pouco caixa" (só nível de caixa baixo) */
+  onPoucoCaixa: (valor: boolean) => void;
   onLimparPainel: () => void;
 }
 
@@ -179,6 +181,7 @@ export function BarraFiltros({
   onValor,
   onFontes,
   onTudoDoRamo,
+  onPoucoCaixa,
   onLimparPainel,
 }: Props) {
   const [painelAberto, setPainelAberto] = useState(false);
@@ -204,6 +207,10 @@ export function BarraFiltros({
           Estados
         </Chip>
       </div>
+
+      <Chip ativo={filtros.poucoCaixa} aoAlternar={() => onPoucoCaixa(!filtros.poucoCaixa)}>
+        Pouco caixa
+      </Chip>
 
       <Button type="button" variant="outline" onClick={() => setPainelAberto(true)} className="h-11 shrink-0 gap-2 px-3 lg:h-9">
         <SlidersHorizontal className="size-4" aria-hidden="true" />
@@ -320,6 +327,13 @@ export function BarraFiltros({
                 ))}
               </div>
             </GrupoDoPainel>
+
+            <Interruptor
+              rotulo="Pouco caixa"
+              descricao="Mostra só o que pede pouco dinheiro seu antes de receber, como site, sistema e serviços de valor menor."
+              checked={filtros.poucoCaixa}
+              onChange={(e) => onPoucoCaixa(e.target.checked)}
+            />
 
             <Interruptor
               rotulo="Tudo do meu ramo"

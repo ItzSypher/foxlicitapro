@@ -4,6 +4,7 @@ import { memo } from "react";
 import Link from "next/link";
 import { FileCheck } from "lucide-react";
 import type { OportunidadeComScore } from "@/core/types";
+import { nivelCaixa } from "@/core/caminho-dinheiro";
 import { motivoPrincipal } from "@/core/motivo-nota";
 import { resumirObjeto } from "@/core/objeto";
 import { formatarMoedaCurta } from "@/lib/formato";
@@ -31,6 +32,7 @@ interface Props {
 function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaProntaId, onAbrir }: Props) {
   const cor = TEXTO_FAIXA[item.score.faixa];
   const motivo = motivoPrincipal(item.score);
+  const caixa = nivelCaixa(item);
   return (
     <div
       data-tour="radar-card"
@@ -65,10 +67,12 @@ function CardOportunidadeBase({ item, indice, agoraInicial, motivos, propostaPro
         agoraInicial={agoraInicial}
       />
 
-      {item.score.foco !== undefined ? (
-        <Pilula tom="positivo" className="w-fit">
-          Seu foco
-        </Pilula>
+      {item.score.foco !== undefined || caixa !== "medio" ? (
+        <span className="flex flex-wrap items-center gap-1.5">
+          {item.score.foco !== undefined ? <Pilula tom="positivo">Seu foco</Pilula> : null}
+          {caixa === "baixo" ? <Pilula tom="positivo">Pouco caixa</Pilula> : null}
+          {caixa === "alto" ? <Pilula tom="aviso">Caixa alto</Pilula> : null}
+        </span>
       ) : null}
 
       <button

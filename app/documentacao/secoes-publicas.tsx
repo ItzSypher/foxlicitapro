@@ -5,6 +5,7 @@ import {
   Clock,
   Columns3,
   FileText,
+  FolderArchive,
   Gauge,
   MessageCircle,
   Radar,
@@ -12,6 +13,7 @@ import {
   Trophy,
   UserCog,
   Users,
+  Wallet,
   Wrench,
 } from "lucide-react";
 import { Cartao, Codigo, Grade, Grade3, Lista, Secao } from "./blocos";
@@ -194,6 +196,15 @@ export function Logica() {
         </Cartao>
       </Grade>
 
+      <Cartao titulo="Pagamento e caixa" icone={Wallet}>
+        <p>
+          Cada licitação mostra o caminho do dinheiro: empenho, ordem de fornecimento ou de serviço, entrega, atesto e pagamento, com os
+          dias sem receber e o caixa estimado. No Radar, o selo <strong className="font-semibold text-ink">Pouco caixa</strong> marca o que
+          dá para atender sem comprar mercadoria antes (por exemplo, site e serviços feitos à distância), e o filtro de mesmo nome mostra só
+          essas.
+        </p>
+      </Cartao>
+
       <Cartao titulo="Regra de 24 horas do WhatsApp" icone={Clock}>
         <p>
           O WhatsApp só permite texto livre até 24 horas depois da última mensagem da pessoa. Por isso, com a conversa fechada, o resumo
@@ -242,7 +253,16 @@ const PASSOS: ReadonlyArray<{ titulo: string; icone: typeof Radar; itens: Readon
     ],
   },
   {
-    titulo: "4. Resultado",
+    titulo: "4. Habilitação",
+    icone: FolderArchive,
+    itens: [
+      "Guarde no Acervo atestados de capacidade técnica, notas fiscais, contratos e certidões, com área, cliente, período, valor e validade.",
+      "Na página de cada licitação, o sistema sugere o que do acervo serve para ela.",
+      "Em Atestados, redija o atestado do cliente e mande o link: ele lê, assina na tela e confirma. O documento sai com data, hora e código de verificação e vai direto para o acervo.",
+    ],
+  },
+  {
+    titulo: "5. Resultado",
     icone: Trophy,
     itens: [
       "O resultado é lido do PNCP e o item vai para Resultados: ganho, perdido e preços praticados.",

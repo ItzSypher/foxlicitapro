@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
+  // Upload do acervo: arquivo de até 4 MB mais o que o multipart acrescenta.
+  experimental: {
+    serverActions: { bodySizeLimit: "5mb" },
+  },
   // Cabeçalhos de segurança em todas as respostas: sem iframe de terceiros, sem adivinhar tipo, HTTPS forçado.
   async headers() {
     return [

@@ -3,6 +3,7 @@ import type { OportunidadeComScore } from "@/core/types";
 import {
   FILTROS_PADRAO,
   contarFiltrosAtivos,
+  filtrar,
   filtrarPorTexto,
   lerBusca,
   lerFiltros,
@@ -84,5 +85,26 @@ describe("lerFiltros: UF, valor, fonte e ramo", () => {
   it("conta os filtros fora do padrão", () => {
     expect(contarFiltrosAtivos(FILTROS_PADRAO)).toBe(0);
     expect(contarFiltrosAtivos({ ...FILTROS_PADRAO, ufs: ["MG"], valorMin: 1, fontes: ["BLL"], tudoDoRamo: false })).toBe(4);
+  });
+});
+
+describe("filtro Pouco caixa", () => {
+  const com = (id: string, objeto: string, valorEstimado: number) =>
+    ({ ...item(id, objeto, "", ""), uf: "RJ", modalidadeId: 8, valorEstimado, linkOrigem: null }) as OportunidadeComScore;
+  const base = [
+    com("site", "Criação de site institucional", 20_000),
+    com("cadeiras", "Aquisição de cadeiras", 40_000),
+    com("servico", "Prestação de serviço de pintura", 10_000),
+  ];
+
+  it("lê ?caixa=1 e conta como filtro ativo", () => {
+    expect(lerFiltros(new URLSearchParams("caixa=1")).poucoCaixa).toBe(true);
+    expect(lerFiltros(new URLSearchParams("")).poucoCaixa).toBe(false);
+    expect(contarFiltrosAtivos({ ...FILTROS_PADRAO, poucoCaixa: true })).toBe(1);
+  });
+
+  it("mostra só o nível baixo", () => {
+    expect(ids(filtrar(base, { ...FILTROS_PADRAO, poucoCaixa: true }))).toEqual(["site", "servico"]);
+    expect(ids(filtrar(base, FILTROS_PADRAO))).toEqual(["site", "cadeiras", "servico"]);
   });
 });

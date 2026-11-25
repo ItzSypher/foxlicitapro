@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Archive,
+  BadgeCheck,
   BellRing,
   BookOpen,
   Building2,
@@ -14,6 +15,7 @@ import {
   ChevronDown,
   Ellipsis,
   FileText,
+  FolderArchive,
   Radar,
   Sparkles,
   Truck,
@@ -62,6 +64,10 @@ const CONSELHEIRO: Destino = { href: "/conselheiro", rotulo: "Conselheiro", rotu
 
 const FORNECEDORES: Destino = { href: "/fornecedores", rotulo: "Fornecedores", rotuloCurto: "Fornecedores", icone: Truck };
 
+const ACERVO: Destino = { href: "/acervo", rotulo: "Acervo", rotuloCurto: "Acervo", icone: FolderArchive };
+
+const ATESTADOS: Destino = { href: "/atestados", rotulo: "Atestados", rotuloCurto: "Atestados", icone: BadgeCheck };
+
 const RESULTADOS: Destino = {
   href: "/resultados",
   rotulo: "Resultados",
@@ -89,13 +95,13 @@ const [ALERTAS, PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
 
 /** Grupos da barra lateral, na ordem em que aparecem. */
 const GRUPOS: ReadonlyArray<Grupo> = [
-  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, ENCERRADAS, PROPOSTAS, CALCULADORA, FORNECEDORES, RESULTADOS] },
+  { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, ENCERRADAS, PROPOSTAS, CALCULADORA, FORNECEDORES, ACERVO, ATESTADOS, RESULTADOS] },
   { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, ALERTAS, PREFERENCIAS] },
   { id: "admin", rotulo: "Admin", destinos: [EMPRESAS] },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/resultados", "/alertas", "/preferencias", "/equipe", "/empresa", "/admin"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/acervo", "/atestados", "/resultados", "/alertas", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   /** Identifica a pessoa para lembrar, neste aparelho, o que ela já viu */
@@ -301,6 +307,8 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
     CONSELHEIRO,
     ENCERRADAS,
     FORNECEDORES,
+    ACERVO,
+    ATESTADOS,
     ...visiveis([RESULTADOS], usuario),
     ...visiveis(SECUNDARIOS, usuario),
     { href: "/equipe/conta", rotulo: "Minha conta", rotuloCurto: "Conta", icone: UserRound },

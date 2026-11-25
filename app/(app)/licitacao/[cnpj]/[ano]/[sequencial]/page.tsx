@@ -6,6 +6,7 @@ import {
   aquecer,
   EsqueletoSecao,
   EsqueletoTopo,
+  SecaoAcervo,
   SecaoArquivos,
   SecaoCaixa,
   SecaoConcorrentes,
@@ -67,6 +68,9 @@ export default async function LicitacaoPage({ params }: Props) {
           </Suspense>
           <Suspense fallback={<EsqueletoSecao id="semelhantes" titulo="Semelhantes" linhas={3} />}>
             <SecaoSemelhantes chave={chave} />
+          </Suspense>
+          <Suspense fallback={<EsqueletoSecao id="acervo" titulo="Do seu acervo" linhas={2} />}>
+            <SecaoAcervo chave={chave} />
           </Suspense>
           <Suspense fallback={<EsqueletoSecao id="resumo" titulo="Resumo" linhas={4} />}>
             <SecaoResumo chave={chave} />

@@ -22,6 +22,8 @@ Serviço de **acompanhamento de licitações no CNPJ do cliente**. O sistema ach
 | **Pipeline** | Quadro por etapa até o resultado, ordenado por prazo, com alerta do que fecha hoje sem proposta e vista "Por prazo". Item novo já entra com o responsável padrão (gestor). Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. |
 | **Licitação** | Edital, itens, ficha resumida, semelhantes em outros órgãos, concorrentes. |
 | **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação (ao subir para revisão o dono recebe no WhatsApp o link de leitura sem login, o link do sistema e o botão Aprovar; ao aprovar, o gestor é avisado), envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
+| **Acervo** | Atestados, notas fiscais, contratos e certidões (PDF ou imagem até 4 MB) com área, cliente, período, valor e validade. A licitação sugere o que do acervo serve. |
+| **Atestados** | Atestado de capacidade técnica redigido pela empresa (ou pelo assistente) e assinado pelo cliente por link: assinatura na tela, declaração, data, hora, IP, SHA-256 e código de verificação público (/atestado/verificar/<código>). Assinado, vai sozinho para o acervo. Aceita também PDF assinado no gov.br. |
 | **Resultados** | O que fechou: ganho, perdido, preços praticados. A meta da semana mostra disputadas, vencidas e R$ ganhos. |
 | **Conselheiro** | Assistente que responde sobre a tela aberta e guarda as conversas. |
 | **WhatsApp** | Resumo das 7h (com "Propostas para hoje" e meta da semana) e prazos urgentes. O gestor recebe o operacional; o dono, o acompanhamento e os avisos de proposta (subiu, aprovou, enviou, registrou fora). |
@@ -105,6 +107,10 @@ Cache do Radar em `radar_cache` por UF e modalidade; a tela só lê o cache (abr
 | Valor x teto MEI | 10 | Cabe no limite do ano: 10; até 2x: 5; acima: 0. |
 
 Faixas: 75 ou mais é "boa"; de 50 a 74, "atenção"; abaixo de 50, "evitar". Fecha em menos de 6 h rebaixa "boa" para "atenção". MEI acima de R$ 81 mil nunca fica verde.
+
+## Pagamento e caixa
+
+Na licitação, o cartão "Pagamento e caixa" mostra o caminho do dinheiro (empenho → ordem → entrega/execução → atesto e liquidação → pagamento em N dias), os dias sem receber e o caixa estimado (produto ≈ 80% do valor; serviço presencial ≈ 10%; serviço feito à distância ≈ 0; garantia soma). Sem ficha do edital, usa heurística. No Radar, selo "Pouco caixa"/"Caixa alto" e filtro `?caixa=1`.
 
 ## Página pública
 

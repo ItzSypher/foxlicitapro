@@ -8,6 +8,9 @@ export async function proxy(request: NextRequest) {
   // Proposta compartilhada por link: pública, só leitura; o token no endereço é a credencial.
   if (pathname.startsWith("/p/")) return NextResponse.next();
 
+  // Atestado de capacidade técnica: o cliente assina pelo link (o token é a credencial) e qualquer pessoa confere o código.
+  if (pathname.startsWith("/atestado/")) return NextResponse.next();
+
   // Documentação pública (página indexável); a parte técnica confere a sessão dentro da própria página.
   if (pathname === "/documentacao" || pathname.startsWith("/documentacao/")) return NextResponse.next();
 
