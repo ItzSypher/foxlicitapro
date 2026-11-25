@@ -19,7 +19,7 @@ export function BotaoTour({ className, aoAbrir }: { className?: string; aoAbrir?
       className={cn("h-10 w-full justify-start gap-3 px-3 text-sm font-normal text-muted-foreground", className)}
     >
       <Compass className="size-[18px]" aria-hidden="true" />
-      Tour do sistema
+      Novidades e tour
     </Button>
   );
 }

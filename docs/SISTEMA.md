@@ -19,7 +19,7 @@ Serviço de **acompanhamento de licitações no CNPJ do cliente**. O sistema ach
 | Área | O que entrega |
 |---|---|
 | **Radar** | Licitações abertas do ramo, com nota (selo "Seu foco" e o motivo principal em uma linha), filtros (estados, valor, modalidade, fonte), busca por palavra e busca direta no PNCP. Abas de novas, fechando e desertas. |
-| **Pipeline** | Quadro por etapa até o resultado, ordenado por prazo, com alerta do que fecha hoje sem proposta e vista "Por prazo". Item novo já entra com o responsável padrão (gestor). Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. |
+| **Pipeline** | Quadro por etapa até o resultado, ordenado por prazo, com alerta do que fecha hoje sem proposta e vista "Por prazo". Item novo já entra com o responsável padrão (gestor). Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. Cabeçalho enxuto (meta da semana numa linha, filtros, vista e link na mesma fileira) para o quadro ocupar o resto da tela. |
 | **Licitação** | Edital, itens, ficha resumida, semelhantes em outros órgãos, concorrentes. |
 | **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação (ao subir para revisão o dono recebe no WhatsApp o link de leitura sem login, o link do sistema e o botão Aprovar; ao aprovar, o gestor é avisado), envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
 | **Acervo** | Atestados, notas fiscais, contratos e certidões (PDF ou imagem até 4 MB) com área, cliente, período, valor e validade. A licitação sugere o que do acervo serve. |

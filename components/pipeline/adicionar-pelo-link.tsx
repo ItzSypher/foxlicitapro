@@ -7,7 +7,7 @@ import { adicionarPelosLinksAction } from "@/app/(app)/pipeline/actions";
 import type { ResultadoDoTexto } from "@/lib/adicionar-pelo-link";
 import { cn } from "@/lib/utils";
 
-/** Botão do topo do Pipeline: cola um ou vários links do PNCP (um por linha) e põe cada licitação na etapa Radar. */
+/** Botão da linha de filtros do Pipeline (devolve botão e painel soltos, para a linha com flex-wrap): cola um ou vários links do PNCP (um por linha) e põe cada licitação na etapa Radar. */
 export function AdicionarPeloLink() {
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState("");
@@ -33,20 +33,22 @@ export function AdicionarPeloLink() {
   }
 
   return (
-    <div data-tour="pipeline-link" className="flex min-w-0 flex-col gap-3">
+    <>
       <button
         type="button"
+        data-tour="pipeline-link"
         aria-expanded={aberto}
         aria-controls={idPainel}
         onClick={() => setAberto((v) => !v)}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 self-start rounded-control border border-control bg-transparent px-4 text-sm font-medium whitespace-nowrap text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand sm:w-auto md:h-9"
+        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-control border border-control bg-transparent px-3 text-sm font-medium whitespace-nowrap text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand md:h-9"
       >
         <Link2 aria-hidden="true" className="size-4 shrink-0" />
-        Adicionar pelo link
+        <span className="max-sm:sr-only">Adicionar pelo link</span>
       </button>
 
+      {/* Na linha de filtros, o painel quebra para uma linha inteira embaixo. */}
       {aberto ? (
-        <div id={idPainel} className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-3 sm:p-4">
+        <div id={idPainel} className="order-last flex min-w-0 basis-full flex-col gap-3 rounded-card border border-border bg-surface p-3 sm:p-4">
           <label htmlFor={idCampo} className="text-sm font-medium text-ink">
             Links das licitações no PNCP (um por linha)
           </label>
@@ -112,6 +114,6 @@ export function AdicionarPeloLink() {
           ) : null}
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

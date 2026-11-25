@@ -56,56 +56,85 @@ function Numero({ rotulo, valor }: { rotulo: string; valor: number }) {
  * Meta da semana: disputas que entraram na semana (segunda a domingo) contra o mínimo e o ideal da empresa.
  * Sempre à vista: placar e barra. Propostas e as quatro semanas anteriores abrem num toque.
  */
-export function MetaSemana({ painel, className }: { painel: PainelMeta; className?: string }) {
+export function MetaSemana({ painel, compacta = false, className }: { painel: PainelMeta; compacta?: boolean; className?: string }) {
   const { meta, placar, historico, propostas, ganhos } = painel;
   const largura = percentualDaBarra(placar.disputas, meta);
   const marcaMinimo = posicaoDoMinimo(meta);
   const lembrete = fraseDeLembrete(placar);
   const maiorHistorico = Math.max(1, meta.ideal, ...historico.map((s) => s.disputas));
+  const linhaGanhos = linhaDeGanhos(ganhos.semana, formatarMoedaCurta);
+
+  const barra = (
+    <span
+      role="progressbar"
+      aria-label="Disputas na semana"
+      aria-valuemin={0}
+      aria-valuemax={meta.ideal}
+      aria-valuenow={Math.min(placar.disputas, meta.ideal)}
+      aria-valuetext={`${placar.disputas} de ${meta.ideal}, mínimo ${meta.minimo}`}
+      className={cn("relative block h-2 overflow-hidden rounded-full bg-raised", compacta && "min-w-12 flex-1")}
+    >
+      <span
+        className={cn("block h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none", COR_BARRA[placar.status])}
+        style={{ width: `${largura}%` }}
+      />
+      <span aria-hidden="true" className="absolute inset-y-0 w-0.5 bg-ink/60" style={{ left: `${marcaMinimo}%` }} />
+    </span>
+  );
+
+  const seta = (
+    <ChevronDown
+      aria-hidden="true"
+      className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+    />
+  );
 
   return (
     <section aria-label="Meta da semana" data-tour="radar-meta" className={cn("rounded-card border border-border bg-surface", className)}>
       <details className="group">
-        <summary className="flex cursor-pointer list-none flex-col gap-2 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
-          <span className="flex items-center justify-between gap-3">
-            <span className="flex min-w-0 flex-col">
-              <span className="text-sm font-semibold text-ink">Meta da semana</span>
-              <span className={cn("truncate text-xs font-medium", COR_TEXTO[placar.status])}>{ROTULO_STATUS[placar.status]}</span>
+        {compacta ? (
+          // Uma linha só: no Pipeline o espaço é dos cards. O resto abre num toque.
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
+            <span className="flex min-w-0 shrink-0 flex-col leading-tight">
+              <span className="text-[13px] font-semibold text-ink">Meta da semana</span>
+              <span className={cn("truncate text-[11px] font-medium", COR_TEXTO[placar.status])}>{ROTULO_STATUS[placar.status]}</span>
             </span>
-            <span className="flex shrink-0 items-center gap-2">
-              <span className="text-2xl leading-none font-semibold tabular-nums text-ink">
-                {placar.disputas}
-                <span className="text-base font-medium text-muted-foreground">/{meta.ideal}</span>
+            {barra}
+            <span className="shrink-0 text-lg leading-none font-semibold tabular-nums text-ink">
+              {placar.disputas}
+              <span className="text-sm font-medium text-muted-foreground">/{meta.ideal}</span>
+            </span>
+            <span className="hidden min-w-0 truncate text-xs font-medium tabular-nums text-ink md:block md:max-w-[40%]">{linhaGanhos}</span>
+            {seta}
+          </summary>
+        ) : (
+          <summary className="flex cursor-pointer list-none flex-col gap-2 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between gap-3">
+              <span className="flex min-w-0 flex-col">
+                <span className="text-sm font-semibold text-ink">Meta da semana</span>
+                <span className={cn("truncate text-xs font-medium", COR_TEXTO[placar.status])}>{ROTULO_STATUS[placar.status]}</span>
               </span>
-              <ChevronDown
-                aria-hidden="true"
-                className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
-              />
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="text-2xl leading-none font-semibold tabular-nums text-ink">
+                  {placar.disputas}
+                  <span className="text-base font-medium text-muted-foreground">/{meta.ideal}</span>
+                </span>
+                {seta}
+              </span>
             </span>
-          </span>
-          <span
-            role="progressbar"
-            aria-label="Disputas na semana"
-            aria-valuemin={0}
-            aria-valuemax={meta.ideal}
-            aria-valuenow={Math.min(placar.disputas, meta.ideal)}
-            aria-valuetext={`${placar.disputas} de ${meta.ideal}, mínimo ${meta.minimo}`}
-            className="relative block h-2 overflow-hidden rounded-full bg-raised"
-          >
-            <span
-              className={cn(
-                "block h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none",
-                COR_BARRA[placar.status],
-              )}
-              style={{ width: `${largura}%` }}
-            />
-            <span aria-hidden="true" className="absolute inset-y-0 w-0.5 bg-ink/60" style={{ left: `${marcaMinimo}%` }} />
-          </span>
-          {lembrete === null ? null : <span className="text-xs text-muted-foreground">{lembrete}</span>}
-          <span className="text-xs font-medium tabular-nums text-ink">{linhaDeGanhos(ganhos.semana, formatarMoedaCurta)}</span>
-        </summary>
+            {barra}
+            {lembrete === null ? null : <span className="text-xs text-muted-foreground">{lembrete}</span>}
+            <span className="text-xs font-medium tabular-nums text-ink">{linhaGanhos}</span>
+          </summary>
+        )}
 
-        <div className="flex flex-col gap-3 px-4 pb-4">
+        <div className={cn("flex flex-col gap-3 px-4 pb-4", compacta && "max-h-[50dvh] overflow-y-auto pt-1")}>
+          {compacta ? (
+            <div className="flex flex-col gap-0.5">
+              {lembrete === null ? null : <span className="text-xs text-muted-foreground">{lembrete}</span>}
+              <span className="text-xs font-medium tabular-nums text-ink md:hidden">{linhaGanhos}</span>
+            </div>
+          ) : null}
           <p className="flex justify-between gap-3 text-xs text-muted-foreground tabular-nums">
             <span>mínimo {meta.minimo}</span>
             <span>ideal {meta.ideal}</span>

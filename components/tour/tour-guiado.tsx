@@ -24,7 +24,6 @@ import {
 } from "./logica";
 import { roteiroDaRota } from "./roteiros";
 
-const ATRASO_ABERTURA_MS = 800;
 const FOLGA_DESTAQUE = 6;
 const TAMANHO_INICIAL: Tamanho = { largura: 340, altura: 240 };
 
@@ -36,14 +35,6 @@ const VARIANTES = {
   fica: { opacity: 1, x: 0 },
   sai: (direcao: number) => ({ opacity: 0, x: direcao * -18 }),
 };
-
-function lerVisto(chave: string): boolean {
-  try {
-    return window.localStorage.getItem(chave) !== null;
-  } catch {
-    return false;
-  }
-}
 
 function gravarVisto(chave: string) {
   try {
@@ -70,7 +61,7 @@ function acharAlvo(alvo: string): HTMLElement | null {
 
 /**
  * Tour guiado: destaca elementos da tela e explica cada um num balão.
- * Abre sozinho na primeira visita de cada tela e pode ser reaberto pelo menu.
+ * Nunca abre sozinho: só pelo item "Tour desta tela" do menu.
  */
 export function TourGuiado({ usuarioId }: { usuarioId: string }) {
   return (
@@ -133,24 +124,7 @@ function TourDaRota({ rota, usuarioId }: { rota: RotaTour; usuarioId: string }) 
     setIndice((atual) => vizinho(atual, passos.length, passoDado));
   }
 
-  // Primeira visita à tela: abre sozinho, esperando um popup aberto (ex.: novidades) terminar.
-  useEffect(() => {
-    if (lerVisto(chave)) return;
-    let tentativas = 0;
-    let temporizador = 0;
-    const tentar = () => {
-      if (document.querySelector('[role="dialog"]') && tentativas < 20) {
-        tentativas += 1;
-        temporizador = window.setTimeout(tentar, 1000);
-        return;
-      }
-      abrir();
-    };
-    temporizador = window.setTimeout(tentar, ATRASO_ABERTURA_MS);
-    return () => window.clearTimeout(temporizador);
-  }, [chave, abrir]);
-
-  // Menu lateral e menu "Mais" pedem a reabertura por um evento de janela.
+  // Só abre quando a pessoa pede: menu lateral e menu "Mais" pedem a reabertura por um evento de janela.
   useEffect(() => {
     window.addEventListener(EVENTO_TOUR_TELA, abrir);
     return () => window.removeEventListener(EVENTO_TOUR_TELA, abrir);

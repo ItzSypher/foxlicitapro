@@ -39,7 +39,10 @@ export function VisaoGeral() {
           <p>Licitações abertas do ramo, com nota de 0 a 100, filtros por estado, valor e modalidade, e busca por palavra.</p>
         </Cartao>
         <Cartao titulo="Pipeline" icone={Columns3}>
-          <p>Quadro com cada disputa por etapa até o resultado, ordenado pelo prazo, com alerta do que fecha hoje.</p>
+          <p>
+            Quadro com cada disputa por etapa até o resultado, ordenado pelo prazo, com alerta do que fecha hoje. O quadro ocupa a
+            tela inteira, no computador e no celular.
+          </p>
         </Cartao>
         <Cartao titulo="Propostas" icone={FileText}>
           <p>Proposta com os dados e a assinatura da empresa, revisão, aprovação do dono e comprovante de envio.</p>

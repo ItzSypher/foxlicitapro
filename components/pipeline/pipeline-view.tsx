@@ -412,15 +412,12 @@ function Quadro({
     <div
       data-largura-total
       className={cn(
-        "flex min-w-0 flex-col gap-4 lg:gap-5",
-        vazio
-          ? ""
-          : meta
-            ? "md:h-[calc(100dvh-14.75rem)] md:min-h-[26rem] lg:h-[calc(100dvh-10.5rem)]"
-            : "md:h-[calc(100dvh-9.25rem)] md:min-h-[26rem] lg:h-[calc(100dvh-5rem)]",
+        "flex min-w-0 flex-col gap-3",
+        // A tela inteira é do Pipeline: o cabeçalho é enxuto e o quadro pega todo o resto da altura.
+        vazio ? "" : "md:h-[calc(100dvh-9.5rem)] md:min-h-[28rem] lg:h-[calc(100dvh-5.5rem)]",
       )}
     >
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-0.5">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[22px] font-semibold leading-tight text-ink">Pipeline</h1>
           <Link
@@ -431,44 +428,45 @@ function Quadro({
             Conselheiro
           </Link>
         </div>
-        <p className="text-[13px] tabular-nums text-muted-foreground">{linhaDeNumeros(resumo)}</p>
-        {totalEncerradas > 0 ? (
-          <p className="text-[13px] text-muted-foreground">
-            {frasePrazoEncerrado(totalEncerradas)}{" "}
-            <Link
-              href={uf === TODAS_AS_UFS ? "/encerradas" : `/encerradas?uf=${uf}`}
-              className="font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
-            >
-              Ver encerradas
-            </Link>
-          </p>
-        ) : null}
+        <p className="text-[13px] tabular-nums text-muted-foreground">
+          {linhaDeNumeros(resumo)}
+          {totalEncerradas > 0 ? (
+            <>
+              {" · "}
+              {frasePrazoEncerrado(totalEncerradas)}{" "}
+              <Link
+                href={uf === TODAS_AS_UFS ? "/encerradas" : `/encerradas?uf=${uf}`}
+                className="font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                Ver encerradas
+              </Link>
+            </>
+          ) : null}
+        </p>
       </div>
 
-      {podeEditar ? <AdicionarPeloLink /> : null}
+      {vazio && podeEditar ? (
+        <div className="flex flex-wrap gap-2">
+          <AdicionarPeloLink />
+        </div>
+      ) : null}
 
-      {meta && !vazio ? <MetaSemana painel={meta} className="shrink-0" /> : null}
+      {meta && !vazio ? <MetaSemana painel={meta} compacta className="shrink-0" /> : null}
 
       {vazio ? null : <FaixaPrazo itens={itens} agora={agora} podeCriarProposta={podeCriarProposta} />}
 
       {vazio ? null : (
-        <div className="flex items-center gap-2 lg:gap-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Segmentado
             rotulo="Estado"
             valor={uf}
             aoMudar={escolherUf}
             opcoes={opcoesUf.map((o) => ({ valor: o.valor, rotulo: o.rotulo, contagem: contagemUf[o.valor] ?? 0 }))}
             rolavel
-            className="min-w-0"
+            className="min-w-0 max-md:basis-full"
           />
-          <div className="min-w-0 flex-1" aria-hidden="true" />
-          <Segmentado
-            rotulo="Vista"
-            valor={vista}
-            aoMudar={escolherVista}
-            opcoes={OPCOES_VISTA}
-            className="shrink-0 max-md:hidden"
-          />
+          <div className="min-w-0 flex-1 max-md:hidden" aria-hidden="true" />
+          <Segmentado rotulo="Vista" valor={vista} aoMudar={escolherVista} opcoes={OPCOES_VISTA} className="shrink-0" />
           <div className={cn(TRILHO_SEGMENTADO, "shrink-0")}>
             <button
               type="button"
@@ -479,6 +477,7 @@ function Quadro({
               Só os meus
             </button>
           </div>
+          {podeEditar ? <AdicionarPeloLink /> : null}
         </div>
       )}
 
@@ -505,14 +504,6 @@ function Quadro({
         </div>
       ) : (
         <>
-          <Segmentado
-            rotulo="Vista"
-            valor={vista}
-            aoMudar={escolherVista}
-            opcoes={OPCOES_VISTA}
-            larguraTotal
-            className="md:hidden"
-          />
           {vista === "prazo" ? (
             <div className="min-w-0 md:min-h-0 md:flex-1 md:overflow-y-auto">
               <ListaPorPrazo itens={itens} agora={agora} />

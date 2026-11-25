@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Dialog } from "@base-ui/react/dialog";
 import { ArrowRight, ChevronLeft, ChevronRight, Compass, X } from "lucide-react";
@@ -9,18 +9,12 @@ import type { Papel } from "@/core/types-equipe";
 import {
   EVENTO_ABRIR_TOUR,
   NOVIDADES,
-  VERSAO_NOVIDADES,
-  chaveNovidadesVistas,
   chaveProgressoTour,
-  jaViuNovidades,
-  passoSalvo,
   passosDoTour,
   podeFazerTour,
   type PassoTour,
 } from "@/lib/novidades";
 import { cn } from "@/lib/utils";
-
-const EVENTO_VISTAS = "foxlicita:novidades-vistas";
 
 const BOTAO_BASE =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none";
@@ -28,14 +22,6 @@ const BOTAO_PRINCIPAL = cn(BOTAO_BASE, "bg-brand-fill font-semibold text-black h
 const BOTAO_SECUNDARIO = cn(BOTAO_BASE, "border border-border text-ink hover:bg-raised");
 const LINK_TELA =
   "inline-flex min-h-11 items-center gap-1.5 rounded-control px-3 text-sm font-medium text-ink underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand";
-
-function lerArmazenado(chave: string): string | null {
-  try {
-    return window.localStorage.getItem(chave);
-  } catch {
-    return null;
-  }
-}
 
 function gravar(chave: string, valor: string | null) {
   try {
@@ -46,53 +32,28 @@ function gravar(chave: string, valor: string | null) {
   }
 }
 
-function assinarVistas(aviso: () => void): () => void {
-  window.addEventListener("storage", aviso);
-  window.addEventListener(EVENTO_VISTAS, aviso);
-  return () => {
-    window.removeEventListener("storage", aviso);
-    window.removeEventListener(EVENTO_VISTAS, aviso);
-  };
-}
-
 /**
- * Popup "Novidades" (uma vez por pessoa e por versão) e tour do sistema.
- * O que já foi visto e o passo do tour ficam guardados no aparelho, por usuário.
+ * Lista "Novidades" e tour do sistema. Nenhum dos dois abre sozinho: só pelo item do menu.
+ * O passo do tour fica guardado no aparelho, por usuário.
  */
 export function Novidades({ usuarioId, papel }: { usuarioId: string; papel: Papel }) {
-  const chaveVistas = chaveNovidadesVistas(usuarioId);
   const chaveTour = chaveProgressoTour(usuarioId);
-  // No servidor, conta como visto: o popup só aparece depois que a página carrega no navegador.
-  const salvo = useSyncExternalStore(
-    assinarVistas,
-    () => lerArmazenado(chaveVistas),
-    () => VERSAO_NOVIDADES,
-  );
-  const [fechouAgora, setFechouAgora] = useState(false);
+  const [popupAberto, setPopupAberto] = useState(false);
   const [tourAberto, setTourAberto] = useState(false);
   const [passo, setPasso] = useState(0);
   const gestor = podeFazerTour(papel);
   const passos = passosDoTour(papel);
 
-  const popupAberto = !fechouAgora && !jaViuNovidades(salvo);
-
   function fecharPopup() {
-    setFechouAgora(true);
-    gravar(chaveVistas, VERSAO_NOVIDADES);
-    window.dispatchEvent(new Event(EVENTO_VISTAS));
+    setPopupAberto(false);
   }
 
-  function abrirTour() {
-    if (!gestor) return;
-    setPasso(passoSalvo(lerArmazenado(chaveTour), passos.length));
-    setTourAberto(true);
-  }
-
-  // A barra lateral e o menu "Mais" pedem a abertura por um evento de janela.
+  // Nada abre sozinho: a barra lateral e o menu "Mais" pedem a lista de novidades por um evento de janela.
   useEffect(() => {
-    window.addEventListener(EVENTO_ABRIR_TOUR, abrirTour);
-    return () => window.removeEventListener(EVENTO_ABRIR_TOUR, abrirTour);
-  });
+    const abrir = () => setPopupAberto(true);
+    window.addEventListener(EVENTO_ABRIR_TOUR, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR_TOUR, abrir);
+  }, []);
 
   function irPara(novo: number) {
     setPasso(novo);
