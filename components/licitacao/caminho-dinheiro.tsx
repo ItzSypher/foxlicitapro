@@ -33,7 +33,7 @@ function textoDias(n: number): string {
   return `~${n} ${n === 1 ? "dia" : "dias"}`;
 }
 
-/** Cartão "Pagamento e caixa": do empenho ao dinheiro na conta, quantos dias sem receber e quanto caixa pede. */
+/** Cartão "Caminho do dinheiro": do empenho ao dinheiro na conta, quantos dias sem receber e quanto caixa pede. */
 export function CaminhoDinheiro({ ficha, oportunidade }: Props) {
   const c = caminhoDoDinheiro(ficha, oportunidade);
   const caixa = c.caixaNecessario;
@@ -42,7 +42,7 @@ export function CaminhoDinheiro({ ficha, oportunidade }: Props) {
     <section aria-labelledby="caminho-dinheiro-titulo" className="flex flex-col gap-4 rounded-card bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="caminho-dinheiro-titulo" className="text-base font-semibold text-ink">
-          Pagamento e caixa
+          Caminho do dinheiro
         </h2>
         <Pilula tom={TOM_NIVEL[caixa.nivel]}>Caixa {NOME_NIVEL_CAIXA[caixa.nivel]}</Pilula>
       </div>
