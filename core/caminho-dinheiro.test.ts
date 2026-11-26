@@ -28,6 +28,8 @@ describe("nivelCaixa sem ficha", () => {
   it("serviço feito à distância é baixo", () => {
     expect(nivelCaixa(SITE)).toBe("baixo");
     expect(tipoDoObjeto(SITE)).toBe("servico-remoto");
+    expect(tipoDoObjeto({ objeto: "Licença do software ABBYY para acessibilização", valorEstimado: 1680 })).toBe("produto");
+    expect(tipoDoObjeto({ objeto: "Subscrição de software de gestão jurídica", valorEstimado: 9000 })).toBe("produto");
   });
 
   it("serviço presencial é baixo, e médio quando o valor é grande", () => {

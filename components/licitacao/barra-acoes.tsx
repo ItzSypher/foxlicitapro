@@ -84,8 +84,6 @@ export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportu
           <Secundarias numeroControle={numeroControle} linkPncp={linkPncp} linkOrigem={linkOrigem} salvo={salvo} />
         </div>
       </div>
-      {/* Reserva o espaço da barra fixa para o último conteúdo não ficar escondido. */}
-      {temFixas ? <div aria-hidden="true" className="h-16 lg:hidden" /> : null}
       <div className="flex flex-wrap gap-2 lg:hidden">
         {assistente ? <BotaoAssistente compra={compra} /> : null}
         <Secundarias numeroControle={numeroControle} linkPncp={linkPncp} linkOrigem={linkOrigem} salvo={salvo} />
