@@ -6,7 +6,7 @@ interface Props {
   foco: ReadonlyArray<string>;
 }
 
-const CLASSE_SELO = "inline-flex min-h-7 max-w-full items-center rounded-full border border-border bg-surface px-3 text-[13px] text-ink";
+const CLASSE_SELO = "inline-flex min-h-7 items-center rounded-full border border-border bg-surface px-2.5 text-xs font-medium text-ink";
 const CLASSE_LINK =
   "inline-flex min-h-11 items-center rounded-control px-2 text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand md:min-h-8";
 
@@ -18,12 +18,11 @@ export function FaixaOferta({ foco }: Props) {
       {selos.length > 0 ? (
         <>
           <h2 className="text-[13px] font-semibold text-ink">Você oferece:</h2>
-          <ul className="flex min-w-0 flex-wrap gap-2">
+          {/* Uma linha só: o nome do grupo no selo, os termos no title. */}
+          <ul className="flex min-w-0 flex-wrap gap-1.5">
             {selos.map((selo) => (
-              <li key={selo.grupo} className={CLASSE_SELO}>
-                <span className="truncate">
-                  {selo.grupo === "Outros" ? selo.termos.join(", ") : `${selo.grupo}: ${selo.termos.join(", ")}`}
-                </span>
+              <li key={selo.grupo} title={selo.termos.join(", ")} className={CLASSE_SELO}>
+                {selo.grupo === "Outros" ? `+${selo.termos.length}` : selo.grupo}
               </li>
             ))}
           </ul>
