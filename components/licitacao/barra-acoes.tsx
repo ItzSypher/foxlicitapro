@@ -21,6 +21,8 @@ interface Props {
   /** null quando faltam dados para montar a oportunidade; some o botão de salvar */
   oportunidade: OportunidadeComScore | null;
   salvo: boolean;
+  /** Motivo pelo qual o item não pode sair do pipeline; null quando está livre */
+  travado?: string | null;
   /** tem "editar_propostas" */
   podeCriarProposta: boolean;
   /** tem "usar_assistente" e "editar_propostas" */
@@ -60,7 +62,7 @@ function Secundarias({ numeroControle, linkPncp, linkOrigem, salvo }: Pick<Props
  * Telefone: "Criar proposta" e "Salvar" ficam numa barra fixa acima da navegação inferior;
  * Cotar, PNCP e sistema de origem vêm numa linha na página. Desktop: tudo numa linha só.
  */
-export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportunidade, salvo, podeCriarProposta, podeUsarAssistente }: Props) {
+export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportunidade, salvo, travado = null, podeCriarProposta, podeUsarAssistente }: Props) {
   const compra = `${chave.cnpj}-${chave.ano}-${chave.sequencial}`;
   // Sem chave configurada, ou sem permissão, o botão não existe e a barra fica como sempre foi.
   const assistente = assistenteDisponivel() && podeUsarAssistente;
@@ -79,7 +81,7 @@ export function BarraAcoes({ chave, numeroControle, linkPncp, linkOrigem, oportu
             <BotaoAssistente compra={compra} />
           </div>
         ) : null}
-        {oportunidade ? <BotaoSalvarPipeline item={oportunidade} salvo={salvo} /> : null}
+        {oportunidade ? <BotaoSalvarPipeline item={oportunidade} salvo={salvo} travado={travado} /> : null}
         <div className="hidden lg:contents">
           <Secundarias numeroControle={numeroControle} linkPncp={linkPncp} linkOrigem={linkOrigem} salvo={salvo} />
         </div>

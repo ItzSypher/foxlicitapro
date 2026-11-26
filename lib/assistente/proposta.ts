@@ -5,10 +5,15 @@ import type { PerfilEmpresa } from "@/core/perfil";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { montarDadosIniciais, referenciasDoDetalhe, textoChaveCompra, totalProposta, tituloPadrao } from "@/core/proposta";
 import { frentePredominante, sugerirModelo } from "@/core/proposta-modelos";
-import type { ChaveCompra, DetalheCompra } from "@/core/types-detalhe";
+import { aplicarCustosDeReferencia, custosDeReferencia } from "@/core/proposta-custo";
+import type { PrecoFornecedor } from "@/core/fornecedores";
+import type { ChaveCompra, DadosProposta, DetalheCompra } from "@/core/types-detalhe";
 import type { AnaliseAssistente, Sessao } from "@/core/types-equipe";
 import { mensagemLimiteAtingido, podeMontar } from "@/core/limite-diario";
+import { resumirCotacoesDoItem } from "@/db/cotacoes";
+import { listarPrecosRecentes } from "@/db/fornecedores";
 import { criarProposta, propostaRecenteDoAssistente } from "@/db/propostas";
+import { formatarMoeda } from "@/lib/formato";
 import { avisarPropostaEmRevisao } from "@/lib/avisos";
 import { ErroAssistente, assistenteDisponivel, gerarJson, nomeDoModelo, type ParteEntrada } from "@/lib/gemini";
 import {
@@ -16,6 +21,7 @@ import {
   aplicarSugestoes,
   esquemaSaidaAnalise,
   type SaidaAnalise,
+  type SugestaoItem,
 } from "./analise";
 import { restantesHoje } from "./cota";
 import { baixarPdfPrincipal } from "./edital-pdf";
@@ -34,6 +40,19 @@ const emAndamento = new Map<string, Promise<ResultadoMontagem>>();
 function frenteProvavel(detalhe: DetalheCompra, perfil: PerfilEmpresa) {
   const casados = casarCnaes(detalhe.objeto, perfil);
   return frentePredominante(detalhe, casados.servicos.length > casados.produtos.length ? "servicos" : "produtos");
+}
+
+/** Acrescenta à observação de cada item de onde veio o custo, ou que falta custo (a análise é lida pela equipe). */
+function notasDeCusto(sugestoes: SugestaoItem[], dados: DadosProposta): SugestaoItem[] {
+  return sugestoes.map((s) => {
+    const item = dados.itens.find((i) => i.numero === s.numero);
+    if (!item) return s;
+    const nota =
+      item.fonteCusto !== undefined && item.custoUnitario !== undefined
+        ? `Custo unitário de ${formatarMoeda(item.custoUnitario)} preenchido pelo sistema: ${item.fonteCusto}.`
+        : "Falta custo: cote com fornecedores.";
+    return { ...s, observacao: `${s.observacao.trim()} ${nota}`.trim() };
+  });
 }
 
 async function executar(chave: ChaveCompra, sessao: Sessao): Promise<ResultadoMontagem> {
@@ -89,21 +108,28 @@ async function executar(chave: ChaveCompra, sessao: Sessao): Promise<ResultadoMo
   const agora = new Date();
   const base = montarDadosIniciais(detalhe, saida.modeloId, agora);
   const aplicado = aplicarSugestoes(base, saida.sugestoesPorItem, referenciasDoDetalhe(detalhe));
+  // Custo só de referência do sistema (cotação salva ou preço de fornecedor); sem referência o item fica sem custo.
+  const custos = custosDeReferencia(
+    aplicado.dados.itens,
+    await resumirCotacoesDoItem(sessao.empresaId, compraId).catch((): null => null),
+    await listarPrecosRecentes(sessao.empresaId).catch((): PrecoFornecedor[] => []),
+  );
+  const dadosComCusto = aplicarCustosDeReferencia(aplicado.dados, custos);
   const analise: AnaliseAssistente = {
     ...saida,
-    sugestoesPorItem: aplicado.sugestoes,
+    sugestoesPorItem: notasDeCusto(aplicado.sugestoes, dadosComCusto),
     geradoEm: agora.toISOString(),
     modelo: nomeDoModelo(),
   };
-  const titulo = tituloPadrao(aplicado.dados);
+  const titulo = tituloPadrao(dadosComCusto);
 
   try {
     const id = await criarProposta(sessao.empresaId, {
       compraId,
       modelo: saida.modeloId,
       titulo,
-      dados: aplicado.dados,
-      totalCentavos: totalProposta(aplicado.dados),
+      dados: dadosComCusto,
+      totalCentavos: totalProposta(dadosComCusto),
       criadoPor: sessao.usuarioId,
       autor: "assistente",
       status: "em_revisao",

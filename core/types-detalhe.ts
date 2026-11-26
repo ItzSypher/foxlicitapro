@@ -81,6 +81,10 @@ export interface ItemProposta {
   quantidade: number;
   marcaModelo: string;
   valorUnitario: number;
+  /** Custo de compra por unidade, em reais. Interno: nunca vai para o documento, o PDF nem o link público. Ausente nas propostas antigas. */
+  custoUnitario?: number;
+  /** De onde veio o custo (cotação salva, preço de fornecedor); só quando o sistema preencheu */
+  fonteCusto?: string;
 }
 
 export interface DadosProposta {

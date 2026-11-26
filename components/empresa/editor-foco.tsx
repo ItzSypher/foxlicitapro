@@ -4,6 +4,18 @@ import { useState } from "react";
 import { LIMITE_FOCO_CARACTERES, LIMITE_FOCO_TERMOS, normalizarFoco } from "@/core/perfil";
 import { CLASSE_CAMPO } from "./editor-perfil";
 
+/** Termos que um MEI de TI costuma oferecer; um toque adiciona ao foco. */
+const SUGESTOES = [
+  "site institucional",
+  "redesign",
+  "desenvolvimento de sistema",
+  "software",
+  "aplicativo",
+  "material de escritório",
+  "suprimentos de informática",
+  "equipamentos de informática",
+] as const;
+
 interface Props {
   foco: string[];
   onChange: (foco: string[]) => void;
@@ -14,6 +26,9 @@ export function EditorFoco({ foco, onChange }: Props) {
   const [texto, setTexto] = useState("");
   const cheio = foco.length >= LIMITE_FOCO_TERMOS;
 
+  const jaTem = new Set(foco.map((t) => t.toLowerCase()));
+  const sugestoes = SUGESTOES.filter((s) => !jaTem.has(s));
+
   function adicionar() {
     if (texto.trim() === "") return;
     onChange(normalizarFoco([...foco, texto]));
@@ -21,7 +36,7 @@ export function EditorFoco({ foco, onChange }: Props) {
   }
 
   return (
-    <section data-tour="empresa-foco" className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
+    <section id="foco" data-tour="empresa-foco" className="flex scroll-mt-20 flex-col gap-2 rounded-card border border-border bg-surface p-4">
       <label htmlFor="foco-termo" className="text-base font-semibold text-ink">
         Foco da empresa
       </label>
@@ -38,6 +53,21 @@ export function EditorFoco({ foco, onChange }: Props) {
                 className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
               >
                 ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {sugestoes.length > 0 && !cheio ? (
+        <ul aria-label="Sugestões" className="flex flex-wrap gap-2">
+          {sugestoes.map((sugestao) => (
+            <li key={sugestao}>
+              <button
+                type="button"
+                onClick={() => onChange(normalizarFoco([...foco, sugestao]))}
+                className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-dashed border-border px-3 text-[13px] text-muted-foreground outline-none hover:border-brand hover:text-ink focus-visible:ring-2 focus-visible:ring-brand md:min-h-8"
+              >
+                + {sugestao}
               </button>
             </li>
           ))}

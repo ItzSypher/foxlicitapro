@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { gravarComissaoDoItem, gravarPagamentoPrevisto, gravarRecebido } from "@/db/fluxo-caixa";
+import { gravarComissaoDoItem, gravarCustoRealDoItem, gravarPagamentoPrevisto, gravarRecebido } from "@/db/fluxo-caixa";
 import { COMISSAO_MAXIMA, COMISSAO_MINIMA } from "@/core/lucro";
 import { exigirDono } from "@/lib/sessao";
 
@@ -68,6 +68,16 @@ export async function salvarPagamentoPrevistoAction(entrada: unknown): Promise<R
   if (!lido.success) return { ok: false, erro: "Confira a data." };
   const { id, dia } = lido.data;
   return gravar((empresaId) => gravarPagamentoPrevisto(empresaId, id, dia), "data prevista");
+}
+
+const CustoRealSchema = z.object({ id: idSchema, custo: z.number().min(0).max(1_000_000_000).nullable() });
+
+/** Custo real desta licitação (R$); vazio volta à estimativa. */
+export async function salvarCustoRealAction(entrada: unknown): Promise<ResultadoCaixa> {
+  const lido = CustoRealSchema.safeParse(entrada);
+  if (!lido.success) return { ok: false, erro: "Digite o custo em reais, por exemplo 2.700,00." };
+  const { id, custo } = lido.data;
+  return gravar((empresaId) => gravarCustoRealDoItem(empresaId, id, custo), "custo real");
 }
 
 /** Comissão desta licitação (0 a 30%); vazio volta ao padrão da empresa. */

@@ -1,17 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
-import { BookmarkCheck, BookmarkPlus } from "lucide-react";
-import { salvarNoPipeline } from "@/app/(app)/pipeline/actions";
+import { Check, Plus } from "lucide-react";
+import { salvarNoPipeline, tirarDoPipeline } from "@/app/(app)/pipeline/actions";
 import type { OportunidadeComScore } from "@/core/types";
+import { cn } from "@/lib/utils";
 
+/**
+ * Alternador "Pipeline": desligado é contorno com "+", ligado é preenchido com check ("No pipeline").
+ * Atualiza na hora e desfaz se o servidor recusar.
+ */
 export function BotaoSalvarPipeline({
   item,
   salvo,
+  travado = null,
+  className,
 }: {
   item: OportunidadeComScore;
   salvo: boolean;
+  /** Motivo pelo qual o item não pode sair do pipeline (em disputa, ganho, com proposta, sem permissão); liga e trava o botão. */
+  travado?: string | null;
+  className?: string;
 }) {
   const chave = `${item.id}:${salvo}`;
   const [chaveAnterior, setChaveAnterior] = useState(chave);
@@ -26,43 +35,45 @@ export function BotaoSalvarPipeline({
     setErro(null);
   }
 
-  function salvar() {
+  const bloqueado = marcado && travado !== null;
+
+  function alternar() {
+    if (bloqueado) return;
+    const anterior = marcado;
     setErro(null);
-    setMarcado(true);
+    setMarcado(!anterior);
     iniciar(async () => {
-      const r = await salvarNoPipeline(item);
+      const r = anterior ? await tirarDoPipeline(item.id) : await salvarNoPipeline(item);
       if (!r.ok) {
-        setMarcado(false);
+        setMarcado(anterior);
         setErro(r.erro);
       }
     });
   }
 
-  if (marcado) {
-    return (
-      <div className="flex h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] items-center justify-center gap-2 text-sm text-ink">
-        <BookmarkCheck aria-hidden="true" className="size-4 shrink-0 text-positive" />
-        <span className="truncate">No pipeline</span>
-        <Link
-          href="/pipeline"
-          className="inline-flex h-11 shrink-0 items-center rounded-control px-2 font-medium text-ink underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          Ver
-        </Link>
-      </div>
-    );
-  }
-
+  const Icone = marcado ? Check : Plus;
   return (
     <div className="contents">
       <button
         type="button"
-        onClick={salvar}
-        disabled={pendente}
-        className="inline-flex h-11 min-w-0 flex-[1_1_calc(50%-0.25rem)] items-center justify-center gap-2 rounded-control border border-control bg-transparent px-4 text-sm font-medium whitespace-nowrap text-ink outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
+        onClick={alternar}
+        aria-pressed={marcado}
+        aria-busy={pendente}
+        disabled={bloqueado || pendente}
+        title={bloqueado ? (travado ?? undefined) : marcado ? "Tirar do pipeline" : "Salvar no pipeline"}
+        className={cn(
+          "inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-control border px-3.5 text-sm font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand md:h-9",
+          marcado
+            ? "border-transparent bg-brand-fill text-black hover:opacity-90"
+            : "border-control bg-transparent text-ink hover:bg-active",
+          bloqueado && "cursor-not-allowed opacity-70",
+          pendente && !bloqueado && "cursor-progress",
+          className,
+        )}
       >
-        <BookmarkPlus aria-hidden="true" className="size-4 shrink-0" />
-        {pendente ? "Salvando…" : "Salvar no pipeline"}
+        <Icone aria-hidden="true" className="size-4 shrink-0" />
+        {marcado ? "No pipeline" : "Pipeline"}
+        {bloqueado ? <span className="sr-only">. {travado}</span> : null}
       </button>
       {erro ? (
         <p role="alert" className="order-last basis-full text-sm text-negative">

@@ -1091,7 +1091,24 @@ export function textoRascunhoPronto(p: { objeto: string; total: number; itens: n
 /** O que aconteceu com a proposta: gerou/aprovou (WhatsApp ou tela), subiu para revisão, enviou no portal, registrou externa. */
 export type AcaoAvisoProposta = "gerou" | "aprovou" | "subiu" | "enviou" | "registrou";
 
-/** `leitura`: link do documento que abre sem login (só no "subiu", para ler antes de aprovar). */
+/** Situação de custo da proposta para o aviso: prejuízo em reais (0 sem prejuízo) e itens sem custo informado. */
+export interface CustoDaProposta {
+  prejuizo: number;
+  itensSemCusto: number;
+}
+
+/** Linha de alerta do aviso: o prejuízo, ou o custo que falta; null quando está tudo certo. */
+export function linhaAvisoCusto(c: CustoDaProposta | null | undefined): string | null {
+  if (!c) return null;
+  if (c.prejuizo > 0) return `⚠️ Prejuízo de ${reais(c.prejuizo)}`;
+  if (c.itensSemCusto > 0) return `Custo não informado em ${c.itensSemCusto} ${c.itensSemCusto === 1 ? "item" : "itens"}`;
+  return null;
+}
+
+/**
+ * `leitura`: link do documento que abre sem login (só no "subiu", para ler antes de aprovar).
+ * `custo`: quando a proposta dá prejuízo ou falta custo, o aviso ganha uma linha (só no "subiu" e no "gerou").
+ */
 export function textoAvisoAoDono(p: {
   nome: string;
   acao: AcaoAvisoProposta;
@@ -1099,14 +1116,17 @@ export function textoAvisoAoDono(p: {
   total: number;
   link: string;
   leitura?: string | null;
+  custo?: CustoDaProposta | null;
 }): string {
   const quem = primeiroNome(p.nome) === "" ? "Alguém da equipe" : primeiroNome(p.nome);
   const objeto = objetoCurto(p.objeto, MAX_OBJETO_LISTA);
   const valor = p.total > 0 ? ` (${reais(p.total)})` : "";
+  const alerta = linhaAvisoCusto(p.custo);
   switch (p.acao) {
     case "subiu":
       return [
         `📄 ${quem} subiu a proposta de ${objeto}${valor} para você revisar.`,
+        ...(alerta ? [alerta] : []),
         ...(p.leitura ? [`Ler o documento (abre sem login): ${p.leitura}`] : []),
         `Aprovar ou devolver no sistema: ${p.link}`,
         "Leu e está certa? Toque em *Aprovar*.",
@@ -1118,6 +1138,7 @@ Comprovante e detalhes: ${p.link}`;
       return `📤 ${quem} registrou uma proposta enviada fora do sistema: ${objeto}${valor}.
 Ver: ${p.link}`;
     case "gerou":
+      return [`${quem} ${p.acao} a proposta de ${objeto}${valor}: ${p.link}`, ...(alerta ? [alerta] : [])].join("\n");
     case "aprovou":
       return `${quem} ${p.acao} a proposta de ${objeto}${valor}: ${p.link}`;
   }

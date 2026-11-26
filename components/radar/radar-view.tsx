@@ -37,6 +37,7 @@ import { AvisoFalhaParcial, EstadoErro, EstadoVazio } from "./estados";
 import { BarraFiltros } from "./filtros";
 import { BuscaPalavras } from "./busca-palavras";
 import { BuscaPncp } from "./busca-pncp";
+import { FaixaOferta } from "./faixa-oferta";
 import { CabecalhoLista, LinhaOportunidade } from "./linha-oportunidade";
 import { ListaDesertas } from "./lista-desertas";
 import { Paginacao } from "./paginacao";
@@ -84,6 +85,8 @@ interface Props {
   meta?: PainelMeta | null;
   /** UFs das áreas da empresa (as que entram na busca diária) */
   ufsAtendidas?: string[];
+  /** Termos do foco da empresa, mostrados como "Você oferece" acima da lista */
+  foco?: string[];
 }
 
 export function RadarView({
@@ -95,6 +98,7 @@ export function RadarView({
   palavrasSalvas = [],
   meta = null,
   ufsAtendidas = [],
+  foco = [],
 }: Props) {
   const router = useRouter();
   const caminho = usePathname();
@@ -489,6 +493,8 @@ export function RadarView({
 
           {emDesertas ? null : (
             <>
+              <FaixaOferta foco={foco} />
+
               <BuscaPalavras
                 busca={busca}
                 aoBuscar={buscar}

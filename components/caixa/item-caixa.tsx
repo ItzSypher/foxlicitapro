@@ -6,6 +6,7 @@ import {
   desfazerRecebidoAction,
   marcarRecebidoAction,
   salvarComissaoDoItemAction,
+  salvarCustoRealAction,
   salvarPagamentoPrevistoAction,
   type ResultadoCaixa,
 } from "@/app/(app)/caixa/actions";
@@ -84,6 +85,20 @@ export function ItemCaixaLinha({ item, hoje }: { item: ItemCaixa; hoje: string }
     executar(() => salvarComissaoDoItemAction({ id: item.id, percentual }));
   }
 
+  function salvarCusto(texto: string) {
+    const limpo = texto.trim();
+    const custo = limpo === "" ? null : lerValorDigitado(limpo);
+    if (limpo !== "" && custo === null) {
+      setErro("Digite o custo em reais, por exemplo 2.700,00.");
+      return;
+    }
+    if (custo === null ? item.custoEstimado : !item.custoEstimado && custo === item.custo) {
+      setErro(null);
+      return;
+    }
+    executar(() => salvarCustoRealAction({ id: item.id, custo }));
+  }
+
   const recebido = item.status === "recebido";
 
   return (
@@ -93,10 +108,13 @@ export function ItemCaixaLinha({ item, hoje }: { item: ItemCaixa; hoje: string }
           <p className="line-clamp-2 text-sm font-medium break-words text-ink">{item.objeto || "Licitação sem descrição"}</p>
           {item.orgao ? <p className="truncate text-xs text-muted-foreground">{item.orgao}</p> : null}
         </div>
-        <Pilula tom={TOM_STATUS[item.status]} className="shrink-0 gap-1">
-          <IconeStatus status={item.status} />
-          {ROTULO_STATUS_CAIXA[item.status]}
-        </Pilula>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Pilula tom={TOM_STATUS[item.status]} className="gap-1">
+            <IconeStatus status={item.status} />
+            {ROTULO_STATUS_CAIXA[item.status]}
+          </Pilula>
+          {item.resultado < -0.005 ? <Pilula tom="negativo">Prejuízo</Pilula> : null}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -125,7 +143,30 @@ export function ItemCaixaLinha({ item, hoje }: { item: ItemCaixa; hoje: string }
         </div>
         <p id={`${idBase}-comissao-valor`} className="tabular-nums">
           {formatarMoedaCurta(item.comissao)}
-          <span className="text-faint"> · custo {formatarMoedaCurta(item.custo)}{item.custoEstimado ? " (estimado)" : ""}</span>
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <label htmlFor={`${idBase}-custo`}>Custo real</label>
+          <span aria-hidden="true">R$</span>
+          <input
+            id={`${idBase}-custo`}
+            key={item.custoEstimado ? "estimado" : item.custo}
+            inputMode="decimal"
+            defaultValue={item.custoEstimado ? "" : String(item.custo).replace(".", ",")}
+            placeholder={String(item.custo).replace(".", ",")}
+            disabled={salvando}
+            onBlur={(e) => salvarCusto(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            aria-describedby={`${idBase}-custo-nota`}
+            className={`${CLASSE_CAMPO} w-28 text-right tabular-nums`}
+          />
+        </div>
+        <p id={`${idBase}-custo-nota`} className="text-faint tabular-nums">
+          {item.custoEstimado ? "Estimado: digite o custo real" : "Custo real informado"} · saldo {formatarMoedaCurta(item.resultado)}
         </p>
       </div>
 

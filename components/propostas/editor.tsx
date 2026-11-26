@@ -12,7 +12,8 @@ import {
 } from "@/app/(app)/propostas/actions";
 import { BarraProposta, type EstadoSalvo } from "@/components/propostas/barra-proposta";
 import { BlocoRecolhivel } from "@/components/propostas/bloco-recolhivel";
-import { BOTAO_SECUNDARIO, CONTROLE, Secao } from "@/components/propostas/campos";
+import { BarraResultado } from "@/components/propostas/barra-resultado";
+import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CONTROLE, Secao } from "@/components/propostas/campos";
 import { DocumentoEditavel } from "@/components/propostas/documento-editavel";
 import { DocumentoProposta } from "@/components/propostas/documento";
 import { dadosParaFormulario, formularioParaDados, type Formulario } from "@/components/propostas/estado";
@@ -26,6 +27,7 @@ import { PainelRevisao } from "@/components/propostas/painel-revisao";
 import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { totalProposta, validarProposta } from "@/core/proposta";
+import { resultadoDaProposta, textoConfirmacaoEnvio } from "@/core/proposta-custo";
 import type { Emitente } from "@/core/proposta-emitente";
 import { MODELOS, obterModelo, type ModeloId } from "@/core/proposta-modelos";
 import { podeEditar, type AcaoRevisao } from "@/core/revisao";
@@ -76,6 +78,8 @@ interface Props {
   acessos: AcessosProposta;
   /** Linha do tempo, já em ordem */
   eventos: EventoProposta[];
+  /** Comissão padrão da empresa; só o dono recebe (null para o gestor, que vê só a margem bruta) */
+  comissaoPercentual: number | null;
 }
 
 const horaFmt = new Intl.DateTimeFormat("pt-BR", {
@@ -107,7 +111,17 @@ function aplicarPadroes(f: Formulario, novo: ModeloId): Formulario {
   };
 }
 
-export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemItens, acessos, emitente, eventos }: Props) {
+export function Editor({
+  proposta,
+  usuarioId,
+  referencias,
+  cotacao,
+  avisoSemItens,
+  acessos,
+  emitente,
+  eventos,
+  comissaoPercentual,
+}: Props) {
   const [form, setForm] = useState<Formulario>(() =>
     dadosParaFormulario(proposta.titulo, proposta.modelo, proposta.dados, referencias),
   );
@@ -123,6 +137,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
   const [visao, setVisao] = useState<"editar" | "leitura" | "pdf">("editar");
   const [enviarAberto, setEnviarAberto] = useState(false);
   const [excluirAberto, setExcluirAberto] = useState(false);
+  const [confirmacaoEnvio, setConfirmacaoEnvio] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
   const roteador = useRouter();
@@ -131,6 +146,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
   const pendencias = useMemo(() => validarProposta(dados, form.modelo), [dados, form.modelo]);
   const totalCentavos = useMemo(() => totalProposta(dados), [dados]);
   const total = totalCentavos / 100;
+  const resultado = useMemo(() => resultadoDaProposta(dados, comissaoPercentual), [dados, comissaoPercentual]);
   const titulo = form.titulo.trim() === "" ? "Proposta sem título" : form.titulo.trim();
   const assinatura = useMemo(() => JSON.stringify({ titulo, modelo: form.modelo, dados }), [titulo, form.modelo, dados]);
 
@@ -196,6 +212,18 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
         setMensagem(r.mensagem);
       }
     });
+  }
+
+  /** Enviar para revisão com prejuízo ou custo faltando pede confirmação; as outras ações seguem direto. */
+  function pedirAgir(acao: AcaoRevisao, nota?: string) {
+    if (acao === "enviar") {
+      const aviso = textoConfirmacaoEnvio(resultado);
+      if (aviso !== null) {
+        setConfirmacaoEnvio(aviso);
+        return;
+      }
+    }
+    agir(acao, nota);
   }
 
   async function baixarPdf() {
@@ -314,6 +342,8 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
         aoEnviar={acessos.editar ? () => setEnviarAberto(true) : undefined}
       />
 
+      <BarraResultado resultado={resultado} />
+
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
         <div className="flex min-w-0 flex-col gap-3">
           <div className="nao-imprimir flex flex-wrap items-center gap-2">
@@ -349,6 +379,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
             emitente={emitente}
             editavel={editavel}
             aoEditar={setForm}
+            resultado={resultado}
             className={cn("mx-auto", visao === "pdf" && "xl:hidden")}
           />
 
@@ -375,7 +406,7 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
                 acessos={acessos}
                 pendencias={pendencias.length}
                 pendente={pendente}
-                aoAgir={agir}
+                aoAgir={pedirAgir}
               />
             </Secao>
           </div>
@@ -475,6 +506,30 @@ export function Editor({ proposta, usuarioId, referencias, cotacao, avisoSemIten
           roteador.refresh();
         }}
       />
+
+      <Sheet open={confirmacaoEnvio !== null} onOpenChange={(aberto) => !aberto && setConfirmacaoEnvio(null)}>
+        <SheetContent side="right" className="gap-0">
+          <SheetHeader className="pr-14">
+            <SheetTitle>Enviar para revisão?</SheetTitle>
+            <SheetDescription>{confirmacaoEnvio}</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-2 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmacaoEnvio(null);
+                agir("enviar");
+              }}
+              className={BOTAO_SECUNDARIO}
+            >
+              Enviar mesmo assim
+            </button>
+            <button type="button" onClick={() => setConfirmacaoEnvio(null)} className={BOTAO_PRIMARIO}>
+              Voltar e corrigir
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={excluirAberto} onOpenChange={setExcluirAberto}>
         <SheetContent side="right" className="gap-0">

@@ -160,6 +160,34 @@ export async function idsNoPipeline(empresaId: string): Promise<Set<string>> {
 }
 
 /**
+ * Itens da empresa que não podem sair do pipeline com o alternador: em disputa, ganhos ou com proposta.
+ * Devolve id → motivo (texto pronto para a tela). Com `id`, só olha esse item. Item livre não aparece no mapa.
+ */
+export async function itensTravadosNoPipeline(empresaId: string, id: string | null = null): Promise<Map<string, string>> {
+  const linhas = await sql`
+    select i.id, i.etapa
+    from pipeline_itens i
+    where i.empresa_id = ${empresaId}
+      and ${id === null ? sql`true` : sql`i.id = ${id}`}
+      and (
+        i.etapa in ('disputa', 'ganha')
+        or exists (select 1 from propostas p where p.empresa_id = i.empresa_id and (p.compra_id = i.id or p.pipeline_id = i.id))
+      )
+  `;
+  const mapa = new Map<string, string>();
+  for (const l of linhas) {
+    const motivo =
+      l.etapa === "disputa"
+        ? "Em disputa: não dá para tirar do pipeline."
+        : l.etapa === "ganha"
+          ? "Licitação ganha: não dá para tirar do pipeline."
+          : "Já tem proposta: não dá para tirar do pipeline.";
+    mapa.set(String(l.id), motivo);
+  }
+  return mapa;
+}
+
+/**
  * Quem recebe um item novo: o responsável padrão da empresa (tela Equipe), senão o primeiro gestor ativo da empresa,
  * senão um gestor ligado a ela pelo Admin (usuario_empresas), senão quem adicionou. Nenhum item fica sem responsável.
  */

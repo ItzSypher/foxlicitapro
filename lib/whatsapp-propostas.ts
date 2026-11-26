@@ -11,8 +11,12 @@ import {
   textoAvisoAoDono,
   textoRascunhoPronto,
   type AcaoAvisoProposta,
+  type CustoDaProposta,
   type ItemAlerta,
 } from "@/core/whatsapp-alertas";
+import { COMISSAO_PADRAO, comissaoDoItem } from "@/core/lucro";
+import { resultadoDaProposta } from "@/core/proposta-custo";
+import { lerComissaoPadrao } from "@/db/empresas";
 import { estaAprovada } from "@/core/revisao";
 import type { ItemPipeline } from "@/components/pipeline/tipos";
 import { gerarTokenPublico, lerProposta, listarPropostas, propostaRecenteDoAssistente } from "@/db/propostas";
@@ -121,6 +125,7 @@ export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProp
     );
     if (destinos.length === 0) return;
     const leitura = acao === "subiu" && paraDono ? await linkDeLeitura(autor.empresaId, proposta) : null;
+    const custo = paraDono && (acao === "subiu" || acao === "gerou") ? await custoParaAviso(autor.empresaId, proposta) : null;
     const texto = textoAvisoAoDono({
       nome: autor.nome,
       acao,
@@ -128,6 +133,7 @@ export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProp
       total: proposta.total,
       link: linkAbsoluto(`/propostas/${proposta.id}`),
       leitura,
+      custo,
     });
     const botoes =
       acao === "subiu" && paraDono ? [{ titulo: "Aprovar", payload: payloadDoBotao({ tipo: "aprovar", propostaId: proposta.id }) }] : undefined;
@@ -139,6 +145,18 @@ export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProp
     }
   } catch (e) {
     console.error("[whatsapp] aviso de proposta:", e instanceof Error ? e.name : "erro");
+  }
+}
+
+/** Prejuízo (com a comissão padrão da empresa) e itens sem custo da proposta; null se não der para calcular ou for externa. */
+async function custoParaAviso(empresaId: string, proposta: Proposta): Promise<CustoDaProposta | null> {
+  if (proposta.externa) return null;
+  try {
+    const comissao = await lerComissaoPadrao(empresaId).catch(() => COMISSAO_PADRAO);
+    const r = resultadoDaProposta(proposta.dados, comissaoDoItem(null, comissao));
+    return { prejuizo: r.prejuizo, itensSemCusto: r.itensSemCusto };
+  } catch {
+    return null;
   }
 }
 

@@ -11,6 +11,10 @@ export interface ItemFormulario {
   quantidade: string;
   marcaModelo: string;
   valorUnitario: string;
+  /** Custo de compra por unidade (interno, nunca vai para o documento); vazio = não informado */
+  custoUnitario: string;
+  /** De onde o sistema tirou o custo; some quando a pessoa digita outro valor */
+  fonteCusto: string;
   /** Valor unitário estimado pelo órgão; só da tela, não faz parte da proposta */
   referencia: number | null;
 }
@@ -41,6 +45,7 @@ function numeroOuZero(texto: string): number {
 }
 
 export function itemParaDados(item: ItemFormulario, numero: number): ItemProposta {
+  const custo = numeroOuZero(item.custoUnitario);
   return {
     numero,
     descricao: item.descricao,
@@ -48,6 +53,8 @@ export function itemParaDados(item: ItemFormulario, numero: number): ItemPropost
     quantidade: numeroOuZero(item.quantidade),
     marcaModelo: item.marcaModelo,
     valorUnitario: numeroOuZero(item.valorUnitario),
+    ...(custo > 0 ? { custoUnitario: custo } : {}),
+    ...(custo > 0 && item.fonteCusto !== "" ? { fonteCusto: item.fonteCusto } : {}),
   };
 }
 
@@ -92,6 +99,8 @@ export function dadosParaFormulario(
       quantidade: formatarNumeroBR(item.quantidade, 3),
       marcaModelo: item.marcaModelo,
       valorUnitario: item.valorUnitario > 0 ? formatarNumeroBR(item.valorUnitario, 2) : "",
+      custoUnitario: item.custoUnitario !== undefined && item.custoUnitario > 0 ? formatarNumeroBR(item.custoUnitario, 2) : "",
+      fonteCusto: item.fonteCusto ?? "",
       referencia: referencias[item.numero] ?? null,
     })),
     validadeDias: String(dados.validadeDias),
@@ -106,5 +115,11 @@ export function dadosParaFormulario(
 }
 
 export function itemVazio(chave: number): ItemFormulario {
-  return { chave, descricao: "", unidade: "UN", quantidade: "1", marcaModelo: "", valorUnitario: "", referencia: null };
+  return { chave, descricao: "", unidade: "UN", quantidade: "1",
+    marcaModelo: "",
+    valorUnitario: "",
+    custoUnitario: "",
+    fonteCusto: "",
+    referencia: null,
+  };
 }

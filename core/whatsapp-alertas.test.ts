@@ -30,6 +30,7 @@ import {
   payloadDoBotao,
   quandoFecha,
   textoAndamento,
+  linhaAvisoCusto,
   textoAvisoAoDono,
   textoDoResumo,
   textoRascunhoPronto,
@@ -687,6 +688,23 @@ describe("propostas do dia", () => {
       "📤 Paulo enviou no portal a proposta de Toner.\nComprovante e detalhes: l",
     );
     expect(textoAvisoAoDono({ nome: "", acao: "registrou", objeto: "Toner", total: 50, link: "l" })).toContain("Alguém da equipe registrou");
+  });
+
+  it("aviso de revisão ganha a linha de prejuízo ou de custo que falta", () => {
+    const base = { nome: "Paulo", acao: "subiu" as const, objeto: "HD", total: 4_000, link: "https://x.test/p" };
+    const prejuizo = textoAvisoAoDono({ ...base, custo: { prejuizo: 1_880, itensSemCusto: 2 } });
+    expect(prejuizo.split("\n")[1]).toBe("⚠️ Prejuízo de R$ 1.880");
+    expect(prejuizo).not.toContain("Custo não informado");
+    expect(textoAvisoAoDono({ ...base, custo: { prejuizo: 0, itensSemCusto: 3 } }).split("\n")[1]).toBe("Custo não informado em 3 itens");
+    expect(linhaAvisoCusto({ prejuizo: 0, itensSemCusto: 1 })).toBe("Custo não informado em 1 item");
+    expect(textoAvisoAoDono({ ...base, acao: "gerou", custo: { prejuizo: 50, itensSemCusto: 0 } })).toBe(
+      "Paulo gerou a proposta de HD (R$ 4.000): https://x.test/p\n⚠️ Prejuízo de R$ 50",
+    );
+    // sem problema de custo, o texto é o de sempre
+    expect(textoAvisoAoDono({ ...base, custo: { prejuizo: 0, itensSemCusto: 0 } })).toBe(textoAvisoAoDono(base));
+    expect(linhaAvisoCusto(null)).toBeNull();
+    // outras ações não mudam
+    expect(textoAvisoAoDono({ ...base, acao: "enviou", custo: { prejuizo: 9, itensSemCusto: 1 } })).toBe(textoAvisoAoDono({ ...base, acao: "enviou" }));
   });
 });
 

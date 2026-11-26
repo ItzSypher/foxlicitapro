@@ -7,7 +7,8 @@ import { listarEventos } from "@/db/proposta-eventos";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { chaveDeNumeroControle, referenciasDoDetalhe } from "@/core/proposta";
 import { listarCotacoes } from "@/db/cotacoes";
-import { lerAssinatura } from "@/db/empresas";
+import { lerAssinatura, lerComissaoPadrao } from "@/db/empresas";
+import { COMISSAO_PADRAO, comissaoDoItem } from "@/core/lucro";
 import { lerProposta, type Proposta } from "@/db/propostas";
 import { podeAgirNaRevisao } from "@/core/permissoes";
 import { emitenteDoPerfil } from "@/core/proposta-emitente";
@@ -100,6 +101,11 @@ export default async function PropostaPage({ params, searchParams }: Props) {
     lerLinhaDoTempo(sessao.empresaId, proposta),
   ]);
   const avisoBruto = Array.isArray(aviso) ? aviso[0] : aviso;
+  // Só o dono vê a comissão; para o gestor o número nem chega ao navegador.
+  const comissaoPercentual =
+    sessao.papel === "dono"
+      ? comissaoDoItem(null, await lerComissaoPadrao(sessao.empresaId).catch(() => COMISSAO_PADRAO))
+      : null;
 
   return (
     <Editor
@@ -126,6 +132,7 @@ export default async function PropostaPage({ params, searchParams }: Props) {
       referencias={referencias}
       cotacao={cotacao}
       avisoSemItens={avisoBruto === "itens"}
+      comissaoPercentual={comissaoPercentual}
       emitente={emitenteDoPerfil({ ...perfil, assinatura: await lerAssinatura(perfil.id) })}
       acessos={{
         editar: podeAgirNaRevisao(sessao, "enviar"),

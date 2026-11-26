@@ -116,6 +116,18 @@ export async function gravarPagamentoPrevisto(empresaId: string, id: string, dia
   return r.count > 0;
 }
 
+/** Custo real da licitação, em reais; null volta a estimar o custo. Só itens na etapa Ganha. */
+export async function gravarCustoRealDoItem(empresaId: string, id: string, custo: number | null): Promise<boolean> {
+  if (custo !== null && (!Number.isFinite(custo) || custo < 0)) return false;
+  const valor = custo === null ? null : Math.round(custo * 100) / 100;
+  const r = await sql`
+    update pipeline_itens
+    set custo_real = ${valor}
+    where empresa_id = ${empresaId} and id = ${id} and etapa = 'ganha'
+  `;
+  return r.count > 0;
+}
+
 /** Comissão desta licitação (0 a 30%); null volta a usar o padrão da empresa. */
 export async function gravarComissaoDoItem(empresaId: string, id: string, percentual: number | null): Promise<boolean> {
   if (percentual !== null && (!Number.isFinite(percentual) || percentual < COMISSAO_MINIMA || percentual > COMISSAO_MAXIMA)) return false;

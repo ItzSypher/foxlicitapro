@@ -9,6 +9,7 @@ import { itemVazio, type Formulario, type ItemFormulario } from "@/components/pr
 import { dataPorExtenso, totalItemCentavos, totalProposta, valorPorExtenso } from "@/core/proposta";
 import { enderecoCompleto, textoRepresentante, type Emitente } from "@/core/proposta-emitente";
 import { acrescentarItem, alterarItem, moverItem, removerItem } from "@/core/proposta-itens";
+import type { ResultadoProposta } from "@/core/proposta-custo";
 import { obterModelo } from "@/core/proposta-modelos";
 import type { DadosProposta } from "@/core/types-detalhe";
 import { formatarMoeda } from "@/lib/formato";
@@ -31,6 +32,8 @@ interface Props {
   /** true: textos viram campos; false: só leitura */
   editavel: boolean;
   aoEditar: Editar;
+  /** Conta de custo por item (interna): só aparece no modo de edição, nunca no documento nem na impressão */
+  resultado?: ResultadoProposta;
   className?: string;
 }
 
@@ -71,7 +74,7 @@ function LinkPerfil() {
  * Documento da proposta que corre na largura da tela: no celular o texto fica em tamanho de leitura e os itens
  * viram cartões. Em modo de edição cada texto é um campo no próprio documento. O A4 fica para o PDF.
  */
-export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, className }: Props) {
+export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, resultado, className }: Props) {
   const modelo = obterModelo(form.modelo);
   const total = totalProposta(dados) / 100;
 
@@ -183,6 +186,7 @@ export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, c
             {form.itens.map((item, indice) => {
               const linha = dados.itens[indice];
               const totalLinha = linha ? totalItemCentavos(linha) / 100 : 0;
+              const custoLinha = resultado?.itens[indice];
               return (
                 <li
                   key={item.chave}
@@ -279,7 +283,51 @@ export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, c
                   </Celula>
 
                   {editavel && (
-                    <div className="col-span-2 flex justify-end gap-1 print:hidden @3xl:col-span-1 @3xl:justify-start">
+                    <div className="col-span-2 flex flex-col gap-1.5 rounded-sm bg-[#f57e11]/10 px-2.5 py-2 text-[13px] leading-snug text-black/80 print:hidden @3xl:col-span-full @3xl:mt-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="inline-flex items-center gap-1 font-medium">
+                          <Lock aria-hidden className="size-3 shrink-0" />
+                          Custo unit.
+                        </span>
+                        <span className="inline-flex items-baseline gap-1 tabular-nums">
+                          <span aria-hidden>R$</span>
+                          <CampoInline
+                            rotulo={`Custo unitário do item ${indice + 1}`}
+                            valor={item.custoUnitario}
+                            aoMudar={(v) => mudarItem(item.chave, { custoUnitario: v, fonteCusto: "" })}
+                            editavel
+                            linhaUnica
+                            inputMode="decimal"
+                            maxLength={16}
+                            className="w-24"
+                          />
+                        </span>
+                        <span className="text-black/60">só você vê, não sai no documento</span>
+                      </div>
+                      {item.custoUnitario === "" ? (
+                        <p>
+                          <span className="inline-flex rounded-sm bg-[#fef3c7] px-1.5 py-0.5 text-xs font-semibold text-[#92400e]">
+                            Falta custo
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
+                          {custoLinha?.prejuizo && (
+                            <span className="inline-flex rounded-sm bg-[#fee2e2] px-1.5 py-0.5 text-xs font-semibold text-[#b91c1c]">
+                              Prejuízo
+                            </span>
+                          )}
+                          {custoLinha !== undefined && custoLinha.precoMinimoUnitario !== null && (
+                            <span>Preço mínimo sem prejuízo: {formatarMoeda(custoLinha.precoMinimoUnitario)}</span>
+                          )}
+                        </p>
+                      )}
+                      {item.fonteCusto !== "" && <p className="text-black/60">Custo preenchido pelo sistema: {item.fonteCusto}</p>}
+                    </div>
+                  )}
+
+                  {editavel && (
+                    <div className="col-span-2 flex justify-end gap-1 print:hidden @3xl:col-span-1 @3xl:col-start-7 @3xl:row-start-1 @3xl:justify-start">
                       <button
                         type="button"
                         aria-label={`Subir o item ${indice + 1}`}

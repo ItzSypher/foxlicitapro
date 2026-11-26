@@ -2,7 +2,7 @@ import { normalizarTexto, regexDoTermo, removerSetorDeSistemas } from "./cnae-ke
 import { PERFIL_ORIGEM } from "./empresa";
 import { dentroDasAreas, pontuacaoLocal } from "./areas";
 import { cnaePrincipal, ehMei, frenteDoCnae, type PerfilEmpresa } from "./perfil";
-import { MS_POUCO_TEMPO, TETO_MEI_ANO_CHEIO, VALOR_MINIMO, limiteMeiAnual } from "./score";
+import { MS_POUCO_TEMPO, TETO_MEI_ANO_CHEIO, VALOR_MINIMO, limiteMeiAnual, servicoRemoto } from "./score";
 import type { Frente, OportunidadeComScore } from "./types";
 import type { Preferencias } from "./types-equipe";
 
@@ -19,6 +19,8 @@ export interface Recomendacao {
 const MS_DIA = 24 * 3_600_000;
 const MAX_MOTIVOS = 3;
 const MAX_POR_ORGAO = 3;
+/** Quantas recomendações a aba "Para você" mostra (a lista é paginada pelo Radar). */
+const LIMITE_PADRAO = 30;
 
 /** Bônus de quem casa com um termo que o dono quer priorizar. */
 const BONUS_FOCO = 10;
@@ -120,7 +122,8 @@ function pistas(
 /**
  * Escolhe as oportunidades que mais combinam com o perfil da empresa na frente ativa.
  * Só entram faixa go ou atenção com CNAE casado na frente ativa, ainda abertas há 6 h ou mais
- * e (para MEI) dentro do teto anual. Serviço fora das regiões de interesse do perfil não entra (é presencial).
+ * e (para MEI) dentro do teto anual. Serviço fora das regiões de interesse do perfil não entra (é presencial),
+ * exceto o feito à distância (site, sistema, hospedagem), que não depende de local.
  * Com preferências: objeto que contém um termo bloqueado fica de fora (continua em "Todas")
  * e objeto que contém um termo prioritário ganha 10 pontos de prioridade.
  * Função pura.
@@ -129,7 +132,7 @@ export function recomendar(
   lista: ReadonlyArray<OportunidadeComScore>,
   frente: Frente,
   agora: Date,
-  limite = 12,
+  limite = LIMITE_PADRAO,
   preferencias?: PreferenciasDeRecomendacao,
   perfil: PerfilEmpresa = PERFIL_ORIGEM,
 ): Recomendacao[] {
@@ -140,7 +143,8 @@ export function recomendar(
     if (item.score.faixa === "nogo") continue;
     if (item.score.frenteCasada !== frente) continue;
     if (ehMei(perfil) && item.valorEstimado !== null && item.valorEstimado > TETO_MEI_ANO_CHEIO) continue;
-    if (frente === "servicos" && !dentroDasAreas(item, perfil.areas)) continue;
+    // Serviço feito à distância (site, sistema, hospedagem) não depende de local: não sai por estar fora das áreas.
+    if (frente === "servicos" && !servicoRemoto(item.objeto) && !dentroDasAreas(item, perfil.areas)) continue;
 
     const restante = Date.parse(item.dataEncerramento) - agora.getTime();
     if (Number.isNaN(restante) || restante < MS_POUCO_TEMPO) continue;

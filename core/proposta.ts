@@ -9,6 +9,8 @@ const ItemPropostaSchema = z.object({
   quantidade: z.number(),
   marcaModelo: z.string(),
   valorUnitario: z.number(),
+  custoUnitario: z.number().nonnegative().optional(),
+  fonteCusto: z.string().max(200).optional(),
 });
 
 /** Contrato da coluna propostas.dados (jsonb). */
@@ -28,6 +30,21 @@ export const DadosPropostaSchema: z.ZodType<DadosProposta> = z.object({
   data: z.string(),
   assinar: z.boolean().optional(),
 });
+
+/** Dados sem o que é interno (custo e fonte do custo de cada item): é o que pode sair da empresa. */
+export function semCustos(dados: DadosProposta): DadosProposta {
+  return {
+    ...dados,
+    itens: dados.itens.map((i) => ({
+      numero: i.numero,
+      descricao: i.descricao,
+      unidade: i.unidade,
+      quantidade: i.quantidade,
+      marcaModelo: i.marcaModelo,
+      valorUnitario: i.valorUnitario,
+    })),
+  };
+}
 
 const FUSO = "America/Sao_Paulo";
 

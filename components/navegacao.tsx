@@ -169,11 +169,11 @@ function ItemLateral({ destino, caminho, selo }: { destino: Destino; caminho: st
       href={destino.href}
       aria-current={ativo ? "page" : undefined}
       className={cn(
-        "flex h-10 items-center gap-3 rounded-control px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
+        "flex h-8 items-center gap-2.5 rounded-control px-3 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
         ativo ? "bg-active font-medium text-ink" : "text-muted-foreground hover:bg-raised hover:text-ink",
       )}
     >
-      <Icone className={cn("size-[18px]", ativo ? "text-ink" : "")} aria-hidden="true" />
+      <Icone className={cn("size-4", ativo ? "text-ink" : "")} aria-hidden="true" />
       <span className="flex-1">{destino.rotulo}</span>
       <Selo quantidade={selo} />
     </Link>
@@ -201,8 +201,13 @@ function ItemInferior({ destino, caminho, selo }: { destino: Destino; caminho: s
   );
 }
 
-const CHAVE_GRUPOS = "foxlicita:nav-grupos-fechados";
+const CHAVE_GRUPOS = "foxlicita:nav-grupos";
 const EVENTO_GRUPOS = "foxlicita:nav-grupos";
+
+/** Só "Trabalho" começa aberto; os outros grupos ficam recolhidos até a pessoa abrir. */
+const ABERTO_POR_PADRAO: ReadonlySet<string> = new Set(["trabalho"]);
+
+type Escopo = "lateral" | "mais";
 
 function lerGruposBruto(): string {
   try {
@@ -221,22 +226,90 @@ function assinarGrupos(aviso: () => void): () => void {
   };
 }
 
-/** Ids dos grupos fechados, lembrados no aparelho. Sem armazenamento, tudo fica aberto. */
-function useGruposFechados(): { fechados: ReadonlySet<string>; alternar: (id: string) => void } {
+/** "lateral:dinheiro=1,mais:conta=0" vira { "lateral:dinheiro": true, "mais:conta": false }. */
+function lerEscolhas(bruto: string): Map<string, boolean> {
+  const escolhas = new Map<string, boolean>();
+  for (const par of bruto.split(",")) {
+    const [chave, valor] = par.split("=");
+    if (chave && (valor === "1" || valor === "0")) escolhas.set(chave, valor === "1");
+  }
+  return escolhas;
+}
+
+const SEM_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * Abre e recolhe os grupos e lembra a escolha neste aparelho. O grupo da página atual abre sozinho; recolhê-lo vale
+ * só enquanto a pessoa estiver nessa página. Sem armazenamento, só os padrões valem.
+ */
+function useGruposRecolhiveis(escopo: Escopo, caminho: string): {
+  estaAberto: (id: string, temAtivo: boolean) => boolean;
+  alternar: (id: string, temAtivo: boolean) => void;
+} {
   const bruto = useSyncExternalStore(assinarGrupos, lerGruposBruto, () => "");
-  const fechados = new Set(bruto === "" ? [] : bruto.split(","));
-  function alternar(id: string) {
-    const proximo = new Set(fechados);
-    if (proximo.has(id)) proximo.delete(id);
-    else proximo.add(id);
+  const [recolhidos, setRecolhidos] = useState<{ caminho: string; ids: ReadonlySet<string> }>({ caminho, ids: SEM_IDS });
+  const escolhas = lerEscolhas(bruto);
+  const recolhidosAqui = recolhidos.caminho === caminho ? recolhidos.ids : SEM_IDS;
+
+  function estaAberto(id: string, temAtivo: boolean): boolean {
+    if (recolhidosAqui.has(id)) return false;
+    if (temAtivo) return true;
+    return escolhas.get(`${escopo}:${id}`) ?? ABERTO_POR_PADRAO.has(id);
+  }
+
+  function alternar(id: string, temAtivo: boolean) {
+    const aberto = estaAberto(id, temAtivo);
+    if (temAtivo) {
+      const ids = new Set(recolhidosAqui);
+      if (aberto) ids.add(id);
+      else ids.delete(id);
+      setRecolhidos({ caminho, ids });
+      return;
+    }
+    const todas = lerEscolhas(lerGruposBruto());
+    todas.set(`${escopo}:${id}`, !aberto);
     try {
-      window.localStorage.setItem(CHAVE_GRUPOS, [...proximo].join(","));
+      window.localStorage.setItem(CHAVE_GRUPOS, [...todas].map(([chave, valor]) => `${chave}=${valor ? 1 : 0}`).join(","));
     } catch {
       // Armazenamento bloqueado: o grupo só não fica lembrado.
     }
     window.dispatchEvent(new Event(EVENTO_GRUPOS));
   }
-  return { fechados, alternar };
+
+  return { estaAberto, alternar };
+}
+
+function TituloGrupo({
+  id,
+  rotulo,
+  aberto,
+  destacado,
+  aoAlternar,
+  className,
+}: {
+  id: string;
+  rotulo: string;
+  aberto: boolean;
+  /** A página atual está dentro deste grupo, mas ele está recolhido */
+  destacado: boolean;
+  aoAlternar: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={aoAlternar}
+      aria-expanded={aberto}
+      aria-controls={`nav-grupo-${id}`}
+      className={cn(
+        "flex h-8 w-full items-center justify-between rounded-control px-3 text-xs font-medium tracking-[0.08em] uppercase outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand",
+        className,
+      )}
+    >
+      <span className={destacado ? "text-ink" : "text-faint"}>{rotulo}</span>
+      <ChevronDown aria-hidden="true" className={cn("size-3.5 text-faint transition-transform", aberto ? "" : "-rotate-90")} />
+    </button>
+  );
 }
 
 function GrupoLateral({
@@ -255,23 +328,10 @@ function GrupoLateral({
   aoAlternar: () => void;
 }) {
   const temAtivo = destinos.some((d) => estaAtivo(d, caminho));
-  const idLista = `nav-grupo-${grupo.id}`;
   return (
     <div className="flex flex-col gap-0.5">
-      <button
-        type="button"
-        onClick={aoAlternar}
-        aria-expanded={aberto}
-        aria-controls={idLista}
-        className="flex h-8 items-center justify-between rounded-control px-3 text-xs font-medium tracking-[0.08em] uppercase outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
-      >
-        <span className={temAtivo && !aberto ? "text-ink" : "text-faint"}>{grupo.rotulo}</span>
-        <ChevronDown
-          aria-hidden="true"
-          className={cn("size-3.5 text-faint transition-transform", aberto ? "" : "-rotate-90")}
-        />
-      </button>
-      <div id={idLista} className={cn("flex-col gap-0.5", aberto ? "flex" : "hidden")}>
+      <TituloGrupo id={grupo.id} rotulo={grupo.rotulo} aberto={aberto} destacado={temAtivo && !aberto} aoAlternar={aoAlternar} />
+      <div id={`nav-grupo-${grupo.id}`} className={cn("flex-col gap-0.5", aberto ? "flex" : "hidden")}>
         {destinos.map((d) => (
           <ItemLateral key={d.href} destino={d} caminho={caminho} selo={pendentesDe(d, dados)} />
         ))}
@@ -281,12 +341,13 @@ function GrupoLateral({
 }
 
 function ListaLateral({ caminho, dados }: { caminho: string; dados: DadosNav }) {
-  const { fechados, alternar } = useGruposFechados();
+  const { estaAberto, alternar } = useGruposRecolhiveis("lateral", caminho);
   return (
-    <nav aria-label="Principal" className="flex flex-col gap-4">
+    <nav aria-label="Principal" className="flex flex-col gap-2">
       {GRUPOS.map((g) => {
         const destinos = visiveis(g.destinos, dados.usuario);
         if (destinos.length === 0) return null;
+        const temAtivo = destinos.some((d) => estaAtivo(d, caminho));
         return (
           <GrupoLateral
             key={g.id}
@@ -294,8 +355,8 @@ function ListaLateral({ caminho, dados }: { caminho: string; dados: DadosNav }) 
             destinos={destinos}
             caminho={caminho}
             dados={dados}
-            aberto={!fechados.has(g.id)}
-            aoAlternar={() => alternar(g.id)}
+            aberto={estaAberto(g.id, temAtivo)}
+            aoAlternar={() => alternar(g.id, temAtivo)}
           />
         );
       })}
@@ -307,6 +368,7 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
   const [aberto, setAberto] = useState(false);
   const ativo = AREAS_MAIS.some((base) => caminho === base || caminho.startsWith(`${base}/`)) || caminho.startsWith("/equipe");
   const { usuario } = dados;
+  const { estaAberto, alternar } = useGruposRecolhiveis("mais", caminho);
   const conta: Destino = { href: "/equipe/conta", rotulo: "Minha conta", rotuloCurto: "Conta", icone: UserRound };
   const grupos: ReadonlyArray<{ id: string; rotulo: string; itens: Destino[] }> = [
     { id: "trabalho", rotulo: "Trabalho", itens: [CONSELHEIRO, ENCERRADAS, FORNECEDORES, ACERVO, ATESTADOS, ...visiveis([RESULTADOS], usuario)] },
@@ -332,40 +394,55 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
             <SheetTitle>{usuario ? usuario.nome : "Menu"}</SheetTitle>
             <SheetDescription>{usuario ? rotuloPapel(usuario.papel) : "FoxLicita Pro"}</SheetDescription>
           </SheetHeader>
-          <nav aria-label="Mais opções" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-            {grupos.map((g) =>
-              g.itens.length === 0 ? null : (
-                <section key={g.id} aria-labelledby={`mais-${g.id}`} className="flex flex-col">
-                  <h3 id={`mais-${g.id}`} className="px-3 pb-1 text-xs font-medium tracking-[0.08em] text-faint uppercase">
-                    {g.rotulo}
-                  </h3>
-                  {g.itens.map((d) => {
-                    const Icone = d.icone;
-                    return (
-                      <Link
-                        key={d.href}
-                        href={d.href}
-                        onClick={() => setAberto(false)}
-                        className="flex h-11 items-center gap-3 rounded-control px-3 text-sm text-ink outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand"
-                      >
-                        <Icone className="size-[18px]" aria-hidden="true" />
-                        {d.rotulo}
-                      </Link>
-                    );
-                  })}
-                  {g.id === "ajuda" ? (
-                    <>
-                      {usuario ? <BotaoTourTela caminho={caminho} aoAbrir={() => setAberto(false)} className="h-11 text-ink" /> : null}
-                      {usuario && podeFazerTour(usuario.papel) ? (
-                        <BotaoTour aoAbrir={() => setAberto(false)} className="h-11 text-ink" />
-                      ) : null}
-                      <TemaToggle modo="completo" className="h-11 text-ink" />
-                    </>
-                  ) : null}
+          <nav aria-label="Mais opções" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            {grupos.map((g) => {
+              if (g.itens.length === 0) return null;
+              const temAtivo = g.itens.some((d) => estaAtivo(d, caminho));
+              const grupoAberto = estaAberto(g.id, temAtivo);
+              return (
+                <section key={g.id} className="flex flex-col">
+                  <TituloGrupo
+                    id={g.id}
+                    rotulo={g.rotulo}
+                    aberto={grupoAberto}
+                    destacado={temAtivo && !grupoAberto}
+                    aoAlternar={() => alternar(g.id, temAtivo)}
+                    className="h-10"
+                  />
+                  <div id={`nav-grupo-${g.id}`} className={cn("flex-col", grupoAberto ? "flex" : "hidden")}>
+                    {g.itens.map((d) => {
+                      const Icone = d.icone;
+                      const itemAtivo = estaAtivo(d, caminho);
+                      return (
+                        <Link
+                          key={d.href}
+                          href={d.href}
+                          aria-current={itemAtivo ? "page" : undefined}
+                          onClick={() => setAberto(false)}
+                          className={cn(
+                            "flex h-10 items-center gap-3 rounded-control px-3 text-sm text-ink outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand",
+                            itemAtivo && "bg-active font-medium",
+                          )}
+                        >
+                          <Icone className="size-4" aria-hidden="true" />
+                          {d.rotulo}
+                        </Link>
+                      );
+                    })}
+                    {g.id === "ajuda" ? (
+                      <>
+                        {usuario ? <BotaoTourTela caminho={caminho} aoAbrir={() => setAberto(false)} className="h-10 text-ink [&_svg]:size-4" /> : null}
+                        {usuario && podeFazerTour(usuario.papel) ? (
+                          <BotaoTour aoAbrir={() => setAberto(false)} className="h-10 text-ink [&_svg]:size-4" />
+                        ) : null}
+                        <TemaToggle modo="completo" className="h-10 text-ink [&_svg]:size-4" />
+                      </>
+                    ) : null}
+                  </div>
                 </section>
-              ),
-            )}
-            <BotaoSair modo="completo" className="h-11 border-t border-border text-ink" />
+              );
+            })}
+            <BotaoSair modo="completo" className="mt-1 h-10 border-t border-border text-ink [&_svg]:size-4" />
           </nav>
         </SheetContent>
       </Sheet>

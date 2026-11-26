@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { PERFIL_ORIGEM } from "./empresa";
+import type { PerfilEmpresa } from "./perfil";
 import { recomendar } from "./recomendacao";
 import { calcularScore } from "./score";
 import { LOCAL_DA_REGIAO } from "./teste-local";
@@ -150,8 +152,9 @@ describe("recomendar: ordem, órgão e limite", () => {
   });
 
   it("respeita o limite", () => {
-    const lista = Array.from({ length: 30 }, (_, i) => item({ orgaoCnpj: String(i) }));
-    expect(recomendar(lista, "servicos", AGORA)).toHaveLength(12);
+    const lista = Array.from({ length: 40 }, (_, i) => item({ orgaoCnpj: String(i) }));
+    expect(recomendar(lista, "servicos", AGORA)).toHaveLength(30);
+    expect(recomendar(lista, "servicos", AGORA, 12)).toHaveLength(12);
     expect(recomendar(lista, "servicos", AGORA, 5)).toHaveLength(5);
   });
 
@@ -231,5 +234,63 @@ describe("recomendar: preferências", () => {
     const ti = item({ objeto: "Empresa especializada em serviços de TI", orgaoCnpj: "3" });
     const r = recomendar([eletrica, software, ti], "servicos", AGORA, 12, PREFS);
     expect(r[r.length - 1].item.id).toBe(eletrica.id);
+  });
+});
+
+describe("recomendar: MEI de TI com foco e serviço à distância", () => {
+  const PERFIL_MEI_TI: PerfilEmpresa = {
+    ...PERFIL_ORIGEM,
+    cnaes: [],
+    foco: ["redesign", "site institucional"],
+  };
+
+  function comPerfil(parcial: Partial<Oportunidade>, perfil: PerfilEmpresa = PERFIL_MEI_TI): OportunidadeComScore {
+    contador += 1;
+    const base: Oportunidade = {
+      id: `00000000000000-1-${String(contador).padStart(6, "0")}/2026`,
+      objeto: "Redesign do site institucional",
+      valorEstimado: 8000,
+      orgao: "PREFEITURA DE NOVA IGUAÇU",
+      orgaoCnpj: "00000000000001",
+      unidade: "Secretaria",
+      ...LOCAL_DA_REGIAO["nova-iguacu"],
+      regiao: "nova-iguacu",
+      modalidadeId: 8,
+      modalidadeNome: "Dispensa",
+      dataAbertura: "2026-11-09T08:00:00-03:00",
+      dataEncerramento: "2026-11-13T08:00:00-03:00",
+      anoCompra: 2026,
+      sequencialCompra: contador,
+      linkPncp: "https://pncp.gov.br/app/editais/00000000000000/2026/1",
+      linkOrigem: null,
+      ...parcial,
+    };
+    return { ...base, score: calcularScore(base, "servicos", AGORA, undefined, perfil) };
+  }
+
+  it("redesign de site com foco 'redesign' e sem CNAE vira recomendado", () => {
+    const o = comPerfil({});
+    expect(o.score.cnaesCasados).toEqual([]);
+    expect(o.score.frenteCasada).toBe("servicos");
+    const r = recomendar([o], "servicos", AGORA, undefined, undefined, PERFIL_MEI_TI);
+    expect(r.map((x) => x.item.id)).toEqual([o.id]);
+  });
+
+  it("sem o foco e sem CNAE o mesmo objeto não é recomendado", () => {
+    const sem: PerfilEmpresa = { ...PERFIL_MEI_TI, foco: [] };
+    const o = comPerfil({});
+    const semFoco: OportunidadeComScore = { ...o, score: calcularScore(o, "servicos", AGORA, undefined, sem) };
+    expect(recomendar([semFoco], "servicos", AGORA, undefined, undefined, sem)).toEqual([]);
+  });
+
+  it("serviço à distância de outro estado entra; serviço presencial de outro estado continua fora", () => {
+    const foco: PerfilEmpresa = { ...PERFIL_MEI_TI, foco: ["redesign", "reforma"] };
+    const siteSp = comPerfil({ regiao: "fora-rj", ...LOCAL_DA_REGIAO["fora-rj"], orgaoCnpj: "2" }, foco);
+    const presencialSp = comPerfil(
+      { objeto: "Reforma da fachada do prédio", regiao: "fora-rj", ...LOCAL_DA_REGIAO["fora-rj"], orgaoCnpj: "3" },
+      foco,
+    );
+    const r = recomendar([siteSp, presencialSp], "servicos", AGORA, undefined, undefined, foco);
+    expect(r.map((x) => x.item.id)).toEqual([siteSp.id]);
   });
 });

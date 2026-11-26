@@ -10,7 +10,7 @@ import { listarDesertas } from "@/db/desertas";
 import { propostasProntasDasCompras } from "@/db/propostas-prontas";
 import { temPermissao } from "@/core/permissoes";
 import { carregarPainelMeta } from "@/db/meta";
-import { idsNoPipeline, resumoPipeline, type ResumoPipeline } from "@/db/pipeline";
+import { idsNoPipeline, itensTravadosNoPipeline, resumoPipeline, type ResumoPipeline } from "@/db/pipeline";
 import { listarPalavrasChave } from "@/db/palavras-chave";
 import { exigirSessao } from "@/lib/sessao";
 import { perfilAtual } from "@/lib/empresa-atual";
@@ -46,9 +46,10 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
   const sessao = await exigirSessao();
   const [preferencias, perfil] = await Promise.all([lerPreferencias(sessao.empresaId), perfilAtual()]);
   const limites: LimitesCaixa = { capitalMaximo: preferencias.capitalMaximo, diasMaximosParado: preferencias.diasMaximosParado };
-  const [resposta, ids, palavras, resumoPipe, meta, desertas] = await Promise.all([
+  const [resposta, ids, travados, palavras, resumoPipe, meta, desertas] = await Promise.all([
     obterRadar(frente, limites, perfil).catch((): RespostaRadar | null => null),
     idsNoPipeline(sessao.empresaId).catch((): Set<string> => new Set()),
+    itensTravadosNoPipeline(sessao.empresaId).catch((): Map<string, string> => new Map()),
     listarPalavrasChave(sessao.empresaId, sessao.usuarioId).catch((): string[] => []),
     // Uma consulta de contagem; se falhar, o cartão do pipeline só perde os números.
     resumoPipeline(sessao.empresaId).catch((): ResumoPipeline | null => null),
@@ -91,9 +92,11 @@ export default async function RadarPage({ searchParams }: { searchParams: Promis
       visao={visao}
       buscaInicial={lerBusca(params)}
       idsSalvos={[...ids]}
+      travados={Object.fromEntries(travados)}
       palavrasSalvas={palavras}
       meta={meta}
       ufsAtendidas={ufsDeColeta(perfil.areas)}
+      foco={perfil.foco}
       podeSalvar={sessao !== null && temPermissao(sessao, "mover_pipeline")}
     />
   );

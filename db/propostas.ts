@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "@/db/client";
-import { DadosPropostaSchema } from "@/core/proposta";
+import { DadosPropostaSchema, semCustos } from "@/core/proposta";
 import { ehModeloId, type ModeloId } from "@/core/proposta-modelos";
 import { ehSituacaoResultado, type SituacaoResultado } from "@/core/proposta-resultado";
 import { inserirEvento, type EventoNovo } from "@/db/proposta-eventos";
@@ -422,7 +422,8 @@ export async function lerPorToken(token: string): Promise<PropostaPublica | null
     empresaId: linha.empresa_id,
     titulo: linha.titulo,
     modelo: ehModeloId(linha.modelo) ? linha.modelo : "cotacao-simples",
-    dados: dados.data,
+    // o link público é do órgão: custo e fonte do custo são internos e ficam de fora
+    dados: semCustos(dados.data),
   };
 }
 

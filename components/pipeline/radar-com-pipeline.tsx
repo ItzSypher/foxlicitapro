@@ -17,6 +17,8 @@ interface Props {
   buscaInicial: string;
   /** ids (numeroControlePNCP) que já estão no pipeline */
   idsSalvos: string[];
+  /** id → motivo pelo qual o item não pode sair do pipeline (em disputa, ganho ou com proposta) */
+  travados?: Record<string, string>;
   /** Sem a permissão de mexer no pipeline, o botão "Salvar" não aparece */
   podeSalvar?: boolean;
   /** Palavras-chave que a pessoa guardou */
@@ -25,10 +27,12 @@ interface Props {
   meta?: PainelMeta | null;
   /** UFs das áreas da empresa */
   ufsAtendidas?: string[];
+  /** Termos do foco da empresa */
+  foco?: string[];
 }
 
 /** Radar com o botão "Salvar no pipeline" no detalhe de cada oportunidade. */
-export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvos, podeSalvar = true, palavrasSalvas, meta, ufsAtendidas }: Props) {
+export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvos, travados, podeSalvar = true, palavrasSalvas, meta, ufsAtendidas, foco }: Props) {
   const salvos = useMemo(() => new Set(idsSalvos), [idsSalvos]);
   return (
     <RadarView
@@ -39,9 +43,16 @@ export function RadarComPipeline({ frente, pagina, visao, buscaInicial, idsSalvo
       palavrasSalvas={palavrasSalvas}
       meta={meta}
       ufsAtendidas={ufsAtendidas}
+      foco={foco}
       renderAcoes={(item: OportunidadeComScore) =>
         podeSalvar || salvos.has(item.id) ? (
-          <BotaoSalvarPipeline key={item.id} item={item} salvo={salvos.has(item.id)} />
+          <BotaoSalvarPipeline
+            key={item.id}
+            item={item}
+            salvo={salvos.has(item.id)}
+            travado={podeSalvar ? (travados?.[item.id] ?? null) : "Sem permissão para mexer no pipeline."}
+            className="flex-[1_1_calc(50%-0.25rem)]"
+          />
         ) : null
       }
     />

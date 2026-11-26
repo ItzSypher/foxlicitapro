@@ -43,7 +43,7 @@ import { listarPrecosRecentes } from "@/db/fornecedores";
 import { lerComissaoPadrao } from "@/db/empresas";
 import { lerFicha } from "@/db/fichas";
 import { lerPreferencias } from "@/db/preferencias";
-import { idsNoPipeline } from "@/db/pipeline";
+import { idsNoPipeline, itensTravadosNoPipeline } from "@/db/pipeline";
 import { COOKIE_FRENTE, lerFrente } from "@/lib/frente";
 import { assistenteDisponivel } from "@/lib/gemini";
 import { temPermissao } from "@/core/permissoes";
@@ -79,6 +79,10 @@ const detalheDoPedido = cache(async (cnpj: string, ano: string, sequencial: stri
 
 const salvosDoPedido = cache(async (empresaId: string) =>
   idsNoPipeline(empresaId).catch((): Set<string> => new Set()),
+);
+
+const travadosDoPedido = cache(async (empresaId: string, id: string) =>
+  itensTravadosNoPipeline(empresaId, id).catch((): Map<string, string> => new Map()),
 );
 
 /** Detalhe do PNCP mais o que depende dele no banco (ficha, cotação, limites) e a nota. */
@@ -174,7 +178,10 @@ function chaveCompra(c: ChaveUrl): string {
 
 export async function TopoLicitacao({ chave }: { chave: ChaveUrl }) {
   const d = await dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial);
-  const salvos = await salvosDoPedido(d.sessao.empresaId);
+  const [salvos, travados] = await Promise.all([
+    salvosDoPedido(d.sessao.empresaId),
+    travadosDoPedido(d.sessao.empresaId, d.detalhe.numeroControle),
+  ]);
   const podeEditarPropostas = temPermissao(d.sessao, "editar_propostas");
   const podeLerEdital = temPermissao(d.sessao, "usar_assistente");
   return (
@@ -193,6 +200,7 @@ export async function TopoLicitacao({ chave }: { chave: ChaveUrl }) {
         linkOrigem={d.detalhe.linkOrigem}
         oportunidade={d.oportunidade}
         salvo={salvos.has(d.detalhe.numeroControle)}
+        travado={travados.get(d.detalhe.numeroControle) ?? null}
         podeCriarProposta={podeEditarPropostas}
         podeUsarAssistente={podeEditarPropostas && podeLerEdital}
       />

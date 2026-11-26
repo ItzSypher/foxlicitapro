@@ -9,6 +9,7 @@ import {
   adicionarComentario,
   atualizarNotas,
   definirResponsavel,
+  itensTravadosNoPipeline,
   lerObjetoItem,
   listarComentarios,
   moverItem,
@@ -152,6 +153,28 @@ export async function removerDoPipeline(id: string): Promise<ResultadoAcao> {
     "Não foi possível remover o item. Tente de novo.",
     "Esse item não está mais no pipeline.",
   );
+}
+
+/**
+ * Alternador "Pipeline": tira da empresa da sessão o item que ainda está livre. Não apaga item em disputa, ganho
+ * ou com proposta (esses só saem pelo próprio pipeline).
+ */
+export async function tirarDoPipeline(id: string): Promise<ResultadoAcao> {
+  const v = await verificarPermissao("mover_pipeline");
+  if (!v.ok) return { ok: false, erro: v.erro };
+  const i = idSchema.safeParse(id);
+  if (!i.success) return { ok: false, erro: ERRO_DADOS };
+  const empresaId = v.sessao.empresaId;
+  try {
+    const travado = (await itensTravadosNoPipeline(empresaId, i.data)).get(i.data);
+    if (travado !== undefined) return { ok: false, erro: travado };
+    if (!(await removerItem(empresaId, i.data))) return { ok: false, erro: "Esse item não está mais no pipeline." };
+    atualizarTelas();
+    return { ok: true };
+  } catch (e) {
+    console.error("[pipeline]", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível tirar do pipeline. Tente de novo." };
+  }
 }
 
 export async function salvarNotas(id: string, notas: string): Promise<ResultadoAcao> {
