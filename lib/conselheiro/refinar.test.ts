@@ -4,6 +4,7 @@ import { refinarSaida } from "./refinar";
 import { AVISO_VALORES_ESTRANHOS, valoresEstranhos } from "./valores";
 
 const SAIDA: SaidaConselheiro = {
+  condicao: "",
   veredito: "vale",
   resumo: "Vale a pena participar.",
   porQue: ["Casa com os CNAEs."],
@@ -41,9 +42,10 @@ describe("refinarSaida", () => {
     expect(r.modalidade).toMatchObject({ ehPregao: true, foraDoFoco: false });
   });
 
-  it("pregão fora do foco não passa de talvez", () => {
+  it("sem meio-termo: pregão fora do foco e talvez viram não vale", () => {
     const r = refinarSaida(SAIDA, fora);
-    expect(r.veredito).toBe("talvez");
+    expect(r.veredito).toBe("nao-vale");
+    expect(refinarSaida({ ...SAIDA, veredito: "talvez" }, livre).veredito).toBe("nao-vale");
     expect(r.modalidade.foraDoFoco).toBe(true);
     expect(refinarSaida({ ...SAIDA, veredito: "nao-vale" }, fora).veredito).toBe("nao-vale");
   });

@@ -108,3 +108,36 @@ describe("filtro Pouco caixa", () => {
     expect(ids(filtrar(base, FILTROS_PADRAO))).toEqual(["site", "cadeiras", "servico"]);
   });
 });
+
+describe("filtro Caixa até", () => {
+  const com = (id: string, objeto: string, valorEstimado: number | null) =>
+    ({ ...item(id, objeto, "", ""), uf: "RJ", modalidadeId: 8, valorEstimado, linkOrigem: null }) as OportunidadeComScore;
+  const base = [
+    com("site", "Criação de site institucional", 20_000),
+    com("cadeiras", "Aquisição de cadeiras", 40_000),
+    com("servico", "Prestação de serviço de pintura", 10_000),
+    com("sigiloso", "Aquisição de cadeiras", null),
+  ];
+
+  it("lê ?caixaMax= e ignora valor inválido", () => {
+    expect(lerFiltros(new URLSearchParams("caixaMax=5000")).caixaMax).toBe(5000);
+    expect(lerFiltros(new URLSearchParams("caixaMax=abc")).caixaMax).toBeNull();
+    expect(lerFiltros(new URLSearchParams("")).caixaMax).toBeNull();
+  });
+
+  it("conta como filtro ativo", () => {
+    expect(contarFiltrosAtivos({ ...FILTROS_PADRAO, caixaMax: 5000 })).toBe(1);
+  });
+
+  it("passa quando o caixa estimado é no máximo o limite", () => {
+    // site: caixa 0; serviço presencial de 10 mil: 10% = 1.000; cadeiras: 80% de 40 mil.
+    expect(ids(filtrar(base, { ...FILTROS_PADRAO, caixaMax: 1_000 }))).toEqual(["site", "servico"]);
+    expect(ids(filtrar(base, { ...FILTROS_PADRAO, caixaMax: 999 }))).toEqual(["site"]);
+    expect(ids(filtrar(base, { ...FILTROS_PADRAO, caixaMax: 40_000 }))).toEqual(["site", "cadeiras", "servico"]);
+  });
+
+  it("estimativa desconhecida não passa com o filtro ligado", () => {
+    expect(ids(filtrar(base, { ...FILTROS_PADRAO, caixaMax: 1_000_000 }))).not.toContain("sigiloso");
+    expect(ids(filtrar(base, FILTROS_PADRAO))).toContain("sigiloso");
+  });
+});

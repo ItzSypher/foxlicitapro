@@ -1,20 +1,34 @@
-import { Pilula } from "@/components/radar/pilula";
+import { Pilula, type TomPilula } from "@/components/radar/pilula";
 import { motivoPrincipal } from "@/core/motivo-nota";
-import type { Score } from "@/core/types";
+import type { Faixa, Score } from "@/core/types";
 import { nomeFaixa } from "@/lib/radar-filtros";
-import { Secao } from "./secao";
+import { Colapsavel } from "./colapsavel";
+
+const TOM_FAIXA: Record<Faixa, TomPilula> = { go: "positivo", atencao: "aviso", nogo: "negativo" };
 
 export function NotaCriterios({ score }: { score: Score | null }) {
   return (
-    <Secao id="nota" titulo="Por que essa nota">
+    <Colapsavel
+      id="nota"
+      titulo="Por que essa nota"
+      selos={
+        score === null ? (
+          <Pilula tom="neutro">Sem nota</Pilula>
+        ) : (
+          <Pilula tom={TOM_FAIXA[score.faixa]}>
+            {score.total}/100 · {nomeFaixa(score.faixa)}
+          </Pilula>
+        )
+      }
+    >
       {score === null ? (
-        <p className="rounded-card border border-dashed border-control px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Sem nota: a contratação não é dispensa nem pregão eletrônico, ou não informa o prazo.
         </p>
       ) : (
-        <div className="flex flex-col gap-3 rounded-card border border-border bg-surface px-4">
+        <div className="flex flex-col gap-3">
           {score.foco !== undefined || motivoPrincipal(score) !== null ? (
-            <div className="flex flex-col items-start gap-1.5 pt-3">
+            <div className="flex flex-col items-start gap-1.5">
               {score.foco !== undefined ? <Pilula tom="positivo">Seu foco</Pilula> : null}
               {motivoPrincipal(score) !== null ? <p className="text-sm text-ink">{motivoPrincipal(score)}</p> : null}
             </div>
@@ -63,6 +77,6 @@ export function NotaCriterios({ score }: { score: Score | null }) {
           ) : null}
         </div>
       )}
-    </Secao>
+    </Colapsavel>
   );
 }

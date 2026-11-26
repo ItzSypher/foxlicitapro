@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   MODALIDADES,
+  LIMITES_CAIXA,
   ORDENS,
   contarFiltrosAtivos,
   type FiltroModalidade,
@@ -25,11 +26,28 @@ import { ordenarUfsParaFiltro } from "@/core/ufs";
 import { Interruptor } from "@/components/ui/interruptor";
 import { Segmentado } from "@/components/ui/segmentado";
 import { Seletor, type OpcaoSeletor } from "@/components/ui/seletor";
+import { formatarMoedaCurta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { AlternadorVisao } from "./alternador-visao";
 
 const OPCOES_MODALIDADE: ReadonlyArray<OpcaoSeletor<FiltroModalidade>> = MODALIDADES.map((m) => ({ valor: m.id, rotulo: m.rotulo }));
 const OPCOES_ORDEM: ReadonlyArray<OpcaoSeletor<Ordem>> = ORDENS.map((o) => ({ valor: o.id, rotulo: o.rotulo }));
+
+/** "R$ 5 mil" para valores redondos em milhares; senão, o valor por extenso. */
+function rotuloLimite(valor: number): string {
+  return valor >= 1000 && valor % 1000 === 0 ? `R$ ${valor / 1000} mil` : formatarMoedaCurta(valor);
+}
+
+const SEM_LIMITE = "sem";
+
+/** Opções do "Caixa até"; um valor vindo da URL ou do painel, fora da lista pronta, entra como opção própria. */
+function opcoesCaixaMax(atual: number | null): OpcaoSeletor<string>[] {
+  const valores = atual !== null && !LIMITES_CAIXA.includes(atual) ? [...LIMITES_CAIXA, atual].sort((a, b) => a - b) : LIMITES_CAIXA;
+  return [
+    ...valores.map((v) => ({ valor: String(v), rotulo: `Até ${rotuloLimite(v)}` })),
+    { valor: SEM_LIMITE, rotulo: "Sem limite" },
+  ];
+}
 
 function GrupoDoPainel({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -127,6 +145,34 @@ function FaixaDeValor({
   );
 }
 
+/** Campo do "Caixa até" na folha; vale ao sair do campo, como a faixa de valor. */
+function CampoCaixaMax({ valor, aoMudar }: { valor: number | null; aoMudar: (valor: number | null) => void }) {
+  const [texto, setTexto] = useState(valor === null ? "" : String(valor));
+  const [ultimo, setUltimo] = useState(valor);
+  if (ultimo !== valor) {
+    // A URL mudou por fora (seletor da barra ou Limpar): o campo segue.
+    setUltimo(valor);
+    setTexto(valor === null ? "" : String(valor));
+  }
+  const aplicar = () => aoMudar(lerReais(texto));
+  return (
+    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+      Caixa até (R$)
+      <input
+        inputMode="numeric"
+        value={texto}
+        placeholder="sem limite"
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={aplicar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") aplicar();
+        }}
+        className={CLASSE_CAMPO_VALOR}
+      />
+    </label>
+  );
+}
+
 interface Props {
   filtros: Filtros;
   /** UFs das áreas da empresa (as que entram na busca diária) */
@@ -154,13 +200,15 @@ interface Props {
   onTudoDoRamo: (valor: boolean) => void;
   /** Liga ou desliga o filtro "Pouco caixa" (só nível de caixa baixo) */
   onPoucoCaixa: (valor: boolean) => void;
+  /** Define o "Caixa até R$ X"; null tira o limite */
+  onCaixaMax: (valor: number | null) => void;
   onLimparPainel: () => void;
 }
 
 /**
- * Uma linha só: chips de UF rolando na horizontal e o botão "Filtros". A folha tem seções curtas
- * (estado, valor, modalidade, fonte, tudo do ramo, ordem, visualização). A partir de 1024 px
- * modalidade, ordem e visualização também ficam na linha.
+ * No celular, duas linhas: os estados rolando na horizontal e, embaixo, "Pouco caixa", "Caixa até" e o botão
+ * "Filtros". A partir de 1024 px tudo cabe numa linha só, com modalidade, ordem e visualização.
+ * A folha tem seções curtas (estado, valor, caixa, modalidade, fonte, tudo do ramo, ordem, visualização).
  */
 export function BarraFiltros({
   filtros,
@@ -182,6 +230,7 @@ export function BarraFiltros({
   onFontes,
   onTudoDoRamo,
   onPoucoCaixa,
+  onCaixaMax,
   onLimparPainel,
 }: Props) {
   const [painelAberto, setPainelAberto] = useState(false);
@@ -191,8 +240,8 @@ export function BarraFiltros({
   const ufsDaLinha = todasUfs.filter((uf) => ufsAtendidas.includes(uf) || filtros.ufs.includes(uf));
 
   return (
-    <div className="flex items-center gap-2 lg:gap-3">
-      <div role="group" aria-label="Estado" data-tour="radar-estados" className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5">
+    <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+      <div role="group" aria-label="Estado" data-tour="radar-estados" className="flex w-full min-w-0 items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5 lg:w-auto lg:flex-1">
         <Chip ativo={filtros.ufs.length === 0} aoAlternar={() => onUfs([])}>
           Todos
         </Chip>
@@ -208,22 +257,34 @@ export function BarraFiltros({
         </Chip>
       </div>
 
-      <Chip ativo={filtros.poucoCaixa} aoAlternar={() => onPoucoCaixa(!filtros.poucoCaixa)}>
-        Pouco caixa
-      </Chip>
+      <div className="flex min-w-0 items-center gap-2 lg:contents">
+        <Chip ativo={filtros.poucoCaixa} aoAlternar={() => onPoucoCaixa(!filtros.poucoCaixa)}>
+          Pouco caixa
+        </Chip>
 
-      <Button type="button" variant="outline" onClick={() => setPainelAberto(true)} className="h-11 shrink-0 gap-2 px-3 lg:h-9">
-        <SlidersHorizontal className="size-4" aria-hidden="true" />
-        Filtros
-        {ativos > 0 ? (
-          <span
-            aria-label={`${ativos} ${ativos === 1 ? "filtro ativo" : "filtros ativos"}`}
-            className="inline-flex size-5 items-center justify-center rounded-full bg-brand text-xs font-medium text-black"
-          >
-            {ativos}
-          </span>
-        ) : null}
-      </Button>
+        <Seletor
+          rotulo="Caixa até"
+          posicaoRotulo="oculto"
+          placeholder="Caixa até"
+          valor={filtros.caixaMax === null ? "" : String(filtros.caixaMax)}
+          opcoes={opcoesCaixaMax(filtros.caixaMax)}
+          aoMudar={(v) => onCaixaMax(v === SEM_LIMITE ? null : Number(v))}
+          className="flex-1 lg:w-40 lg:flex-none"
+        />
+
+        <Button type="button" variant="outline" onClick={() => setPainelAberto(true)} className="h-11 shrink-0 gap-2 px-3 lg:h-9">
+          <SlidersHorizontal className="size-4" aria-hidden="true" />
+          Filtros
+          {ativos > 0 ? (
+            <span
+              aria-label={`${ativos} ${ativos === 1 ? "filtro ativo" : "filtros ativos"}`}
+              className="inline-flex size-5 items-center justify-center rounded-full bg-brand text-xs font-medium text-black"
+            >
+              {ativos}
+            </span>
+          ) : null}
+        </Button>
+      </div>
 
       <div className="hidden shrink-0 items-center gap-3 lg:flex">
         <span aria-hidden="true" className="h-5 w-px bg-border" />
@@ -334,6 +395,11 @@ export function BarraFiltros({
               checked={filtros.poucoCaixa}
               onChange={(e) => onPoucoCaixa(e.target.checked)}
             />
+
+            <GrupoDoPainel titulo="Caixa antes de receber">
+              <CampoCaixaMax valor={filtros.caixaMax} aoMudar={onCaixaMax} />
+              <p className="text-xs text-muted-foreground">Sem estimativa de caixa (valor sigiloso), a oportunidade sai.</p>
+            </GrupoDoPainel>
 
             <Interruptor
               rotulo="Tudo do meu ramo"

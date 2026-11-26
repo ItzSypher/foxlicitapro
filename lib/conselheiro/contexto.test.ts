@@ -142,7 +142,10 @@ describe("montarContexto", () => {
   it("sem preço calculado, avisa e não inventa número", () => {
     const c = montarContexto(entrada({ preco: null }));
     expect(c.texto).toContain("ainda não calculou o preço sugerido");
-    expect(c.valoresPermitidos).toEqual([120000]);
+    // Sem preço sugerido, o lucro × prejuízo sai do valor estimado e do custo estimado pelo tipo do objeto.
+    expect(c.valoresPermitidos[0]).toBe(120000);
+    expect(c.texto).toContain("LUCRO × PREJUÍZO");
+    expect(c.texto).toContain("Receita considerada (valor estimado)");
   });
 
   it("inclui a ficha do edital e os itens da compra só quando existem, com limite", () => {

@@ -8,6 +8,8 @@ import { normalizarTexto } from "@/core/texto-busca";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ItemCompra } from "@/core/types-detalhe";
 import { textoPerfil } from "@/lib/assistente/prompt";
+import { caminhoDoDinheiro } from "@/core/caminho-dinheiro";
+import { contaLucro, normalizarComissao } from "@/core/lucro";
 import { avaliarPregao, type RegraPregao } from "./pregao";
 
 /** Texto do contexto enviado ao assistente: dados já calculados pelo sistema, sem rede e sem banco. */
@@ -85,6 +87,8 @@ export interface EntradaContexto {
   /** Fornecedores cadastrados da empresa (o filtro por objeto é feito aqui) */
   fornecedores: readonly Fornecedor[];
   excecoesPregao: readonly string[];
+  /** Comissão de quem opera, % sobre o bruto (padrão da empresa) */
+  comissaoPercentual?: number;
 }
 
 export interface ContextoConselheiro {
@@ -184,6 +188,35 @@ function linhaFornecedor(f: Fornecedor): string {
 }
 
 /** Monta o texto do pedido e devolve junto a regra do pregão, os fornecedores que casaram e os valores entregues. */
+function linhasLucro(e: EntradaContexto, valores: number[]): string[] {
+  const guardar = (v: number): string => {
+    valores.push(v);
+    return brl(v);
+  };
+  const comissao = normalizarComissao(e.comissaoPercentual);
+  const receita = e.preco?.alvo ?? e.preco?.sugerido ?? e.item.valorEstimado;
+  const conta = receita === null ? null : contaLucro({ receita, custo: e.preco?.custoTotal ?? null, comissaoPercentual: comissao, oportunidade: e.item });
+  const linhas: string[] = [];
+  if (conta === null) {
+    linhas.push("Sem preço alvo nem valor estimado: não há como calcular o resultado.");
+  } else {
+    linhas.push(
+      `Receita considerada (${e.preco?.alvo != null ? "preço alvo" : e.preco?.sugerido != null ? "preço sugerido" : "valor estimado"}): ${guardar(conta.receita)}.`,
+      `Custo ${conta.custoEstimado ? "estimado pelo tipo do objeto (sem fornecedor cotado)" : "cotado"}: ${guardar(conta.custo)}.`,
+      `Comissão de quem opera (${conta.comissaoPercentual}% do bruto): ${guardar(conta.comissao)}.`,
+      `Resultado: ${guardar(conta.resultado)} (${conta.situacao === "prejuizo" ? "PREJUÍZO" : conta.situacao === "empate" ? "empate" : "lucro"}, margem ${conta.margemPercentual}%).`,
+      `Preço mínimo sem prejuízo: ${guardar(conta.precoMinimo)}.`,
+    );
+  }
+  const caminho = caminhoDoDinheiro(e.ficha, e.item);
+  const caixa = caminho.caixaNecessario;
+  linhas.push(
+    `Caixa a pôr antes de receber: ${caixa.valor === null ? "não calculado" : guardar(caixa.valor)} (nível ${caixa.nivel}).`,
+    `Dias sem receber: ${caminho.diasSemReceber === null ? "não informado no edital" : caminho.diasSemReceber}.`,
+  );
+  return linhas;
+}
+
 export function montarContexto(e: EntradaContexto): ContextoConselheiro {
   const { item, perfil } = e;
   const valores: number[] = [];
@@ -236,6 +269,8 @@ export function montarContexto(e: EntradaContexto): ContextoConselheiro {
   ]);
 
   if (e.cotacoes !== null) secoes.push(["COTAÇÕES DA EMPRESA", ...linhasCotacoes(e.cotacoes, valores)]);
+
+  secoes.push(["LUCRO × PREJUÍZO E CAIXA (calculado pelo sistema; base da decisão)", ...linhasLucro(e, valores)]);
 
   secoes.push([
     "FORNECEDORES CADASTRADOS QUE CASAM COM O OBJETO",

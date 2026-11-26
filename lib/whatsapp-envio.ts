@@ -6,6 +6,8 @@ import {
   dentroDoHorario,
   janelaAberta,
   mesDeSaoPaulo,
+  MODELO_ANDAMENTO_15H,
+  MODELO_RESUMO_7H,
   textoDoResumo,
   type AlertaWa,
   type TipoAlertaWa,
@@ -59,7 +61,10 @@ function chaveContador(agora: Date): string {
   return `envios:${mesDeSaoPaulo(agora)}`;
 }
 
-/** Resumo das 7h com a janela fechada sai como mensagem utilitária da Meta. `WA_ENVIO_UTILIDADE=false` desliga. */
+/**
+ * Texto livre com a janela fechada como mensagem utilitária da Meta. Só quem pede (`utilidade`) usa, e a Meta nem sempre entrega:
+ * os resumos das 7h e das 15h não dependem mais disso (usam os modelos). `WA_ENVIO_UTILIDADE=false` desliga.
+ */
 function utilidadeLigada(): boolean {
   return (process.env.WA_ENVIO_UTILIDADE ?? "").trim().toLowerCase() !== "false";
 }
@@ -98,6 +103,49 @@ export async function enviarParaPessoa(
     return true;
   } catch (e) {
     console.error("[whatsapp] envio:", e instanceof Error ? e.message : "falha");
+    return false;
+  }
+}
+
+/** `WA_TEMPLATES_RESUMO=true` liga os modelos aprovados do resumo das 7h e do andamento das 15h (janela fechada). */
+export function modelosResumoLigados(): boolean {
+  return (process.env.WA_TEMPLATES_RESUMO ?? "").trim().toLowerCase() === "true";
+}
+
+export type ModeloDoDia = "manha" | "tarde";
+
+/** Nome do modelo do dia: o padrão fixo ou o que a variável de ambiente definir. */
+export function nomeDoModelo(modelo: ModeloDoDia): string {
+  const definido = (modelo === "manha" ? process.env.WA_TEMPLATE_RESUMO_7H : process.env.WA_TEMPLATE_ANDAMENTO_15H)?.trim();
+  if (definido) return definido;
+  return modelo === "manha" ? MODELO_RESUMO_7H : MODELO_ANDAMENTO_15H;
+}
+
+/**
+ * Modelo aprovado do resumo (7h) ou do andamento (15h) para quem está com a janela fechada. Abre a conversa pelo número,
+ * conta nos tetos como alerta. `parametros`: nome e a linha curta, já limpos. Devolve se saiu. Nunca lança.
+ */
+export async function enviarModeloParaPessoa(
+  v: VinculoWa,
+  modelo: ModeloDoDia,
+  parametros: ReadonlyArray<string>,
+  agora: Date,
+): Promise<boolean> {
+  if (!zernioConfigurado() || v.whatsapp === null) return false;
+  try {
+    if ((await somarContador(chaveContador(agora), 0)) >= limiteMensal()) return false;
+    if ((await somarContador(chaveAlertas(agora), 0)) >= limiteAlertas()) return false;
+    const idioma = process.env.WA_TEMPLATE_IDIOMA?.trim() || "pt_BR";
+    const r = await enviarTemplate(v.whatsapp, nomeDoModelo(modelo), idioma, parametros);
+    if (!r.ok) {
+      console.error("[whatsapp] modelo:", r.erro ?? "falha");
+      return false;
+    }
+    await somarContador(chaveContador(agora), 1);
+    await somarContador(chaveAlertas(agora), 1);
+    return true;
+  } catch (e) {
+    console.error("[whatsapp] modelo:", e instanceof Error ? e.message : "falha");
     return false;
   }
 }

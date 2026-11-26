@@ -17,10 +17,12 @@ interface Props {
   podeEditar: boolean;
   /** Mostra o botão Ver (na lista; na própria tela do atestado não) */
   mostrarVer?: boolean;
+  /** Na lista: só a ação que leva o atestado ao cliente (link e WhatsApp). Ver, imprimir e cancelar ficam dentro do atestado. */
+  compacta?: boolean;
 }
 
 /** Copiar link, enviar pelo WhatsApp, ver, imprimir e cancelar. O link é gerado sob demanda. */
-export function AcoesAtestado({ id, status, linkInicial, podeEditar, mostrarVer = true }: Props) {
+export function AcoesAtestado({ id, status, linkInicial, podeEditar, mostrarVer = true, compacta = false }: Props) {
   const router = useRouter();
   const [link, setLink] = useState(linkInicial);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -61,15 +63,18 @@ export function AcoesAtestado({ id, status, linkInicial, podeEditar, mostrarVer 
     });
   }
 
+  const enviavel = podeEditar && podeGerarLink(status);
+  if (compacta && !enviavel) return null;
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap gap-2">
-        {mostrarVer ? (
+        {mostrarVer && !compacta ? (
           <Link href={`/atestados/${id}`} className={BOTAO}>
             Ver
           </Link>
         ) : null}
-        {podeEditar && podeGerarLink(status) ? (
+        {enviavel ? (
           link ? (
             <>
               <button type="button" onClick={() => void copiar(link.url)} className={BOTAO}>
@@ -85,20 +90,22 @@ export function AcoesAtestado({ id, status, linkInicial, podeEditar, mostrarVer 
             </button>
           )
         ) : null}
-        {status !== "cancelado" ? (
+        {!compacta && status !== "cancelado" ? (
           <Link href={`/atestados/${id}/imprimir`} className={BOTAO}>
             Imprimir
           </Link>
         ) : null}
-        {podeEditar && podeCancelar(status) ? (
+        {!compacta && podeEditar && podeCancelar(status) ? (
           <button type="button" onClick={cancelar} disabled={ocupado} className={`${BOTAO} text-negative`}>
             Cancelar
           </button>
         ) : null}
       </div>
-      <p role="status" className="min-h-4 text-xs break-all text-muted-foreground">
-        {aviso ?? ""}
-      </p>
+      {aviso !== null || !compacta ? (
+        <p role="status" className="min-h-4 text-xs break-all text-muted-foreground">
+          {aviso ?? ""}
+        </p>
+      ) : null}
     </div>
   );
 }

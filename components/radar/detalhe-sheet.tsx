@@ -12,7 +12,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { avaliarCaixa, NOME_NIVEL_CAIXA } from "@/core/caminho-dinheiro";
 import { motivoPrincipal } from "@/core/motivo-nota";
 import { resumirObjeto } from "@/core/objeto";
 import { EXPLICACAO_CRITERIO } from "@/lib/glossario";
@@ -22,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { DicaGlossario, DicaModalidade, DicaNota, DicaValor } from "./dicas";
 import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import { Pilula } from "./pilula";
+import { SelosCaixa } from "./selos-caixa";
 import { SeloFonte } from "./selo-fonte";
 import { ContagemTexto } from "./prazo";
 import { Termometro } from "./termometro";
@@ -66,7 +66,6 @@ function Secao({ titulo, dica, children }: { titulo: string; dica?: React.ReactN
 
 export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras }: Props) {
   const desktop = useDesktop();
-  const caixa = item ? avaliarCaixa(item) : null;
 
   return (
     <Sheet open={aberto} onOpenChange={(proximo) => (proximo ? undefined : onFechar())}>
@@ -142,11 +141,7 @@ export function DetalheSheet({ item, aberto, onFechar, agoraInicial, acoesExtras
                 {motivoPrincipal(item.score) !== null ? (
                   <p className="mb-3 text-sm text-ink">{motivoPrincipal(item.score)}</p>
                 ) : null}
-                {caixa ? (
-                  <p className="mb-3 text-sm text-ink">
-                    Caixa: {NOME_NIVEL_CAIXA[caixa.nivel]} · {caixa.explicacao}
-                  </p>
-                ) : null}
+                <SelosCaixa oportunidade={item} className="mb-3" />
                 {item.score.alertas && item.score.alertas.length > 0 ? (
                   <ul className="mb-3 flex flex-col gap-1">
                     {item.score.alertas.map((alerta) => (

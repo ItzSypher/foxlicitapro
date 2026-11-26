@@ -1,8 +1,9 @@
 import type { DetalheCompra } from "@/core/types-detalhe";
+import { Pilula } from "@/components/radar/pilula";
 import { formatarCnpj } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { CopiarCnpj } from "./copiar-cnpj";
-import { Secao } from "./secao";
+import { Colapsavel } from "./colapsavel";
 
 function Fato({
   rotulo,
@@ -36,8 +37,17 @@ function texto(valor: string | null): React.ReactNode {
 export function Resumo({ d }: { d: DetalheCompra }) {
   const local = [d.municipio, d.uf].filter((p) => p !== "").join("/");
   return (
-    <Secao id="resumo" titulo="Resumo">
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-5 rounded-card border border-border bg-surface p-4 lg:grid-cols-4">
+    <Colapsavel
+      id="resumo"
+      titulo="Resumo"
+      selos={
+        <>
+          {d.modalidadeNome ? <Pilula tom="neutro">{d.modalidadeNome}</Pilula> : null}
+          {d.srp ? <Pilula tom="aviso">Registro de preços</Pilula> : null}
+        </>
+      }
+    >
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4">
         <Fato rotulo="Modalidade">{texto(d.modalidadeNome)}</Fato>
         <Fato rotulo="Modo de disputa">{texto(d.modoDisputa)}</Fato>
         <Fato rotulo="Amparo legal">{texto(d.amparoLegal)}</Fato>
@@ -52,6 +62,6 @@ export function Resumo({ d }: { d: DetalheCompra }) {
           </span>
         </Fato>
       </dl>
-    </Secao>
+    </Colapsavel>
   );
 }

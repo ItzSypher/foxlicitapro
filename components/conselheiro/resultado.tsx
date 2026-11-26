@@ -51,6 +51,11 @@ export function ResultadoConselheiro({ saida }: { saida: SaidaConselheiro }) {
         <p className={cn("text-3xl leading-tight font-semibold", COR_VEREDITO[saida.veredito])}>
           {ROTULO_VEREDITO_CONSELHEIRO[saida.veredito]}
         </p>
+        {saida.condicao !== "" ? (
+          <p className="self-start rounded-control bg-raised px-3 py-2 text-sm font-medium tabular-nums text-ink wrap-break-word">
+            {saida.condicao}
+          </p>
+        ) : null}
         <p className="text-base leading-relaxed text-ink wrap-break-word">{saida.resumo}</p>
       </header>
 

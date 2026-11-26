@@ -27,6 +27,8 @@ const m = vi.hoisted(() => ({
   montarSistemaDoChat: vi.fn(),
   adicionarChave: vi.fn(),
   enviarResumoAtrasado: vi.fn(),
+  enviarResumoCompleto: vi.fn(),
+  enviarAndamentoCompleto: vi.fn(),
   gerarPropostaPeloWhatsapp: vi.fn(),
   aprovarPropostaPeloWhatsapp: vi.fn(),
 }));
@@ -48,7 +50,11 @@ vi.mock("@/db/pipeline", () => ({
   definirResponsavel: m.definirResponsavel,
 }));
 vi.mock("@/lib/whatsapp-envio", () => ({ enviarParaPessoa: m.enviarParaPessoa, enviarFila: m.enviarFila }));
-vi.mock("@/lib/whatsapp-alertas-cron", () => ({ enviarResumoAtrasado: m.enviarResumoAtrasado }));
+vi.mock("@/lib/whatsapp-alertas-cron", () => ({
+  enviarResumoAtrasado: m.enviarResumoAtrasado,
+  enviarResumoCompleto: m.enviarResumoCompleto,
+  enviarAndamentoCompleto: m.enviarAndamentoCompleto,
+}));
 vi.mock("@/lib/whatsapp-propostas", () => ({
   gerarPropostaPeloWhatsapp: m.gerarPropostaPeloWhatsapp,
   aprovarPropostaPeloWhatsapp: m.aprovarPropostaPeloWhatsapp,
@@ -107,6 +113,8 @@ beforeEach(() => {
   m.registrarMensagem.mockReturnValue({ permitido: true, tentarEmMs: 0 });
   m.montarSistemaDoChat.mockResolvedValue("SISTEMA");
   m.enviarResumoAtrasado.mockResolvedValue(false);
+  m.enviarResumoCompleto.mockResolvedValue(true);
+  m.enviarAndamentoCompleto.mockResolvedValue(true);
 });
 
 describe("processarMensagem", () => {
@@ -313,5 +321,36 @@ describe("processarMensagem", () => {
   it("ignora mensagem da própria conta", async () => {
     await processarMensagem({ ...mensagem("oi"), remetente: "5521969418669" }, AGORA);
     expect(m.lerVinculoPorNumero).not.toHaveBeenCalled();
+  });
+});
+
+describe("botões dos modelos (Ver resumo e Ver andamento)", () => {
+  it("o payload do botão manda o resumo completo, sem a resposta curta nem o resumo atrasado", async () => {
+    await processarMensagem(mensagem("Ver resumo", "ver_resumo"), AGORA);
+    expect(m.enviarResumoCompleto).toHaveBeenCalledTimes(1);
+    expect(m.enviarResumoCompleto.mock.calls[0]?.[1]).toBe(AGORA);
+    expect(m.enviarResumoAtrasado).not.toHaveBeenCalled();
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+    expect(m.gerarTexto).not.toHaveBeenCalled();
+    expect(m.registrarEntrada).toHaveBeenCalledWith("u1", "conv-1", AGORA);
+  });
+
+  it("o texto do botão (sem payload) ou o comando também valem", async () => {
+    await processarMensagem(mensagem("Ver resumo"), AGORA);
+    await processarMensagem(mensagem("", "Ver resumo"), AGORA);
+    expect(m.enviarResumoCompleto).toHaveBeenCalledTimes(2);
+  });
+
+  it("Ver andamento manda o andamento completo", async () => {
+    await processarMensagem(mensagem("Ver andamento", "ver_andamento"), AGORA);
+    expect(m.enviarAndamentoCompleto).toHaveBeenCalledTimes(1);
+    expect(m.enviarResumoCompleto).not.toHaveBeenCalled();
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+  });
+
+  it("sem nada para mostrar, responde em uma linha", async () => {
+    m.enviarResumoCompleto.mockResolvedValue(false);
+    await processarMensagem(mensagem("Ver resumo", "ver_resumo"), AGORA);
+    expect(textosEnviados()[0]).toContain("não tenho novidades");
   });
 });

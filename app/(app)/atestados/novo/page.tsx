@@ -21,7 +21,7 @@ export default async function NovoAtestadoPage() {
           Atestados
         </Link>
         <h1 className="text-[22px] font-semibold leading-tight text-ink">Novo atestado</h1>
-        <p className="text-sm text-muted-foreground">Preencha os dados, revise o texto e envie o link para o cliente assinar.</p>
+        <p className="text-sm text-muted-foreground">Preencha, revise o texto e envie o link ao cliente.</p>
       </header>
       <FormularioAtestado
         id={null}

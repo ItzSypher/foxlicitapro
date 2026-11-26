@@ -7,7 +7,7 @@ import { usePrazo } from "@/components/radar/prazo";
 import { Termometro } from "@/components/radar/termometro";
 import { TextoRecolhivel } from "@/components/ui/texto-recolhivel";
 import type { Score } from "@/core/types";
-import { formatarEncerramento, formatarMoeda } from "@/lib/formato";
+import { formatarEncerramento } from "@/lib/formato";
 import { nomeFaixa } from "@/lib/radar-filtros";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,6 @@ interface Props {
   titulo: string;
   identificacao: string;
   score: Score | null;
-  valorEstimado: number | null;
   dataEncerramento: string | null;
   agoraInicial: number;
 }
@@ -43,7 +42,6 @@ export function CabecalhoLicitacao({
   titulo,
   identificacao,
   score,
-  valorEstimado,
   dataEncerramento,
   agoraInicial,
 }: Props) {
@@ -66,8 +64,8 @@ export function CabecalhoLicitacao({
         <p className="text-[13px] leading-snug wrap-break-word text-muted-foreground">{identificacao}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 rounded-card border border-border bg-surface p-4 md:grid-cols-3 md:gap-0 md:p-0">
-        <div className="flex min-w-0 flex-col gap-2 md:p-4">
+      <div className="grid grid-cols-2 rounded-card border border-border bg-surface">
+        <div className="flex min-w-0 flex-col gap-2 p-3 md:p-4">
           <p className={ROTULO}>Nota</p>
           {score ? (
             <>
@@ -85,25 +83,14 @@ export function CabecalhoLicitacao({
               <Termometro score={score} />
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Sem nota: faltam dados de modalidade ou prazo.</p>
+            <p className="text-sm text-muted-foreground">Sem nota</p>
           )}
         </div>
 
-        <div className="flex min-w-0 flex-col gap-2 border-t border-border pt-4 md:border-t-0 md:border-l md:p-4">
-          <p className={ROTULO}>Valor estimado</p>
-          {valorEstimado === null ? (
-            <p className="text-[26px] leading-tight font-medium text-muted-foreground">Sigiloso</p>
-          ) : (
-            <p className="text-[26px] leading-tight font-medium tabular-nums wrap-break-word text-ink">
-              {formatarMoeda(valorEstimado)}
-            </p>
-          )}
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-2 border-t border-border pt-4 md:border-t-0 md:border-l md:p-4">
-          <p className={ROTULO}>Prazo para propostas</p>
+        <div className="flex min-w-0 flex-col gap-2 border-l border-border p-3 md:p-4">
+          <p className={ROTULO}>Prazo</p>
           {dataEncerramento === null ? (
-            <p className="text-sm text-muted-foreground">Prazo não informado.</p>
+            <p className="text-sm text-muted-foreground">Não informado</p>
           ) : (
             <Prazo encerramentoIso={dataEncerramento} agoraInicial={agoraInicial} />
           )}

@@ -18,8 +18,8 @@ describe("postura do conselheiro", () => {
   });
 
   it("dado que falta não derruba o veredito", () => {
-    expect(sistema).toContain('dado que falta (cotação, documento a conferir) não tira o "vale"');
-    expect(sistema).toContain('"nao-vale" só com bloqueio claro e sem saída');
+    expect(sistema).toContain("Dado que falta (cotação, documento a conferir) não impede a decisão");
+    expect(sistema).toContain('só "vale" ou "nao-vale"');
   });
 
   it("mantém as regras legais", () => {

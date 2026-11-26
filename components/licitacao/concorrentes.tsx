@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Loader2, Search } from "lucide-react";
 import { buscarConcorrentesAction } from "@/app/(app)/licitacao/[cnpj]/[ano]/[sequencial]/concorrentes-actions";
+import { Pilula } from "@/components/radar/pilula";
 import { formatarDataHoraBrasilia } from "@/core/datas-edital";
 import { descontoPct, type ResultadoConcorrentes } from "@/core/concorrentes";
 import { formatarMoeda } from "@/lib/formato";
@@ -67,7 +68,20 @@ export function Concorrentes({ compra, inicial, buscadoEmInicial, valorEstimado,
   const quando = formatarDataHoraBrasilia(buscadoEm);
 
   return (
-    <Colapsavel id="concorrentes" titulo="Concorrentes" resumo={e && e.amostras > 0 ? `${e.amostras} parecidas` : undefined}>
+    <Colapsavel
+      id="concorrentes"
+      titulo="Concorrentes"
+      selos={
+        e && e.amostras > 0 ? (
+          <>
+            <Pilula tom="positivo">{e.amostras} {e.amostras === 1 ? "parecida" : "parecidas"}</Pilula>
+            {e.descontoMedioPct !== null ? <Pilula tom="neutro">Desconto médio {pct(e.descontoMedioPct)}</Pilula> : null}
+          </>
+        ) : (
+          <Pilula tom="neutro">{resultado === null ? "Sem busca" : "Nenhuma encontrada"}</Pilula>
+        )
+      }
+    >
       <div className="flex flex-col gap-4">
         <p className="text-[13px] leading-snug text-muted-foreground">
           Contratações parecidas já homologadas no PNCP (últimos 12 meses, mesma UF primeiro). É uma amostra: o PNCP não busca por texto.

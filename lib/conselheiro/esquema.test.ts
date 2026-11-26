@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { ESQUEMA_JSON_CONSELHEIRO, SaidaConselheiroSchema, lerSaidaConselheiro, type SaidaConselheiro } from "./esquema";
 
 const SAIDA_EXEMPLO: SaidaConselheiro = {
-  veredito: "talvez",
+  veredito: "nao-vale",
+  condicao: "Vale se o lance ficar acima de R$ 1.055.",
   resumo: "Licenças de software por 24 meses. Dá para atender por revenda parceira, mas é pregão.",
   porQue: ["O objeto casa com os CNAEs de informática."],
   comoConseguir: [

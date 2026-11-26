@@ -439,10 +439,11 @@ const ACAO_DO_EVENTO: Readonly<Record<string, MovimentoProposta["acao"]>> = {
   criada: "gerou",
   aprovada: "aprovou",
   enviada: "enviou",
+  devolvida: "devolveu",
 };
 
 /**
- * Propostas geradas, aprovadas e enviadas depois de `desde`, da mais antiga para a mais nova, com quem fez.
+ * Propostas geradas, aprovadas, enviadas e devolvidas depois de `desde`, da mais antiga para a mais nova, com quem fez.
  * Vem da linha do tempo da proposta; proposta registrada depois de enviada fora do sistema só conta como enviada.
  */
 export async function listarMovimentosDePropostas(empresaId: string, desde: Date): Promise<MovimentoProposta[]> {
@@ -453,7 +454,7 @@ export async function listarMovimentosDePropostas(empresaId: string, desde: Date
     join propostas p on p.id = e.proposta_id and p.empresa_id = e.empresa_id
     left join usuarios u on u.id = e.por
     where e.empresa_id = ${empresaId} and e.em > ${desde.toISOString()}::timestamptz
-      and e.tipo in ('criada', 'aprovada', 'enviada') and not (e.tipo = 'criada' and p.externa)
+      and e.tipo in ('criada', 'aprovada', 'enviada', 'devolvida') and not (e.tipo = 'criada' and p.externa)
     order by e.em asc, e.id asc
     limit 50
   `;

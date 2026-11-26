@@ -10,6 +10,7 @@ import { DicaNota } from "./dicas";
 import { TEXTO_FAIXA } from "./faixa";
 import { AlertaDoScore, Motivos } from "./motivos";
 import { usePrazo } from "./prazo";
+import { SelosCaixa } from "./selos-caixa";
 import { SeloFonte } from "./selo-fonte";
 
 /** Colunas da lista no desktop: nota | objeto | modalidade | valor | prazo. */
@@ -94,6 +95,7 @@ function LinhaOportunidadeBase({ item, indice, agoraInicial, motivos, onAbrir }:
           <span className="text-ink">{valor}</span> ·{" "}
           <span className={menosDe24h ? "text-negative" : undefined}>{prazoTelefone}</span>
         </span>
+        <SelosCaixa oportunidade={item} className="mt-0.5" />
         {motivos && motivos.length > 0 ? <Motivos motivos={motivos.slice(0, 1)} className="mt-0.5" /> : null}
         <AlertaDoScore score={item.score} />
       </span>

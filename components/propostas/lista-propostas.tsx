@@ -103,7 +103,16 @@ export function ListaPropostas({
           >
             <span className="truncate lg:hidden">{ROTULO_ABA_CURTO[id]}</span>
             <span className="hidden truncate lg:inline">{ROTULO_ABA[id]}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">{porAba[id].length}</span>
+            <span
+              className={cn(
+                "text-xs tabular-nums",
+                id === "revisar" && porAba[id].length > 0
+                  ? "rounded-full bg-brand-fill px-1.5 font-medium text-black"
+                  : "text-muted-foreground",
+              )}
+            >
+              {porAba[id].length}
+            </span>
           </button>
         ))}
       </div>
@@ -143,31 +152,28 @@ export function ListaPropostas({
                 <Link
                   href={`/propostas/${p.id}`}
                   prefetch={false}
-                  className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_128px_104px_104px] md:gap-x-4"
+                  className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-4 py-3 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_128px_104px_104px] md:gap-x-4"
                 >
                   <span className="min-w-0 text-sm font-medium break-words text-ink line-clamp-2 md:col-start-1 md:line-clamp-1">{p.titulo}</span>
-                  <span data-tour="propostas-status" className="self-start justify-self-end md:order-4 md:col-start-4 md:justify-self-start">
-                    {p.status === "enviada" && p.resultado !== null ? (
-                      <PilulaResultado resultado={p.resultado} />
-                    ) : (
-                      <PilulaStatus status={p.status} />
-                    )}
+                  <span className="text-base font-semibold tabular-nums text-ink md:order-3 md:col-start-3 md:text-right md:text-[13px] md:font-normal">
+                    {formatarMoeda(p.total)}
                   </span>
-                  <span className="col-span-2 flex min-w-0 flex-col gap-1 text-[13px] text-muted-foreground md:contents">
-                    <span className="min-w-0 truncate md:order-2 md:col-start-2">
+                  <span className="col-span-2 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground md:contents">
+                    <span data-tour="propostas-status" className="shrink-0 md:order-4 md:col-start-4">
+                      {p.status === "enviada" && p.resultado !== null ? (
+                        <PilulaResultado resultado={p.resultado} />
+                      ) : (
+                        <PilulaStatus status={p.status} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate md:order-2 md:col-start-2 md:flex-none">
                       {p.orgao || "Sem órgão"}
-                      {p.autor === "assistente" ? " · assistente" : p.criadoPorNome ? ` · ${p.criadoPorNome}` : ""}
-                      {p.externa ? " · fora do sistema" : ""}
-                    </span>
-                    <span className="flex min-w-0 items-center justify-between gap-2 md:contents">
-                      <span className="text-sm font-semibold tabular-nums text-ink md:order-3 md:col-start-3 md:text-right md:text-[13px] md:font-normal">
-                        {formatarMoeda(p.total)}
+                      <span className="max-md:hidden">
+                        {p.autor === "assistente" ? " · assistente" : p.criadoPorNome ? ` · ${p.criadoPorNome}` : ""}
                       </span>
-                      <span className="text-xs tabular-nums text-faint md:order-5 md:col-start-5 md:text-right">
-                        <span className="md:hidden">Atualizada </span>
-                        {dataHoraCurta(p.atualizadoEm)}
-                      </span>
+                      {p.externa ? " · externa" : ""}
                     </span>
+                    <span className="shrink-0 text-xs tabular-nums text-faint md:order-5 md:col-start-5 md:text-right">{dataHoraCurta(p.atualizadoEm)}</span>
                   </span>
                 </Link>
               </li>

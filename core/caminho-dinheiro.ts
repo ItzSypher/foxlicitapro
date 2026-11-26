@@ -174,6 +174,11 @@ function estimarCaixa(o: OportunidadeCaixa, ficha: FichaEdital | null): number |
   return base * fracao + garantiaReais;
 }
 
+/** R$ estimado a pôr do bolso antes de receber, para o Radar. Sem ficha, usa o tipo do objeto e o valor; null quando falta o valor do edital. */
+export function valorEstimadoCaixa(o: OportunidadeCaixa, ficha?: FichaEdital | null): number | null {
+  return estimarCaixa(o, ficha ?? null);
+}
+
 function etapaPagamento(dias: number | null): EtapaDinheiro {
   return {
     id: "pagamento",

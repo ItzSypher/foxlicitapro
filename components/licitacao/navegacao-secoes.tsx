@@ -4,16 +4,17 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const SECOES: ReadonlyArray<{ id: string; rotulo: string }> = [
+  { id: "numeros", rotulo: "Números" },
   { id: "datas", rotulo: "Datas" },
-  { id: "ficha", rotulo: "Ficha" },
-  { id: "caixa", rotulo: "Caixa" },
   { id: "preco-sugerido", rotulo: "Preço" },
+  { id: "caixa", rotulo: "Caminho" },
+  { id: "ficha", rotulo: "Ficha" },
+  { id: "itens", rotulo: "Itens" },
+  { id: "arquivos", rotulo: "Arquivos" },
   { id: "concorrentes", rotulo: "Concorrentes" },
   { id: "semelhantes", rotulo: "Semelhantes" },
   { id: "resumo", rotulo: "Resumo" },
   { id: "sinais", rotulo: "Sinais" },
-  { id: "itens", rotulo: "Itens" },
-  { id: "arquivos", rotulo: "Arquivos" },
   { id: "texto", rotulo: "Texto" },
   { id: "nota", rotulo: "Nota" },
 ];

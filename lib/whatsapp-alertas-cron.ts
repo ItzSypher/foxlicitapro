@@ -11,14 +11,22 @@ import {
   botoesDoResumoManha,
   chavePropostasDoDia,
   dentroDoHorario,
+  escolherCanal,
   escolherPropostasDoDia,
   horaDeSaoPaulo,
   inicioDaSemana,
+  inicioDoDia,
+  janelaAberta,
   juntarResumos,
+  linhaCurtaAndamento,
+  linhaCurtaResumo,
+  nomeParaModelo,
   partesDoResumoManha,
+  textoAndamento,
   textoResumoManha,
   type AlertaWa,
   type BlocoResumo,
+  type DadosAndamento,
   type DadosResumoManha,
   type ItemAlerta,
   type MovimentoEquipe,
@@ -51,17 +59,19 @@ import {
   type VinculoWa,
 } from "@/db/whatsapp";
 import { obterRadar } from "@/lib/radar-dados";
-import { entregarAlertasWa, enviarParaPessoa } from "@/lib/whatsapp-envio";
+import { entregarAlertasWa, enviarModeloParaPessoa, enviarParaPessoa, modelosResumoLigados } from "@/lib/whatsapp-envio";
 import { garantirWebhook, zernioConfigurado } from "@/lib/zernio";
 
 /**
  * Rotina de hora em hora dos alertas de WhatsApp (Zernio). Na hora só sai o prazo urgente (24 h e 2 h);
- * o resto vai no resumo das 7h, montado pelo perfil de cada pessoa. Nunca lança por empresa e nunca
- * devolve número, nome ou texto de mensagem.
+ * o resto vai no resumo das 7h (montado pelo perfil de cada pessoa) e no andamento das 15h. Com a janela de 24 h
+ * fechada, os dois saem como modelo aprovado (WA_TEMPLATES_RESUMO=true) e o texto completo vai quando a pessoa
+ * toca o botão. Nunca lança por empresa e nunca devolve número, nome ou texto de mensagem.
  */
 
 const MS_HORA = 3_600_000;
 const HORA_RESUMO = 7;
+export const HORA_ANDAMENTO = 15;
 const BASE_PADRAO = "https://licitapro.foxtisolutions.com.br";
 const RECOMENDADAS_POR_FRENTE = 20;
 const MAX_TERMOS_BATEU = 2;
@@ -177,6 +187,9 @@ interface ContextoResumo {
   movimentos: () => Promise<MovimentoEquipe[]>;
   propostasHoje: () => Promise<PropostaDoDia[]>;
   propostasMovidas: () => Promise<MovimentoProposta[]>;
+  movimentosHoje: () => Promise<MovimentoEquipe[]>;
+  propostasMovidasHoje: () => Promise<MovimentoProposta[]>;
+  semProposta: () => Promise<PropostaDoDia[]>;
   disputasNaSemana: () => Promise<number>;
   vencidasNaSemana: () => Promise<VencidasDaSemana>;
   meta: () => Promise<MetaConfig>;
@@ -189,11 +202,8 @@ function contextoDaEmpresa(empresaId: string, itens: ReadonlyArray<ItemAlerta>, 
       return [];
     }),
   );
-  const movimentos = sobDemanda(async (): Promise<MovimentoEquipe[]> => {
-    const [mudancas, pessoas] = await Promise.all([
-      listarMudancasDesde(empresaId, new Date(agora.getTime() - 24 * MS_HORA)),
-      listarPessoasDeAviso(empresaId),
-    ]);
+  const movimentosDesde = async (desde: Date): Promise<MovimentoEquipe[]> => {
+    const [mudancas, pessoas] = await Promise.all([listarMudancasDesde(empresaId, desde), listarPessoasDeAviso(empresaId)]);
     const nomes = new Map(pessoas.map((p) => [p.id, p.nome]));
     return mudancas.map((m) => ({
       itemId: m.itemId,
@@ -203,23 +213,43 @@ function contextoDaEmpresa(empresaId: string, itens: ReadonlyArray<ItemAlerta>, 
       porId: m.porId,
       porNome: m.porId === null ? null : (nomes.get(m.porId) ?? null),
     }));
-  });
+  };
+  const movimentos = sobDemanda(() => movimentosDesde(new Date(agora.getTime() - 24 * MS_HORA)));
+  const movimentosHoje = sobDemanda(() => movimentosDesde(inicioDoDia(agora)));
   const disputasNaSemana = sobDemanda(async () => {
     const mudancas = await listarMudancasDesde(empresaId, inicioDaSemana(agora));
     return new Set(mudancas.filter((m) => m.para === "disputa").map((m) => m.itemId)).size;
   });
+  const comProposta = sobDemanda(async (): Promise<Set<string>> => {
+    const propostas = await listarPropostas(empresaId);
+    return new Set(
+      propostas.flatMap((p) => (p.compraId !== null && (estaAprovada(p.status) || p.status === "enviada") ? [p.compraId] : [])),
+    );
+  });
   const propostasHoje = sobDemanda(async (): Promise<PropostaDoDia[]> => {
     try {
-      const propostas = await listarPropostas(empresaId);
-      const fechadas = new Set(
-        propostas.flatMap((p) => (p.compraId !== null && (estaAprovada(p.status) || p.status === "enviada") ? [p.compraId] : [])),
-      );
-      return escolherPropostasDoDia(itens, fechadas, agora);
+      return escolherPropostasDoDia(itens, await comProposta(), agora);
     } catch (e) {
       console.error("[whatsapp] propostas do dia:", mensagemDe(e));
       return [];
     }
   });
+  /** Tudo o que fecha hoje ou amanhã sem proposta (o resumo das 7h mostra só as 3 primeiras). */
+  const semProposta = sobDemanda(async (): Promise<PropostaDoDia[]> => {
+    try {
+      return escolherPropostasDoDia(itens, await comProposta(), agora, Number.POSITIVE_INFINITY);
+    } catch (e) {
+      console.error("[whatsapp] sem proposta:", mensagemDe(e));
+      return [];
+    }
+  });
+  const propostasMovidasHoje = sobDemanda(
+    (): Promise<MovimentoProposta[]> =>
+      listarMovimentosDePropostas(empresaId, inicioDoDia(agora)).catch((e: unknown): MovimentoProposta[] => {
+        console.error("[whatsapp] propostas de hoje:", mensagemDe(e));
+        return [];
+      }),
+  );
   const propostasMovidas = sobDemanda(
     (): Promise<MovimentoProposta[]> =>
       listarMovimentosDePropostas(empresaId, new Date(agora.getTime() - 24 * MS_HORA)).catch((e: unknown): MovimentoProposta[] => {
@@ -232,7 +262,20 @@ function contextoDaEmpresa(empresaId: string, itens: ReadonlyArray<ItemAlerta>, 
     return { vencidas: g.vencidas, valor: g.valorVencidas, estimado: g.estimadoVencidas };
   });
   const meta = sobDemanda(() => lerMetaDisputas(empresaId));
-  return { empresaId, itens, novas, movimentos, propostasHoje, propostasMovidas, disputasNaSemana, vencidasNaSemana, meta };
+  return {
+    empresaId,
+    itens,
+    novas,
+    movimentos,
+    propostasHoje,
+    propostasMovidas,
+    movimentosHoje,
+    propostasMovidasHoje,
+    semProposta,
+    disputasNaSemana,
+    vencidasNaSemana,
+    meta,
+  };
 }
 
 /** Leituras que valem para a rodada inteira: o nome curto e o contexto de cada empresa extra, lidos uma vez só. */
@@ -379,9 +422,13 @@ function registroDeNovas(usuarioId: string, novas: ReadonlyArray<NovaDoRamo>, mo
     }));
 }
 
+const TIPOS_DE_PRAZO: ReadonlySet<string> = new Set(["prazo2", "prazo24"]);
+
 /**
  * Monta e envia o resumo do dia de uma pessoa. Devolve se saiu; nada a dizer ou envio recusado: não grava nada.
  * Quem é gestor de outras empresas recebe uma mensagem só, com um bloco por empresa.
+ * Janela aberta: texto completo (avisos e prazos da fila entram nele e saem da fila). Janela fechada com os modelos
+ * ligados: só o modelo com uma linha curta; a fila fica intacta até a pessoa tocar "Ver resumo" (`completo`).
  */
 async function enviarResumoDaPessoa(
   empresaId: string,
@@ -389,17 +436,20 @@ async function enviarResumoDaPessoa(
   propria: ContextoResumo,
   agora: Date,
   cache: CacheRodada,
+  completo: boolean = false,
 ): Promise<boolean> {
   const dia = diaDeSaoPaulo(agora);
   const e = v.escolhas;
 
   const suasNovas = await novasDaPessoa(propria, v);
-  const pendentes = e.pendencias ? (await listarPendentes(v.usuarioId, agora)).filter((p) => p.tipo === "aviso") : [];
+  const fila = await listarPendentes(v.usuarioId, agora);
+  const pendentes = e.pendencias ? fila.filter((p) => p.tipo === "aviso") : [];
   const dadosProprios = await dadosDoResumo(propria, v, suasNovas, pendentes.map((p) => p.texto), true);
   const extras = await empresasExtrasDaPessoa(v.usuarioId, empresaId, cache);
 
   let texto: string;
   const registros: Array<{ empresaId: string; alertas: AlertaWa[] }> = [];
+  const cobertos = new Set(propria.itens.map((i) => i.id));
   if (extras.length === 0) {
     const resumo = textoResumoManha(dadosProprios, agora);
     texto = resumo.texto;
@@ -412,6 +462,7 @@ async function enviarResumoDaPessoa(
     for (const extra of extras) {
       const ctx = await contextoDaExtra(extra.id, agora, cache);
       if (ctx === null) continue;
+      for (const i of ctx.itens) cobertos.add(i.id);
       const novasExtra = await novasDaPessoa(ctx, v);
       const partes = partesDoResumoManha(await dadosDoResumo(ctx, v, novasExtra, [], false), agora);
       blocos.push({ empresa: extra.nome, partes: partes.partes });
@@ -420,18 +471,31 @@ async function enviarResumoDaPessoa(
     texto = juntarResumos(v.nome, blocos);
   }
   if (texto === "") return false;
+
+  const canal = completo ? "texto" : escolherCanal(janelaAberta(v.ultimaEntrada, agora), modelosResumoLigados());
+  if (canal === "nenhum") return false;
+  if (canal === "modelo") {
+    const ok = await enviarModeloParaPessoa(v, "manha", [nomeParaModelo(v.nome), linhaCurtaResumo(dadosProprios, agora)], agora);
+    if (!ok) return false;
+    await gravarConfig(`manha:${v.usuarioId}:${dia}`, agora.toISOString());
+    return true;
+  }
+
   const doDia = dadosProprios.propostasHoje;
   const botoes = doDia.length > 0 ? botoesDoResumoManha(doDia) : [{ titulo: "Continuar recebendo", payload: "continuar" }];
-  const ok = await enviarParaPessoa(v, texto, agora, { botoes, critico: true, utilidade: true });
+  const ok = await enviarParaPessoa(v, texto, agora, { botoes, critico: true, resposta: completo });
   if (!ok) return false;
   await gravarConfig(`manha:${v.usuarioId}:${dia}`, agora.toISOString());
   if (doDia.length > 0) await gravarConfig(chavePropostasDoDia(v.usuarioId, dia), JSON.stringify(doDia.map((p) => p.itemId)));
   for (const r of registros) await registrarEnviados(r.empresaId, r.alertas, agora);
-  if (pendentes.length > 0) await marcarEnviados(pendentes.map((p) => p.id), agora);
+  // Prazo urgente que ficou na fila e ainda vale está na parte "Fecham em 48 h": sai da fila junto com os avisos.
+  const prazosDaFila = e.fechando ? fila.filter((p) => TIPOS_DE_PRAZO.has(p.tipo) && p.itemId !== null && cobertos.has(p.itemId)) : [];
+  const dados = [...pendentes, ...prazosDaFila];
+  if (dados.length > 0) await marcarEnviados(dados.map((p) => p.id), agora);
   return true;
 }
 
-/** Resumo das 7h: uma vez por dia por pessoa; com a janela fechada vai como mensagem utilitária. Devolve quantos foram enviados. */
+/** Resumo das 7h: uma vez por dia por pessoa; com a janela fechada vai o modelo (se ligado). Devolve quantos foram enviados. */
 async function enviarResumosDaManha(
   empresaId: string,
   vinculos: ReadonlyArray<VinculoWa>,
@@ -446,7 +510,7 @@ async function enviarResumosDaManha(
   for (const v of vinculos) {
     try {
       if ((await lerConfig(`manha:${v.usuarioId}:${dia}`)) !== null) continue;
-      // Janela fechada não pula mais: o resumo sai como mensagem utilitária (enviarParaPessoa decide).
+      // Janela fechada: enviarResumoDaPessoa escolhe entre texto completo e modelo (ou não envia, sem modelos ligados).
       if (await enviarResumoDaPessoa(empresaId, v, propria, agora, cache)) enviados += 1;
     } catch (e) {
       console.error("[whatsapp] resumo:", mensagemDe(e));
@@ -456,7 +520,7 @@ async function enviarResumosDaManha(
 }
 
 /**
- * Resumo atrasado: o das 7h foi pulado porque a janela estava fechada. Na primeira mensagem da pessoa no mesmo dia
+ * Resumo atrasado: o das 7h não saiu (janela fechada sem modelo, ou falha). Na primeira mensagem da pessoa no mesmo dia
  * (até as 20h) ele sai, uma vez só. Devolve se enviou. Nunca lança.
  */
 export async function enviarResumoAtrasado(v: VinculoWa, agora: Date): Promise<boolean> {
@@ -472,6 +536,115 @@ export async function enviarResumoAtrasado(v: VinculoWa, agora: Date): Promise<b
     return await enviarResumoDaPessoa(v.empresaId, v, propria, agora, novoCache());
   } catch (e) {
     console.error("[whatsapp] resumo atrasado:", mensagemDe(e));
+    return false;
+  }
+}
+
+/**
+ * A pessoa tocou "Ver resumo" (ou escreveu): manda o resumo completo do dia e os avisos pendentes, com a janela aberta
+ * pela resposta dela. Vale mesmo que o modelo das 7h já tenha saído. Devolve se enviou. Nunca lança.
+ */
+export async function enviarResumoCompleto(v: VinculoWa, agora: Date): Promise<boolean> {
+  try {
+    if (v.conversaId === null || !zernioConfigurado()) return false;
+    const pipeline = await listarPipeline(v.empresaId);
+    const propria = contextoDaEmpresa(v.empresaId, pipeline.map(itemDeAlerta), agora);
+    return await enviarResumoDaPessoa(v.empresaId, v, propria, agora, novoCache(), true);
+  } catch (e) {
+    console.error("[whatsapp] resumo completo:", mensagemDe(e));
+    return false;
+  }
+}
+
+/** Dados do andamento do dia de uma pessoa e os ids da fila que o texto completo cobre. */
+async function dadosDoAndamento(
+  ctx: ContextoResumo,
+  v: VinculoWa,
+  agora: Date,
+): Promise<{ dados: DadosAndamento; idsDaFila: string[] }> {
+  const e = v.escolhas;
+  const fila = await listarPendentes(v.usuarioId, agora);
+  const avisos = e.pendencias ? fila.filter((p) => p.tipo === "aviso") : [];
+  const prazos = e.prazos ? fila.filter((p) => TIPOS_DE_PRAZO.has(p.tipo)) : [];
+  const prazosPendentes: ItemAlerta[] = [];
+  const idsDosPrazos: string[] = [];
+  for (const p of prazos) {
+    const item = ctx.itens.find((i) => i.id === p.itemId);
+    if (item === undefined) continue;
+    prazosPendentes.push(item);
+    idsDosPrazos.push(p.id);
+  }
+  const dados: DadosAndamento = {
+    usuarioId: v.usuarioId,
+    nome: v.nome,
+    escolhas: e,
+    propostas: await ctx.propostasMovidasHoje(),
+    movimentos: await ctx.movimentosHoje(),
+    semProposta: await ctx.semProposta(),
+    prazosPendentes,
+    pendencias: avisos.map((p) => p.texto),
+    emJogo: ctx.itens.filter((i) => i.etapa !== "ganha" && i.etapa !== "perdida").length,
+    disputasNaSemana: e.meta ? await ctx.disputasNaSemana() : 0,
+    vencidasNaSemana: e.meta ? await ctx.vencidasNaSemana() : { vencidas: 0, valor: 0, estimado: false },
+    meta: e.meta ? await ctx.meta() : META_PADRAO,
+  };
+  return { dados, idsDaFila: [...avisos.map((p) => p.id), ...idsDosPrazos] };
+}
+
+/**
+ * Andamento do dia de uma pessoa (15h). Janela aberta: texto completo e a fila coberta sai dela. Fechada com os modelos
+ * ligados: só o modelo com uma linha curta. Devolve se saiu; sem nada a dizer ou envio recusado, não grava nada.
+ */
+async function enviarAndamentoDaPessoa(v: VinculoWa, ctx: ContextoResumo, agora: Date, completo: boolean): Promise<boolean> {
+  const { dados, idsDaFila } = await dadosDoAndamento(ctx, v, agora);
+  const texto = textoAndamento(dados, agora);
+  if (texto === "") return false;
+  const canal = completo ? "texto" : escolherCanal(janelaAberta(v.ultimaEntrada, agora), modelosResumoLigados());
+  if (canal === "nenhum") return false;
+  const chave = `tarde:${v.usuarioId}:${diaDeSaoPaulo(agora)}`;
+  if (canal === "modelo") {
+    const ok = await enviarModeloParaPessoa(v, "tarde", [nomeParaModelo(v.nome), linhaCurtaAndamento(dados)], agora);
+    if (!ok) return false;
+    await gravarConfig(chave, agora.toISOString());
+    return true;
+  }
+  const ok = await enviarParaPessoa(v, texto, agora, { critico: true, resposta: completo });
+  if (!ok) return false;
+  await gravarConfig(chave, agora.toISOString());
+  if (idsDaFila.length > 0) await marcarEnviados(idsDaFila, agora);
+  return true;
+}
+
+/** Andamento das 15h: uma vez por dia por pessoa. Devolve quantos foram enviados. */
+async function enviarAndamentosDaTarde(
+  empresaId: string,
+  vinculos: ReadonlyArray<VinculoWa>,
+  itens: ReadonlyArray<ItemAlerta>,
+  agora: Date,
+): Promise<number> {
+  const dia = diaDeSaoPaulo(agora);
+  const ctx = contextoDaEmpresa(empresaId, itens, agora);
+  let enviados = 0;
+  for (const v of vinculos) {
+    try {
+      if ((await lerConfig(`tarde:${v.usuarioId}:${dia}`)) !== null) continue;
+      if (await enviarAndamentoDaPessoa(v, ctx, agora, false)) enviados += 1;
+    } catch (e) {
+      console.error("[whatsapp] andamento:", mensagemDe(e));
+    }
+  }
+  return enviados;
+}
+
+/** A pessoa tocou "Ver andamento": manda o andamento completo do dia. Devolve se enviou. Nunca lança. */
+export async function enviarAndamentoCompleto(v: VinculoWa, agora: Date): Promise<boolean> {
+  try {
+    if (v.conversaId === null || !zernioConfigurado()) return false;
+    const pipeline = await listarPipeline(v.empresaId);
+    const ctx = contextoDaEmpresa(v.empresaId, pipeline.map(itemDeAlerta), agora);
+    return await enviarAndamentoDaPessoa(v, ctx, agora, true);
+  } catch (e) {
+    console.error("[whatsapp] andamento completo:", mensagemDe(e));
     return false;
   }
 }
@@ -515,6 +688,13 @@ async function rodarEmpresa(
       resumos = await enviarResumosDaManha(empresaId, vinculos, itens, agora, cache);
     } catch (e) {
       console.error("[whatsapp] resumo:", mensagemDe(e));
+    }
+  }
+  if (vinculos.length > 0 && horaDeSaoPaulo(agora) === HORA_ANDAMENTO) {
+    try {
+      resumos += await enviarAndamentosDaTarde(empresaId, vinculos, itens, agora);
+    } catch (e) {
+      console.error("[whatsapp] andamento:", mensagemDe(e));
     }
   }
   return { novos, enviados: enviados + resumos, resumos };

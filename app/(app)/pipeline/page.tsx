@@ -127,6 +127,7 @@ export default async function PipelinePage({
       podeCriarProposta={temPermissao(sessao, "editar_propostas")}
       podeEditar={temPermissao(sessao, "mover_pipeline")}
       podeRevisar={temPermissao(sessao, "revisao_juridica")}
+      ehDono={sessao.papel === "dono"}
       meta={meta}
     />
   );

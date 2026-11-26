@@ -5,8 +5,11 @@ import { z } from "zod";
  * (core/preco-sugerido.ts) e o assistente só comenta. Funções e tipos puros, usados no servidor e na tela.
  */
 
+/** "talvez" fica só para ler pareceres antigos; o assistente agora decide entre vale e não vale. */
 export const VEREDITOS_CONSELHEIRO = ["vale", "talvez", "nao-vale"] as const;
 export type VereditoConselheiro = (typeof VEREDITOS_CONSELHEIRO)[number];
+/** O que o assistente pode responder: sem meio-termo. */
+export const VEREDITOS_DECISIVOS = ["vale", "nao-vale"] as const;
 
 export const ROTULO_VEREDITO_CONSELHEIRO: Record<VereditoConselheiro, string> = {
   vale: "Vale a pena",
@@ -34,6 +37,8 @@ export type ModalidadeAviso = z.infer<typeof ModalidadeAvisoSchema>;
 
 export const SaidaConselheiroSchema = z.object({
   veredito: z.enum(VEREDITOS_CONSELHEIRO),
+  /** Condição em números para o veredito valer (ex.: preço mínimo sem prejuízo); vazia em pareceres antigos. */
+  condicao: z.string().trim().max(300).default(""),
   resumo: texto(800),
   porQue: z.array(texto(400)).min(1).max(6),
   comoConseguir: z.array(ComoConseguirSchema).min(1).max(4),
@@ -62,7 +67,8 @@ const LISTA_TEXTOS = (descricao: string, minimo: number, maximo: number) => ({
 export const ESQUEMA_JSON_CONSELHEIRO: { [chave: string]: unknown } = {
   type: "object",
   properties: {
-    veredito: { type: "string", enum: [...VEREDITOS_CONSELHEIRO], description: "vale, talvez ou nao-vale para esta empresa, neste item." },
+    veredito: { type: "string", enum: [...VEREDITOS_DECISIVOS], description: "vale ou nao-vale para esta empresa, neste item. Sem meio-termo." },
+    condicao: { type: "string", description: "Uma frase com a condição em números do sistema para o veredito se manter (ex.: vale se o lance ficar acima de R$ X, o preço mínimo sem prejuízo)." },
     resumo: { type: "string", description: "Duas ou três frases com a conclusão." },
     porQue: LISTA_TEXTOS("Razões do veredito, uma frase cada.", 1, 6),
     comoConseguir: {
@@ -96,7 +102,7 @@ export const ESQUEMA_JSON_CONSELHEIRO: { [chave: string]: unknown } = {
       additionalProperties: false,
     },
   },
-  required: ["veredito", "resumo", "porQue", "comoConseguir", "precoComentario", "riscos", "proximosPassos", "modalidade"],
+  required: ["veredito", "condicao", "resumo", "porQue", "comoConseguir", "precoComentario", "riscos", "proximosPassos", "modalidade"],
   additionalProperties: false,
 };
 

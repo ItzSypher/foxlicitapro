@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCheck, FileSearch, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, FileSearch, Loader2 } from "lucide-react";
 import { confirmarFichaAction, lerEditalAction } from "@/app/(app)/licitacao/[cnpj]/[ano]/[sequencial]/ficha-actions";
 import { Pilula, type TomPilula } from "@/components/radar/pilula";
 import { NOME_NIVEL, calcularCapitalGiro, type NivelCapitalGiro } from "@/core/capital-giro";
 import { formatarDataHoraBrasilia } from "@/core/datas-edital";
 import { NAO_INFORMADO, NOME_NATUREZA, type FichaEdital, type FichaSalva } from "@/core/ficha";
 import { Colapsavel } from "./colapsavel";
+import { contarAtencao, linhasDeExigencias, type LinhaExigencia } from "./exigencias";
 import { Secao } from "./secao";
 
 const SECUNDARIO =
@@ -104,6 +105,54 @@ function Grade({ children }: { children: React.ReactNode }) {
   return <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">{children}</dl>;
 }
 
+function SelosExigencias({ linhas }: { linhas: readonly LinhaExigencia[] }) {
+  const atencao = contarAtencao(linhas);
+  return atencao === 0 ? (
+    <Pilula tom="positivo">Tudo claro</Pilula>
+  ) : (
+    <Pilula tom="aviso">
+      {atencao} a conferir
+    </Pilula>
+  );
+}
+
+/** Uma exigência numa linha: ✓ quando está claro, ⚠ quando vale conferir; o trecho do edital fica recolhido. */
+function LinhaDeExigencia({ linha }: { linha: LinhaExigencia }) {
+  const Icone = linha.atencao ? AlertTriangle : Check;
+  const temApoio = Boolean(linha.trecho) || (linha.itens?.length ?? 0) > 0;
+  return (
+    <li className="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
+      <div className="flex items-start gap-3">
+        <Icone aria-hidden="true" className={`mt-0.5 size-4 shrink-0 ${linha.atencao ? "text-warning" : "text-positive"}`} />
+        <span className="sr-only">{linha.atencao ? "Conferir: " : "Claro: "}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+          <span className="text-sm text-muted-foreground">{linha.rotulo}</span>
+          <span className="text-sm font-medium wrap-break-word text-ink sm:text-right">{linha.valor}</span>
+        </div>
+      </div>
+      {temApoio ? (
+        <details className="ml-7">
+          <summary className="flex min-h-9 cursor-pointer list-none items-center text-[13px] text-brand outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
+            {linha.itens ? "Ver lista" : "Ver trecho"}
+          </summary>
+          {linha.itens ? (
+            <ul className="flex list-disc flex-col gap-1 pb-1 pl-4 text-[13px] text-ink">
+              {linha.itens.map((doc) => (
+                <li key={doc}>{doc}</li>
+              ))}
+            </ul>
+          ) : null}
+          {linha.trecho ? (
+            <p className="pb-1 text-[13px] leading-snug text-muted-foreground">
+              “{linha.trecho}”{linha.pagina ? ` (p. ${linha.pagina})` : ""}
+            </p>
+          ) : null}
+        </details>
+      ) : null}
+    </li>
+  );
+}
+
 function GruposDaFicha({ ficha }: { ficha: FichaEdital }) {
   const capital = calcularCapitalGiro({
     prazoEntregaDias: ficha.prazoEntregaDias.valor,
@@ -112,6 +161,7 @@ function GruposDaFicha({ ficha }: { ficha: FichaEdital }) {
     pagamentoAntecipado: ficha.pagamentoAntecipado.valor,
   });
   const natureza = ficha.natureza.valor;
+  const exigencias = linhasDeExigencias(ficha);
   return (
     <div className="flex flex-col gap-3">
       <Colapsavel titulo="Condições de pagamento" aberta selos={<SelosPagamento ficha={ficha} />}>
@@ -162,43 +212,12 @@ function GruposDaFicha({ ficha }: { ficha: FichaEdital }) {
         </Grade>
       </Colapsavel>
 
-      <Colapsavel titulo="Exigências">
-        <Grade>
-          <Linha rotulo="Critério de julgamento" trecho={ficha.criterioJulgamento.trecho} pagina={ficha.criterioJulgamento.pagina}>
-            <Texto valor={ficha.criterioJulgamento.valor} />
-          </Linha>
-          <Linha rotulo="Modo de disputa" trecho={ficha.modoDisputa.trecho} pagina={ficha.modoDisputa.pagina}>
-            <Texto valor={ficha.modoDisputa.valor} />
-          </Linha>
-          <Linha rotulo="Exclusivo para ME/EPP" trecho={ficha.exclusividadeMeEpp.trecho} pagina={ficha.exclusividadeMeEpp.pagina}>
-            <SimNao valor={ficha.exclusividadeMeEpp.valor} />
-          </Linha>
-          <Linha rotulo="Garantia contratual" trecho={ficha.garantiaContratualPercentual.trecho} pagina={ficha.garantiaContratualPercentual.pagina}>
-            {ficha.garantiaContratualPercentual.valor === null ? (
-              <Ausente />
-            ) : (
-              `${ficha.garantiaContratualPercentual.valor.toLocaleString("pt-BR")}% do contrato`
-            )}
-          </Linha>
-          <div className="sm:col-span-2">
-            <Linha rotulo="Multas e sanções" trecho={ficha.multasSancoes.trecho} pagina={ficha.multasSancoes.pagina}>
-              <Texto valor={ficha.multasSancoes.valor} />
-            </Linha>
-          </div>
-          <div className="sm:col-span-2">
-            <Linha rotulo="Documentos de habilitação" trecho={ficha.documentosHabilitacao.trecho} pagina={ficha.documentosHabilitacao.pagina}>
-              {ficha.documentosHabilitacao.valor.length === 0 ? (
-                <Ausente />
-              ) : (
-                <ul className="flex list-disc flex-col gap-1 pl-4">
-                  {ficha.documentosHabilitacao.valor.map((doc) => (
-                    <li key={doc}>{doc}</li>
-                  ))}
-                </ul>
-              )}
-            </Linha>
-          </div>
-        </Grade>
+      <Colapsavel titulo="Exigências" selos={<SelosExigencias linhas={exigencias} />}>
+        <ul className="flex flex-col divide-y divide-border">
+          {exigencias.map((l) => (
+            <LinhaDeExigencia key={l.id} linha={l} />
+          ))}
+        </ul>
       </Colapsavel>
 
       <Colapsavel titulo="Como competir">

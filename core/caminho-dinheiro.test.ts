@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { avaliarCaixa, caminhoDoDinheiro, nivelCaixa, tipoDoObjeto, type OportunidadeCaixa } from "./caminho-dinheiro";
+import {
+  avaliarCaixa,
+  caminhoDoDinheiro,
+  nivelCaixa,
+  tipoDoObjeto,
+  valorEstimadoCaixa,
+  type OportunidadeCaixa,
+} from "./caminho-dinheiro";
 import type { FichaEdital } from "./ficha";
 import { FICHA_EXEMPLO } from "./ficha.fixture";
 
@@ -115,6 +122,13 @@ describe("caminhoDoDinheiro", () => {
     expect(c.comFicha).toBe(false);
     expect(c.diasSemReceber).toBeNull();
     expect(c.etapas.map((e) => e.id)).toEqual(["empenho", "ordem", "entrega", "atesto", "pagamento"]);
+  });
+
+  it("valorEstimadoCaixa devolve o mesmo valor do caminho, com ou sem ficha", () => {
+    expect(valorEstimadoCaixa(PRODUTO_GRANDE)).toBeCloseTo(32_000);
+    expect(valorEstimadoCaixa(SERVICO, null)).toBeCloseTo(2_000);
+    expect(valorEstimadoCaixa(SITE)).toBe(0);
+    expect(valorEstimadoCaixa({ ...PRODUTO_GRANDE, valorEstimado: null })).toBeNull();
   });
 
   it("caixa necessário: produto ~80% do valor, serviço ~10%, site zero", () => {

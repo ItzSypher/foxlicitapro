@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { escolhasDoPerfil, type AlertaWa } from "@/core/whatsapp-alertas";
 import type { AlertaPendente, VinculoWa } from "@/db/whatsapp";
 
@@ -7,6 +7,7 @@ vi.mock("server-only", () => ({}));
 const contadores = new Map<string, number>();
 const m = vi.hoisted(() => ({
   enviarTexto: vi.fn(),
+  enviarTemplate: vi.fn(),
   zernioConfigurado: vi.fn(),
   enfileirarAlertas: vi.fn(),
   lerVinculoPorUsuario: vi.fn(),
@@ -17,7 +18,7 @@ const m = vi.hoisted(() => ({
 
 vi.mock("@/lib/zernio", () => ({
   enviarTexto: m.enviarTexto,
-  enviarTemplate: vi.fn(),
+  enviarTemplate: m.enviarTemplate,
   zernioConfigurado: m.zernioConfigurado,
 }));
 
@@ -36,7 +37,7 @@ vi.mock("@/db/whatsapp", () => ({
   marcarTemplateEnviado: vi.fn(),
 }));
 
-const { entregarAlertasWa, enviarFila, enviarParaPessoa } = await import("@/lib/whatsapp-envio");
+const { entregarAlertasWa, enviarFila, enviarModeloParaPessoa, enviarParaPessoa, modelosResumoLigados, nomeDoModelo } = await import("@/lib/whatsapp-envio");
 
 // 12h em São Paulo
 const AGORA = new Date("2026-11-17T15:00:00Z");
@@ -177,5 +178,59 @@ describe("entrega dos alertas", () => {
     expect(await enviarFila(vinculo(), AGORA)).toBe(false);
     expect(m.enviarTexto).not.toHaveBeenCalled();
     expect(m.marcarEnviados).not.toHaveBeenCalled();
+  });
+});
+
+describe("modelos do resumo e do andamento", () => {
+  beforeEach(() => {
+    contadores.clear();
+    m.enviarTemplate.mockReset().mockResolvedValue({ ok: true });
+    m.zernioConfigurado.mockReturnValue(true);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("ligam só com WA_TEMPLATES_RESUMO=true", () => {
+    expect(modelosResumoLigados()).toBe(false);
+    vi.stubEnv("WA_TEMPLATES_RESUMO", "true");
+    expect(modelosResumoLigados()).toBe(true);
+    vi.stubEnv("WA_TEMPLATES_RESUMO", "false");
+    expect(modelosResumoLigados()).toBe(false);
+  });
+
+  it("nomes fixos, sobrescritos pelas variáveis", () => {
+    expect(nomeDoModelo("manha")).toBe("foxlicita_resumo_7h");
+    expect(nomeDoModelo("tarde")).toBe("foxlicita_andamento_15h");
+    vi.stubEnv("WA_TEMPLATE_RESUMO_7H", "outro_resumo");
+    vi.stubEnv("WA_TEMPLATE_ANDAMENTO_15H", "outro_andamento");
+    expect(nomeDoModelo("manha")).toBe("outro_resumo");
+    expect(nomeDoModelo("tarde")).toBe("outro_andamento");
+  });
+
+  it("envia o modelo pelo número, com janela fechada, e conta nos dois tetos", async () => {
+    const v = { ...vinculo(), ultimaEntrada: new Date(AGORA.getTime() - 48 * 3_600_000) };
+    expect(await enviarModeloParaPessoa(v, "manha", ["Ana", "2 prazos hoje"], AGORA)).toBe(true);
+    expect(m.enviarTemplate).toHaveBeenCalledWith("5521999990000", "foxlicita_resumo_7h", "pt_BR", ["Ana", "2 prazos hoje"]);
+    expect(m.enviarTexto).not.toHaveBeenCalled();
+    expect(contadores.get("alertas:2026-11")).toBe(1);
+    expect(contadores.get("envios:2026-11")).toBe(1);
+  });
+
+  it("respeita os tetos e a falha da Meta", async () => {
+    contadores.set("alertas:2026-11", 150);
+    expect(await enviarModeloParaPessoa(vinculo(), "tarde", ["Ana", "x"], AGORA)).toBe(false);
+    expect(m.enviarTemplate).not.toHaveBeenCalled();
+    contadores.clear();
+    m.enviarTemplate.mockResolvedValue({ ok: false, erro: "recusado" });
+    const erro = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(await enviarModeloParaPessoa(vinculo(), "tarde", ["Ana", "x"], AGORA)).toBe(false);
+    erro.mockRestore();
+    expect(contadores.get("envios:2026-11")).toBe(0);
+  });
+
+  it("sem número não envia", async () => {
+    expect(await enviarModeloParaPessoa({ ...vinculo(), whatsapp: null }, "manha", ["Ana", "x"], AGORA)).toBe(false);
+    expect(m.enviarTemplate).not.toHaveBeenCalled();
   });
 });

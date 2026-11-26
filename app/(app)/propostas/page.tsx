@@ -32,7 +32,6 @@ export default async function PropostasPage({ searchParams }: { searchParams: Pr
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-[22px] font-semibold leading-tight text-ink">Propostas</h1>
-          <p className="text-sm text-muted-foreground">Edite, mande para revisão, envie e acompanhe o resultado.</p>
         </div>
         {podeCriar ? (
           <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end max-sm:[&>*]:flex-1">

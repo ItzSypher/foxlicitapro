@@ -29,7 +29,7 @@ import { registrarMensagem } from "@/lib/assistente/limite";
 import { interpretarRota } from "@/lib/assistente/rota";
 import { lerFrente } from "@/lib/frente";
 import { assistenteDisponivel, gerarTexto } from "@/lib/gemini";
-import { enviarResumoAtrasado } from "@/lib/whatsapp-alertas-cron";
+import { enviarAndamentoCompleto, enviarResumoAtrasado, enviarResumoCompleto } from "@/lib/whatsapp-alertas-cron";
 import { enviarFila, enviarParaPessoa } from "@/lib/whatsapp-envio";
 import {
   abrirPropostaPeloWhatsapp,
@@ -56,7 +56,7 @@ const BOTOES_CONFIRMA = [
   { titulo: "Não", payload: "nao" },
 ];
 
-const COMANDOS_LOCAIS = "Comandos: *pipeline*, *prazos*, *analisar <link>*, *gerar N*.";
+const COMANDOS_LOCAIS = "Comandos: *pipeline*, *prazos*, *resumo*, *andamento*, *analisar <link>*, *gerar N*.";
 const AVISO_OCUPADO = "O assistente está ocupado; tente a pergunta de novo em alguns minutos.";
 
 const INSTRUCAO_WHATSAPP =
@@ -265,12 +265,23 @@ async function tratar(msg: MensagemRecebida, agora: Date): Promise<void> {
   const responder = (texto: string, botoes?: ReadonlyArray<{ titulo: string; payload: string }>) =>
     enviarParaPessoa(atual, texto, agora, { resposta: true, ...(botoes ? { botoes } : {}) });
 
+  // "Ver resumo" / "Ver andamento": botão dos modelos (o toque pode chegar como payload ou como o texto do botão).
+  const doBotao = msg.payloadBotao ? lerComando(msg.payloadBotao) : null;
+  const pedeResumo = acao?.tipo === "ver_resumo" || comando.tipo === "ver_resumo" || doBotao?.tipo === "ver_resumo";
+  const pedeAndamento = acao?.tipo === "ver_andamento" || comando.tipo === "ver_andamento" || doBotao?.tipo === "ver_andamento";
+
   const confirmar = acao?.tipo === "confirmar" || (acao === null && comando.tipo === "sim");
   const cancelar = acao?.tipo === "cancelar" || (acao === null && comando.tipo === "nao");
   const continuar = acao?.tipo === "continuar" || (acao === null && comando.tipo === "voltar");
 
   let resumoFeito = false;
-  if (acao?.tipo === "gerar") {
+  if (pedeResumo) {
+    resumoFeito = true;
+    if (!(await enviarResumoCompleto(atual, agora))) await responder("Hoje não tenho novidades para te mostrar. Mande *prazos* ou *pipeline* para ver o que está em andamento.");
+  } else if (pedeAndamento) {
+    resumoFeito = true;
+    if (!(await enviarAndamentoCompleto(atual, agora))) await responder("Ainda não tenho andamento para te mostrar hoje. Mande *prazos* ou *pipeline* para ver o que está em andamento.");
+  } else if (acao?.tipo === "gerar") {
     const r = await gerarPropostaPeloWhatsapp(atual, { itemId: acao.itemId }, agora);
     await responder(r.texto, r.botoes);
   } else if (acao?.tipo === "aprovar") {

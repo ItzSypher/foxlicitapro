@@ -54,7 +54,7 @@ export default async function AcervoPage({ searchParams }: Props) {
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-[22px] font-semibold leading-tight text-ink">Acervo</h1>
-          <p className="text-sm text-muted-foreground">Atestados, notas fiscais, contratos e certidões da empresa, para achar rápido quando uma licitação pedir.</p>
+          <p className="text-sm text-muted-foreground">Atestados, notas, contratos e certidões da empresa.</p>
         </div>
         {podeEditar ? <BotaoAdicionarAcervo /> : null}
       </header>
@@ -67,9 +67,7 @@ export default async function AcervoPage({ searchParams }: Props) {
         <section className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-4 py-10 text-center">
           <FolderArchive aria-hidden="true" className="size-8 text-faint" />
           <p className="text-base font-medium text-ink">Seu acervo está vazio</p>
-          <p className="max-w-[40ch] text-sm text-muted-foreground">
-            Guarde aqui os atestados de capacidade técnica, notas fiscais, contratos e certidões. Quando uma licitação pedir comprovação, o sistema sugere o que serve.
-          </p>
+          <p className="max-w-[40ch] text-sm text-muted-foreground">Guarde foto ou PDF. Quando uma licitação pedir comprovação, o sistema sugere o que serve.</p>
           {podeEditar ? <BotaoAdicionarAcervo rotulo="Adicionar o primeiro documento" /> : null}
         </section>
       ) : (

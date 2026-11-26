@@ -5,7 +5,8 @@ import { resumirObjeto } from "@/core/objeto";
 import type { Semelhante } from "@/core/semelhantes";
 import { formatarMoedaCurta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { Secao } from "./secao";
+import { Pilula } from "@/components/radar/pilula";
+import { Colapsavel } from "./colapsavel";
 
 const data = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
 
@@ -20,18 +21,28 @@ const CLASSE_LINK =
 /** Compras abertas de objeto parecido, em outros órgãos, para reaproveitar a proposta. */
 export function Semelhantes({ itens }: { itens: ReadonlyArray<Semelhante> }) {
   return (
-    <Secao id="semelhantes" titulo="Semelhantes" detalhe="Objeto parecido, em outros órgãos">
+    <Colapsavel
+      id="semelhantes"
+      titulo="Semelhantes"
+      selos={
+        itens.length === 0 ? (
+          <Pilula tom="neutro">Nenhuma aberta</Pilula>
+        ) : (
+          <Pilula tom="positivo">
+            {itens.length} {itens.length === 1 ? "aberta" : "abertas"}
+          </Pilula>
+        )
+      }
+    >
       {itens.length === 0 ? (
-        <p className="rounded-card border border-dashed border-control px-4 py-6 text-center text-sm text-muted-foreground">
-          Nenhuma compra parecida aberta no Radar agora.
-        </p>
+        <p className="text-sm text-muted-foreground">Nenhuma compra parecida aberta no Radar agora.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-card border border-border bg-surface">
+        <ul className="flex flex-col divide-y divide-border">
           {itens.map(({ oportunidade: o }) => {
             const link = linkInternoDaOportunidade(o);
             const titulo = resumirObjeto(o.objeto) || "Contratação sem objeto informado";
             return (
-              <li key={o.id} className="flex min-w-0 flex-col gap-1 px-4 py-3">
+              <li key={o.id} className="flex min-w-0 flex-col gap-1 py-3 first:pt-0 last:pb-0">
                 {link === null ? (
                   <span className="text-[15px] leading-snug font-medium wrap-break-word text-ink">{titulo}</span>
                 ) : link.externo ? (
@@ -56,6 +67,6 @@ export function Semelhantes({ itens }: { itens: ReadonlyArray<Semelhante> }) {
           })}
         </ul>
       )}
-    </Secao>
+    </Colapsavel>
   );
 }

@@ -64,7 +64,7 @@ function textoFalhas(falhas: ReadonlyArray<ModalidadeId>): string | null {
   return null;
 }
 
-type ChaveParametro = "uf" | "modalidade" | "ordem" | "vmin" | "vmax" | "fonte" | "ramo" | "caixa" | "ver" | "pagina" | "aba" | "q" | "pc" | "por";
+type ChaveParametro = "uf" | "modalidade" | "ordem" | "vmin" | "vmax" | "fonte" | "ramo" | "caixa" | "caixaMax" | "ver" | "pagina" | "aba" | "q" | "pc" | "por";
 
 const ATRASO_BUSCA_MS = 300;
 
@@ -281,6 +281,7 @@ export function RadarView({
       ["fonte", null],
       ["ramo", null],
       ["caixa", null],
+      ["caixaMax", null],
       ["pagina", null],
     ]);
   }, [navegar]);
@@ -331,6 +332,16 @@ export function RadarView({
     (ligado: boolean) => {
       navegar([
         ["caixa", ligado ? "1" : null],
+        ["pagina", null],
+      ]);
+    },
+    [navegar],
+  );
+
+  const mudarCaixaMax = useCallback(
+    (valor: number | null) => {
+      navegar([
+        ["caixaMax", valor === null ? null : String(valor)],
         ["pagina", null],
       ]);
     },
@@ -509,6 +520,7 @@ export function RadarView({
                 onFontes={mudarFontes}
                 onTudoDoRamo={mudarTudoDoRamo}
                 onPoucoCaixa={mudarPoucoCaixa}
+                onCaixaMax={mudarCaixaMax}
                 onModalidade={(valor: FiltroModalidade) =>
                   mudarFiltro("modalidade", valor, FILTROS_PADRAO.modalidade)
                 }

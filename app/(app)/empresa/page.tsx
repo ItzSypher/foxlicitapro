@@ -1,12 +1,13 @@
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { ROTULO_PORTE } from "@/core/perfil";
-import { lerAssinatura } from "@/db/empresas";
+import { lerAssinatura, lerComissaoPadrao } from "@/db/empresas";
 import { lerMetaDisputas } from "@/db/meta";
 import { perfilDaEmpresa } from "@/lib/empresa-atual";
 import { exigirSessao } from "@/lib/sessao";
 import { DadosProposta } from "./dados-proposta";
 import { FormularioEmpresa } from "./formulario";
+import { ComissaoPadrao } from "./comissao-padrao";
 import { MetaSemanal } from "./meta-semanal";
 
 export const metadata = { title: "Empresa · FoxLicita Pro" };
@@ -15,7 +16,11 @@ export default async function EmpresaPage() {
   await connection();
   const sessao = await exigirSessao();
   if (sessao.papel !== "dono") redirect("/radar");
-  const [perfil, meta] = await Promise.all([perfilDaEmpresa(sessao.empresaId), lerMetaDisputas(sessao.empresaId)]);
+  const [perfil, meta, comissao] = await Promise.all([
+    perfilDaEmpresa(sessao.empresaId),
+    lerMetaDisputas(sessao.empresaId),
+    lerComissaoPadrao(sessao.empresaId),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-5">
@@ -27,6 +32,7 @@ export default async function EmpresaPage() {
       </header>
       <FormularioEmpresa nomeFantasia={perfil.nomeFantasia} cnaes={perfil.cnaes} areas={perfil.areas} radarTudoDoRamo={perfil.radarTudoDoRamo} foco={perfil.foco} />
       <MetaSemanal minimo={meta.minimo} ideal={meta.ideal} />
+      <ComissaoPadrao percentual={comissao} />
       <DadosProposta
         responsavel={perfil.responsavel}
         representanteCpf={perfil.representanteCpf}

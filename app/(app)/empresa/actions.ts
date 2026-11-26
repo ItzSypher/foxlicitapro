@@ -6,7 +6,8 @@ import { z } from "zod";
 import { normalizarAreas, ufsDeColeta } from "@/core/areas";
 import { LIMITE_FOCO_CARACTERES, LIMITE_FOCO_TERMOS, normalizarFoco } from "@/core/perfil";
 import { acharUf,ufDoCodigoIbge } from "@/core/ufs";
-import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema, lerEmpresa } from "@/db/empresas";
+import { atualizarDadosProposta, atualizarPerfilEmpresa, cnaesSchema, gravarComissaoPadrao, lerEmpresa } from "@/db/empresas";
+import { COMISSAO_MAXIMA, COMISSAO_MINIMA } from "@/core/lucro";
 import { pedirColeta } from "@/lib/coleta-separada";
 import { META_LIMITE } from "@/core/meta";
 import { gravarMetaDisputas } from "@/db/meta";
@@ -122,6 +123,31 @@ export async function salvarMetaSemanalAction(entrada: unknown): Promise<Resulta
     if (!gravou) return { ok: false, erro: "Empresa não encontrada." };
   } catch (e) {
     console.error("[empresa] meta semanal falhou:", e instanceof Error ? e.message : e);
+    return { ok: false, erro: "Não foi possível salvar agora. Tente de novo em instantes." };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+const ComissaoSchema = z.object({
+  percentual: z.number().min(COMISSAO_MINIMA).max(COMISSAO_MAXIMA),
+});
+
+/** Comissão padrão de quem opera as licitações (% do bruto). Só o dono edita, e sempre a empresa da própria sessão. */
+export async function salvarComissaoPadraoAction(entrada: unknown): Promise<ResultadoEmpresa> {
+  let empresaId: string;
+  try {
+    empresaId = (await exigirDono()).empresaId;
+  } catch {
+    return { ok: false, erro: "Só o dono pode fazer isso." };
+  }
+  const lido = ComissaoSchema.safeParse(entrada);
+  if (!lido.success) return { ok: false, erro: `Use uma comissão de ${COMISSAO_MINIMA} a ${COMISSAO_MAXIMA}%.` };
+  try {
+    const gravou = await gravarComissaoPadrao(empresaId, lido.data.percentual);
+    if (!gravou) return { ok: false, erro: "Empresa não encontrada." };
+  } catch (e) {
+    console.error("[empresa] comissão padrão falhou:", e instanceof Error ? e.message : e);
     return { ok: false, erro: "Não foi possível salvar agora. Tente de novo em instantes." };
   }
   revalidatePath("/", "layout");

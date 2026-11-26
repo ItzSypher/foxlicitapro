@@ -23,6 +23,7 @@ import {
   SlidersHorizontal,
   UserRound,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { BotaoSair } from "@/components/botao-sair";
@@ -76,6 +77,8 @@ const RESULTADOS: Destino = {
   somenteResultados: true,
 };
 
+const CAIXA: Destino = { href: "/caixa", rotulo: "Fluxo de caixa", rotuloCurto: "Caixa", icone: Wallet, somentePara: "dono" };
+
 const SECUNDARIOS: ReadonlyArray<Destino> = [
   { href: "/alertas", rotulo: "Alertas", rotuloCurto: "Alertas", icone: BellRing },
   { href: "/preferencias", rotulo: "Preferências", rotuloCurto: "Preferências", icone: SlidersHorizontal },
@@ -96,12 +99,13 @@ const [ALERTAS, PREFERENCIAS, EQUIPE, EMPRESA, EMPRESAS] = SECUNDARIOS;
 /** Grupos da barra lateral, na ordem em que aparecem. */
 const GRUPOS: ReadonlyArray<Grupo> = [
   { id: "trabalho", rotulo: "Trabalho", destinos: [RADAR, PIPELINE, ENCERRADAS, PROPOSTAS, CALCULADORA, FORNECEDORES, ACERVO, ATESTADOS, RESULTADOS] },
+  { id: "dinheiro", rotulo: "Dinheiro", destinos: [CAIXA] },
   { id: "equipe", rotulo: "Equipe e empresa", destinos: [EQUIPE, EMPRESA, ALERTAS, PREFERENCIAS] },
   { id: "admin", rotulo: "Admin", destinos: [EMPRESAS] },
 ];
 
 /** Páginas que ficam atrás do botão "Mais" no celular. */
-const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/acervo", "/atestados", "/resultados", "/alertas", "/preferencias", "/equipe", "/empresa", "/admin"];
+const AREAS_MAIS: ReadonlyArray<string> = ["/conselheiro", "/encerradas", "/fornecedores", "/acervo", "/atestados", "/resultados", "/caixa", "/alertas", "/preferencias", "/equipe", "/empresa", "/admin"];
 
 export interface UsuarioNav {
   /** Identifica a pessoa para lembrar, neste aparelho, o que ela já viu */
@@ -303,16 +307,12 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
   const [aberto, setAberto] = useState(false);
   const ativo = AREAS_MAIS.some((base) => caminho === base || caminho.startsWith(`${base}/`)) || caminho.startsWith("/equipe");
   const { usuario } = dados;
-  const itens: Destino[] = [
-    CONSELHEIRO,
-    ENCERRADAS,
-    FORNECEDORES,
-    ACERVO,
-    ATESTADOS,
-    ...visiveis([RESULTADOS], usuario),
-    ...visiveis(SECUNDARIOS, usuario),
-    { href: "/equipe/conta", rotulo: "Minha conta", rotuloCurto: "Conta", icone: UserRound },
-    { href: "/documentacao", rotulo: "Documentação", rotuloCurto: "Docs", icone: BookOpen },
+  const conta: Destino = { href: "/equipe/conta", rotulo: "Minha conta", rotuloCurto: "Conta", icone: UserRound };
+  const grupos: ReadonlyArray<{ id: string; rotulo: string; itens: Destino[] }> = [
+    { id: "trabalho", rotulo: "Trabalho", itens: [CONSELHEIRO, ENCERRADAS, FORNECEDORES, ACERVO, ATESTADOS, ...visiveis([RESULTADOS], usuario)] },
+    { id: "dinheiro", rotulo: "Dinheiro", itens: visiveis([CAIXA], usuario) },
+    { id: "conta", rotulo: "Conta", itens: [...visiveis(SECUNDARIOS, usuario), conta] },
+    { id: "ajuda", rotulo: "Ajuda", itens: [{ href: "/documentacao", rotulo: "Documentação", rotuloCurto: "Docs", icone: BookOpen }] },
   ];
   return (
     <>
@@ -332,27 +332,40 @@ function MenuMais({ caminho, dados }: { caminho: string; dados: DadosNav }) {
             <SheetTitle>{usuario ? usuario.nome : "Menu"}</SheetTitle>
             <SheetDescription>{usuario ? rotuloPapel(usuario.papel) : "FoxLicita Pro"}</SheetDescription>
           </SheetHeader>
-          <nav aria-label="Mais opções" className="flex flex-col gap-1 px-4 pb-4">
-            {itens.map((d) => {
-              const Icone = d.icone;
-              return (
-                <Link
-                  key={d.href}
-                  href={d.href}
-                  onClick={() => setAberto(false)}
-                  className="flex h-12 items-center gap-3 rounded-control px-3 text-sm text-ink outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand"
-                >
-                  <Icone className="size-[18px]" aria-hidden="true" />
-                  {d.rotulo}
-                </Link>
-              );
-            })}
-            {usuario ? <BotaoTourTela caminho={caminho} aoAbrir={() => setAberto(false)} className="h-12 text-ink" /> : null}
-            {usuario && podeFazerTour(usuario.papel) ? (
-              <BotaoTour aoAbrir={() => setAberto(false)} className="h-12 text-ink" />
-            ) : null}
-            <TemaToggle modo="completo" className="h-12 text-ink" />
-            <BotaoSair modo="completo" className="h-12 text-ink" />
+          <nav aria-label="Mais opções" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            {grupos.map((g) =>
+              g.itens.length === 0 ? null : (
+                <section key={g.id} aria-labelledby={`mais-${g.id}`} className="flex flex-col">
+                  <h3 id={`mais-${g.id}`} className="px-3 pb-1 text-xs font-medium tracking-[0.08em] text-faint uppercase">
+                    {g.rotulo}
+                  </h3>
+                  {g.itens.map((d) => {
+                    const Icone = d.icone;
+                    return (
+                      <Link
+                        key={d.href}
+                        href={d.href}
+                        onClick={() => setAberto(false)}
+                        className="flex h-11 items-center gap-3 rounded-control px-3 text-sm text-ink outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-brand"
+                      >
+                        <Icone className="size-[18px]" aria-hidden="true" />
+                        {d.rotulo}
+                      </Link>
+                    );
+                  })}
+                  {g.id === "ajuda" ? (
+                    <>
+                      {usuario ? <BotaoTourTela caminho={caminho} aoAbrir={() => setAberto(false)} className="h-11 text-ink" /> : null}
+                      {usuario && podeFazerTour(usuario.papel) ? (
+                        <BotaoTour aoAbrir={() => setAberto(false)} className="h-11 text-ink" />
+                      ) : null}
+                      <TemaToggle modo="completo" className="h-11 text-ink" />
+                    </>
+                  ) : null}
+                </section>
+              ),
+            )}
+            <BotaoSair modo="completo" className="h-11 border-t border-border text-ink" />
           </nav>
         </SheetContent>
       </Sheet>

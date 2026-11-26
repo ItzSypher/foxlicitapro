@@ -204,19 +204,24 @@ export function Logica() {
           Cada licitação mostra o caminho do dinheiro: empenho, ordem de fornecimento ou de serviço, entrega, atesto e pagamento, com os
           dias sem receber e o caixa estimado. No Radar, o selo <strong className="font-semibold text-ink">Pouco caixa</strong> marca o que
           dá para atender sem comprar mercadoria antes (por exemplo, site e serviços feitos à distância), e o filtro de mesmo nome mostra só
-          essas.
+          essas. O filtro <strong className="font-semibold text-ink">Caixa até</strong> mostra só o que cabe no dinheiro que a empresa tem.
+        </p>
+        <p>
+          A licitação abre com os números: valor, preço alvo, caixa e dias sem receber. O dono vê também o lucro ou prejuízo já
+          descontando a comissão de quem opera, e o preço mínimo sem prejuízo. O fluxo de caixa mostra o que cada licitação ganha deve
+          pagar e quando, o que já entrou e o saldo do mês.
         </p>
       </Cartao>
 
       <Cartao titulo="Regra de 24 horas do WhatsApp" icone={Clock}>
         <p>
           O WhatsApp só permite texto livre até 24 horas depois da última mensagem da pessoa. Por isso, com a conversa fechada, o resumo
-          das 7h sai como um aviso curto; se ele não for entregue, o resumo do dia vai junto na primeira mensagem que a pessoa mandar.
+          das 7h e o andamento das 15h saem como um aviso curto aprovado pelo WhatsApp, com um botão; ao tocar, o texto completo chega.
           A tela Alertas mostra a situação de cada pessoa.
         </p>
         <p>
-          Só há dois tipos de aviso: o resumo das 7h e o prazo urgente (2 horas e 24 horas antes). Quem cuida de várias empresas recebe
-          uma mensagem só, com um bloco por empresa.
+          Às 7h a equipe confirma o dia; às 15h vê o andamento: o que andou, o que ainda fecha hoje ou amanhã sem proposta e a meta.
+          Prazos urgentes (2 horas e 24 horas antes) saem com a conversa aberta e, fechada, entram no próximo resumo.
         </p>
       </Cartao>
     </Secao>
@@ -307,7 +312,7 @@ export function Operacao() {
           itens={[
             <>
               <strong className="font-semibold text-ink">Gestor:</strong> lê o resumo das 7h, responde <Codigo>gerar 1</Codigo> para
-              receber o rascunho, revisa, sobe para aprovação e acompanha a faixa do que fecha hoje.
+              receber o rascunho, revisa, sobe para aprovação e acompanha a faixa do que fecha hoje. Às 15h confere o andamento.
             </>,
             <>
               <strong className="font-semibold text-ink">Dono:</strong> recebe o aviso de cada proposta com o link, lê, aprova com um toque e

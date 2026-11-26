@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
@@ -42,6 +42,60 @@ const OPCOES_VISTA: ReadonlyArray<{ valor: VistaPipeline; rotulo: string }> = [
   { valor: "quadro", rotulo: "Quadro" },
   { valor: "prazo", rotulo: "Por prazo" },
 ];
+
+const CHAVE_PREFERENCIA = "foxlicita:pipeline-preferencia";
+const EVENTO_PREFERENCIA = "foxlicita:pipeline-preferencia-mudou";
+
+interface PreferenciaPipeline {
+  vista: VistaPipeline;
+  soMeus: boolean;
+}
+
+function lerPreferenciaBruta(): string {
+  try {
+    return window.localStorage.getItem(CHAVE_PREFERENCIA) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function assinarPreferencia(aviso: () => void): () => void {
+  window.addEventListener("storage", aviso);
+  window.addEventListener(EVENTO_PREFERENCIA, aviso);
+  return () => {
+    window.removeEventListener("storage", aviso);
+    window.removeEventListener(EVENTO_PREFERENCIA, aviso);
+  };
+}
+
+function interpretarPreferencia(bruto: string): PreferenciaPipeline | null {
+  if (bruto === "") return null;
+  try {
+    const dados: unknown = JSON.parse(bruto);
+    if (typeof dados !== "object" || dados === null) return null;
+    const vista: unknown = Reflect.get(dados, "vista");
+    const soMeus: unknown = Reflect.get(dados, "soMeus");
+    if ((vista !== "quadro" && vista !== "prazo") || typeof soMeus !== "boolean") return null;
+    return { vista, soMeus };
+  } catch {
+    return null;
+  }
+}
+
+/** Vista e "Só os meus" lembrados neste aparelho; null sem escolha guardada ou com o armazenamento bloqueado. */
+function usePreferenciaGuardada(ativa: boolean): PreferenciaPipeline | null {
+  const bruto = useSyncExternalStore(assinarPreferencia, lerPreferenciaBruta, () => "");
+  return ativa ? interpretarPreferencia(bruto) : null;
+}
+
+function guardarPreferencia(p: PreferenciaPipeline) {
+  try {
+    window.localStorage.setItem(CHAVE_PREFERENCIA, JSON.stringify(p));
+  } catch {
+    // Armazenamento bloqueado: a escolha só não fica lembrada.
+  }
+  window.dispatchEvent(new Event(EVENTO_PREFERENCIA));
+}
 
 function atualizarUrl(mudancas: Record<string, string | null>) {
   const params = new URLSearchParams(window.location.search);
@@ -92,11 +146,13 @@ interface Props {
   podeEditar: boolean;
   /** Pode marcar o checklist da revisão jurídica */
   podeRevisar: boolean;
+  /** Dono vê o Pipeline como sempre; quem opera abre em "Por prazo" com "Só os meus" */
+  ehDono: boolean;
   /** Meta da semana; null quando não foi possível ler */
   meta: PainelMeta | null;
 }
 
-export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, ufInicial, vistaInicial, ufsDasAreas, agoraInicial, usuarioId, pessoas, podeCriarProposta, podeEditar, podeRevisar, meta }: Props) {
+export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, ufInicial, vistaInicial, ufsDasAreas, agoraInicial, usuarioId, pessoas, podeCriarProposta, podeEditar, podeRevisar, ehDono, meta }: Props) {
   if (itensServidor === null) {
     return (
       <div data-largura-total className="flex flex-col gap-4 lg:gap-6">
@@ -119,6 +175,7 @@ export function PipelineView({ itens: itensServidor, encerradas, etapaInicial, u
       podeCriarProposta={podeCriarProposta}
       podeEditar={podeEditar}
       podeRevisar={podeRevisar}
+      ehDono={ehDono}
       meta={meta}
     />
   );
@@ -137,6 +194,7 @@ function Quadro({
   podeCriarProposta,
   podeEditar,
   podeRevisar,
+  ehDono,
   meta,
 }: {
   itensServidor: ItemPipeline[];
@@ -151,13 +209,18 @@ function Quadro({
   podeCriarProposta: boolean;
   podeEditar: boolean;
   podeRevisar: boolean;
+  ehDono: boolean;
   /** Meta da semana; null quando não foi possível ler */
   meta: PainelMeta | null;
 }) {
   const [todos, aplicar] = useOptimistic(itensServidor, reduzir);
-  const [soMeus, setSoMeus] = useState(false);
   const [uf, setUf] = useState<FiltroUfPipeline>(ufInicial);
-  const [vista, setVista] = useState<VistaPipeline>(vistaInicial);
+  // Quem opera (gestor) abre em "Por prazo" com "Só os meus" ligado, até escolher outra coisa neste aparelho.
+  const guardada = usePreferenciaGuardada(!ehDono);
+  const [vistaEscolhida, setVistaEscolhida] = useState<VistaPipeline | null>(null);
+  const [soMeusEscolhido, setSoMeusEscolhido] = useState<boolean | null>(null);
+  const vista: VistaPipeline = vistaEscolhida ?? (ehDono || vistaInicial === "prazo" ? vistaInicial : (guardada?.vista ?? "prazo"));
+  const soMeus: boolean = soMeusEscolhido ?? (ehDono ? false : (guardada?.soMeus ?? true));
   const agora = useAgora(null, agoraInicial);
   const [abertas, setAbertas] = useState<ReadonlySet<EtapaId>>(() => new Set());
   const [bordas, setBordas] = useState({ esquerda: false, direita: false });
@@ -262,8 +325,14 @@ function Quadro({
   }
 
   function escolherVista(nova: VistaPipeline) {
-    setVista(nova);
+    setVistaEscolhida(nova);
     atualizarUrl({ vista: nova === "prazo" ? "prazo" : null });
+    if (!ehDono) guardarPreferencia({ vista: nova, soMeus });
+  }
+
+  function escolherSoMeus(novo: boolean) {
+    setSoMeusEscolhido(novo);
+    if (!ehDono) guardarPreferencia({ vista, soMeus: novo });
   }
 
   function escolherUf(id: FiltroUfPipeline) {
@@ -471,7 +540,7 @@ function Quadro({
             <button
               type="button"
               aria-pressed={soMeus}
-              onClick={() => setSoMeus((v) => !v)}
+              onClick={() => escolherSoMeus(!soMeus)}
               className={classeItemSegmentado(soMeus)}
             >
               Só os meus

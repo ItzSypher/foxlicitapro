@@ -26,6 +26,8 @@ const m = vi.hoisted(() => ({
   lerPreferencias: vi.fn(),
   entregarAlertasWa: vi.fn(),
   enviarParaPessoa: vi.fn(),
+  enviarModeloParaPessoa: vi.fn(),
+  modelosResumoLigados: vi.fn<() => boolean>(),
   lerMetaDisputas: vi.fn(),
   lerGanhosDaSemana: vi.fn(),
   listarPropostas: vi.fn(),
@@ -55,12 +57,19 @@ vi.mock("@/db/propostas", () => ({ listarPropostas: m.listarPropostas, listarMov
 vi.mock("@/db/meta", () => ({ lerMetaDisputas: m.lerMetaDisputas, lerGanhosDaSemana: m.lerGanhosDaSemana }));
 vi.mock("@/db/preferencias", () => ({ lerPreferencias: m.lerPreferencias }));
 vi.mock("@/lib/radar-dados", () => ({ obterRadar: vi.fn() }));
-vi.mock("@/lib/whatsapp-envio", () => ({ entregarAlertasWa: m.entregarAlertasWa, enviarParaPessoa: m.enviarParaPessoa }));
+vi.mock("@/lib/whatsapp-envio", () => ({
+  entregarAlertasWa: m.entregarAlertasWa,
+  enviarParaPessoa: m.enviarParaPessoa,
+  enviarModeloParaPessoa: m.enviarModeloParaPessoa,
+  modelosResumoLigados: m.modelosResumoLigados,
+}));
 
-import { enviarResumoAtrasado, executarAlertasWa, garantirWebhookConfigurado } from "./whatsapp-alertas-cron";
+import { enviarAndamentoCompleto, enviarResumoAtrasado, enviarResumoCompleto, executarAlertasWa, garantirWebhookConfigurado } from "./whatsapp-alertas-cron";
 
 /** 10h UTC = 7h em São Paulo */
 const SETE_DA_MANHA = new Date("2026-11-16T10:00:00Z");
+/** 18h UTC = 15h em São Paulo */
+const TRES_DA_TARDE = new Date("2026-11-16T18:00:00Z");
 /** 8h UTC = 5h em São Paulo */
 const MADRUGADA = new Date("2026-11-16T08:00:00Z");
 /** 13h UTC = 10h em São Paulo */
@@ -68,6 +77,10 @@ const DEZ_DA_MANHA = new Date("2026-11-16T13:00:00Z");
 
 const EMPRESA = "11111111-1111-4111-8111-111111111111";
 const USUARIO = "22222222-2222-4222-8222-222222222222";
+
+function fechada(agora: Date) {
+  return { ...vinculo(agora), ultimaEntrada: new Date(agora.getTime() - 30 * 3_600_000) };
+}
 
 function vinculo(agora: Date, papel: "dono" | "gestor" = "dono") {
   return {
@@ -118,6 +131,8 @@ beforeEach(() => {
   m.lerPreferencias.mockResolvedValue({});
   m.entregarAlertasWa.mockResolvedValue({ novos: 0, enviados: 0 });
   m.enviarParaPessoa.mockResolvedValue(true);
+  m.enviarModeloParaPessoa.mockResolvedValue(true);
+  m.modelosResumoLigados.mockReturnValue(false);
   m.lerMetaDisputas.mockResolvedValue({ minimo: 5, ideal: 10 });
   m.lerGanhosDaSemana.mockResolvedValue({ disputadas: 0, valorDisputadas: 0, estimadoDisputadas: false, vencidas: 0, valorVencidas: 0, estimadoVencidas: false });
   m.listarPropostas.mockResolvedValue([]);
@@ -228,16 +243,57 @@ describe("executarAlertasWa", () => {
     expect(texto).toContain("⏰ Fecham em 48 h: 1");
     expect(texto).toContain("📌 Para você: 1");
     expect(texto).not.toContain("⏰ prazo");
-    expect(m.marcarEnviados).toHaveBeenCalledWith(["a1"], SETE_DA_MANHA);
+    expect(m.marcarEnviados).toHaveBeenCalledWith(["a1", "p1"], SETE_DA_MANHA);
   });
 
-  it("com a janela fechada, o resumo da manhã é pedido como mensagem utilitária", async () => {
-    m.listarVinculosAtivos.mockImplementation(async () => [
-      { ...vinculo(SETE_DA_MANHA), ultimaEntrada: new Date(SETE_DA_MANHA.getTime() - 30 * 3_600_000) },
-    ]);
+  it("com a janela fechada e sem modelos, o resumo da manhã não sai (nem como texto livre) e fica para quando a pessoa escrever", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [fechada(SETE_DA_MANHA)]);
+    const r = await executarAlertasWa(SETE_DA_MANHA);
+    expect(r.resumos).toBe(0);
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+    expect(m.enviarModeloParaPessoa).not.toHaveBeenCalled();
+    expect(m.gravarConfig).not.toHaveBeenCalledWith(`manha:${USUARIO}:2026-11-16`, expect.anything());
+  });
+
+  it("com a janela fechada e os modelos ligados, o resumo das 7h vai pelo modelo com o nome e uma linha curta", async () => {
+    m.modelosResumoLigados.mockReturnValue(true);
+    m.listarVinculosAtivos.mockImplementation(async () => [{ ...fechada(SETE_DA_MANHA), escolhas: escolhasDoPerfil("operacional") }]);
+    m.listarPendentes.mockResolvedValue([{ id: "a1", tipo: "aviso", texto: "📝 Proposta para revisar", itemId: null }]);
+    const r = await executarAlertasWa(SETE_DA_MANHA);
+    expect(r.resumos).toBe(1);
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+    expect(m.enviarModeloParaPessoa).toHaveBeenCalledTimes(1);
+    const [, modelo, parametros] = m.enviarModeloParaPessoa.mock.calls[0] as [unknown, string, string[]];
+    expect(modelo).toBe("manha");
+    expect(parametros[0]).toBe("Pessoa");
+    expect(parametros[1]).toContain("1 aviso");
+    expect(parametros[1]).toContain("meta 0 de 5");
+    expect(parametros[1]).not.toMatch(/[\n\t]| {2}/);
+    expect(m.gravarConfig).toHaveBeenCalledWith(`manha:${USUARIO}:2026-11-16`, SETE_DA_MANHA.toISOString());
+    // A fila só sai quando a pessoa tocar "Ver resumo"
+    expect(m.marcarEnviados).not.toHaveBeenCalled();
+    expect(m.registrarEnviados).not.toHaveBeenCalled();
+
+    await executarAlertasWa(new Date(SETE_DA_MANHA.getTime() + 600_000));
+    expect(m.enviarModeloParaPessoa).toHaveBeenCalledTimes(1);
+  });
+
+  it("com a janela aberta, mesmo com os modelos ligados, o resumo vai por texto completo", async () => {
+    m.modelosResumoLigados.mockReturnValue(true);
+    m.listarVinculosAtivos.mockImplementation(async () => [vinculo(SETE_DA_MANHA)]);
     await executarAlertasWa(SETE_DA_MANHA);
+    expect(m.enviarModeloParaPessoa).not.toHaveBeenCalled();
     expect(m.enviarParaPessoa).toHaveBeenCalledTimes(1);
-    expect(m.enviarParaPessoa.mock.calls[0]?.[3]).toMatchObject({ utilidade: true });
+    expect(m.enviarParaPessoa.mock.calls[0]?.[3]).not.toHaveProperty("utilidade");
+  });
+
+  it("modelo recusado pela Meta: não grava o envio", async () => {
+    m.modelosResumoLigados.mockReturnValue(true);
+    m.enviarModeloParaPessoa.mockResolvedValue(false);
+    m.listarVinculosAtivos.mockImplementation(async () => [fechada(SETE_DA_MANHA)]);
+    const r = await executarAlertasWa(SETE_DA_MANHA);
+    expect(r.resumos).toBe(0);
+    expect(m.gravarConfig).not.toHaveBeenCalledWith(`manha:${USUARIO}:2026-11-16`, expect.anything());
   });
 
   it("falha numa empresa não derruba as outras", async () => {
@@ -430,5 +486,103 @@ describe("resumo atrasado", () => {
     expect(await enviarResumoAtrasado(v, DEPOIS)).toBe(false);
     expect(m.gravarConfig).not.toHaveBeenCalledWith(`manha:${USUARIO}:2026-11-16`, expect.anything());
     expect(m.gravarConfig).toHaveBeenCalledWith(`atrasado:${USUARIO}:2026-11-16`, DEPOIS.toISOString());
+  });
+});
+
+describe("tocar em Ver resumo", () => {
+  it("manda o resumo completo e tira os avisos e prazos da fila, mesmo com o das 7h já registrado", async () => {
+    m.lerConfig.mockImplementation(async (chave) => (chave.startsWith("manha:") ? "2026-11-16T10:00:00Z" : null));
+    m.listarPipeline.mockResolvedValue([
+      { id: "item-1", etapa: "cotando", responsavelId: null, item: { objeto: "Toner", dataEncerramento: new Date(DEZ_DA_MANHA.getTime() + 30 * 3_600_000).toISOString() } },
+    ]);
+    m.listarPendentes.mockResolvedValue([
+      { id: "a1", tipo: "aviso", texto: "📝 Proposta para revisar", itemId: null },
+      { id: "p1", tipo: "prazo24", texto: "⏰ prazo", itemId: "item-1" },
+    ]);
+    const v = vinculo(DEZ_DA_MANHA, "gestor");
+    expect(await enviarResumoCompleto(v, DEZ_DA_MANHA)).toBe(true);
+    expect(m.enviarModeloParaPessoa).not.toHaveBeenCalled();
+    const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
+    expect(texto).toContain("📌 Para você: 1");
+    expect(texto).toContain("⏰ Fecham em 48 h: 1");
+    expect(m.enviarParaPessoa.mock.calls[0]?.[3]).toMatchObject({ resposta: true });
+    expect(m.marcarEnviados).toHaveBeenCalledWith(["a1", "p1"], DEZ_DA_MANHA);
+  });
+
+  it("sem nada a dizer, devolve falso", async () => {
+    const v = { ...vinculo(DEZ_DA_MANHA, "gestor"), escolhas: { ...escolhasDoPerfil("operacional"), meta: false, novas: false, grandes: false, pendencias: false, fechando: false, aguardando: false } };
+    expect(await enviarResumoCompleto(v, DEZ_DA_MANHA)).toBe(false);
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+  });
+});
+
+describe("andamento das 15h", () => {
+  const dia = "2026-11-16";
+
+  it("sai às 15h com a janela aberta, em texto completo, uma vez por dia", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [vinculo(TRES_DA_TARDE, "gestor")]);
+    m.listarMovimentosDePropostas.mockResolvedValue([
+      { propostaId: "p1", objeto: "Toner", acao: "enviou", porId: "paulo", porNome: "Paulo", total: 8000 },
+    ]);
+    m.listarMudancasDesde.mockResolvedValue([
+      { historicoId: "h1", itemId: "item-1", objeto: "Notebooks", de: "cotando", para: "proposta", porId: USUARIO, responsavelId: null },
+    ]);
+    const r = await executarAlertasWa(TRES_DA_TARDE);
+    expect(r.resumos).toBe(1);
+    expect(m.enviarParaPessoa).toHaveBeenCalledTimes(1);
+    const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
+    expect(texto).toContain("📊 Andamento do dia, Pessoa");
+    expect(texto).toContain("✅ Propostas hoje: 1 enviada");
+    expect(texto).toContain("✅ Mudaram de etapa: 1");
+    expect(m.gravarConfig).toHaveBeenCalledWith(`tarde:${USUARIO}:${dia}`, TRES_DA_TARDE.toISOString());
+    // propostas e mudanças são lidas desde o início do dia (0h em São Paulo)
+    expect(m.listarMovimentosDePropostas).toHaveBeenCalledWith(EMPRESA, new Date("2026-11-16T03:00:00.000Z"));
+
+    await executarAlertasWa(new Date(TRES_DA_TARDE.getTime() + 600_000));
+    expect(m.enviarParaPessoa).toHaveBeenCalledTimes(1);
+  });
+
+  it("não roda fora das 15h", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [vinculo(DEZ_DA_MANHA, "gestor")]);
+    await executarAlertasWa(DEZ_DA_MANHA);
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+    expect(m.enviarModeloParaPessoa).not.toHaveBeenCalled();
+  });
+
+  it("janela fechada: só com os modelos ligados, pelo modelo da tarde com uma linha curta", async () => {
+    m.listarVinculosAtivos.mockImplementation(async () => [fechada(TRES_DA_TARDE)]);
+    await executarAlertasWa(TRES_DA_TARDE);
+    expect(m.enviarModeloParaPessoa).not.toHaveBeenCalled();
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+
+    m.modelosResumoLigados.mockReturnValue(true);
+    m.listarMovimentosDePropostas.mockResolvedValue([
+      { propostaId: "p1", objeto: "Toner", acao: "gerou", porId: "paulo", porNome: "Paulo", total: 8000 },
+    ]);
+    const r = await executarAlertasWa(TRES_DA_TARDE);
+    expect(r.resumos).toBe(1);
+    expect(m.enviarParaPessoa).not.toHaveBeenCalled();
+    const [, modelo, parametros] = m.enviarModeloParaPessoa.mock.calls[0] as [unknown, string, string[]];
+    expect(modelo).toBe("tarde");
+    expect(parametros[0]).toBe("Pessoa");
+    expect(parametros[1]).toContain("propostas: 1 gerada");
+    expect(parametros[1].length).toBeLessThanOrEqual(180);
+    expect(m.gravarConfig).toHaveBeenCalledWith(`tarde:${USUARIO}:${dia}`, TRES_DA_TARDE.toISOString());
+  });
+
+  it("Ver andamento manda o texto completo e tira da fila os avisos e prazos que ele cobre", async () => {
+    m.listarPipeline.mockResolvedValue([
+      { id: "item-1", etapa: "cotando", responsavelId: null, item: { objeto: "Toner", dataEncerramento: new Date(TRES_DA_TARDE.getTime() + 5 * 3_600_000).toISOString() } },
+    ]);
+    m.listarPendentes.mockResolvedValue([
+      { id: "a1", tipo: "aviso", texto: "📝 Proposta para revisar", itemId: null },
+      { id: "p1", tipo: "prazo24", texto: "⏰ prazo", itemId: "item-1" },
+    ]);
+    const v = fechada(TRES_DA_TARDE);
+    expect(await enviarAndamentoCompleto({ ...v, ultimaEntrada: TRES_DA_TARDE, escolhas: escolhasDoPerfil("operacional") }, TRES_DA_TARDE)).toBe(true);
+    const texto = String(m.enviarParaPessoa.mock.calls[0]?.[1]);
+    expect(texto).toContain("⏰ Prazos que ficaram sem aviso: 1\n• Toner (em 5 h)");
+    expect(texto).toContain("📌 Para você: 1");
+    expect(m.marcarEnviados).toHaveBeenCalledWith(["a1", "p1"], TRES_DA_TARDE);
   });
 });

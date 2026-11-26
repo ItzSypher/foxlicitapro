@@ -1,9 +1,8 @@
-import Image from "next/image";
 import { dataPorExtenso } from "@/core/proposta";
 import { formatarCnpj } from "@/core/brasilapi";
 import { paragrafosDoTexto } from "@/core/atestados";
 import { formatarDataHoraBrasilia } from "@/core/datas-edital";
-import { enderecoCompleto, type Emitente } from "@/core/proposta-emitente";
+import type { Emitente } from "@/core/proposta-emitente";
 
 const diaBrasilia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" });
 
@@ -29,7 +28,7 @@ export interface AssinaturaDocumento {
 
 /**
  * Documento do atestado: A4, margens de 20 mm, preto no branco em qualquer tema.
- * Timbre da empresa que prestou o serviço; o cliente assina embaixo.
+ * Cabeçalho com os dados do cliente que atesta, sem logo; o cliente assina embaixo.
  * Usado na prévia, na página pública, na impressão e no PDF.
  */
 export function DocumentoAtestado({
@@ -51,16 +50,11 @@ export function DocumentoAtestado({
       className="doc-folha box-border w-[210mm] min-h-[297mm] bg-white p-[20mm] font-sans text-[11pt] leading-[1.5] text-black shadow-lg [print-color-adjust:exact]"
       style={{ colorScheme: "light" }}
     >
-      <div className="flex items-center gap-4 border-b border-black pb-3">
-        <Image src="/raposa.svg" alt="" width={249} height={254} unoptimized className="h-[14mm] w-auto shrink-0" />
-        <div className="min-w-0 text-[9pt] leading-snug">
-          <p className="text-[11pt] font-bold">{emitente.razaoSocial}</p>
-          <p>CNPJ {emitente.cnpj}</p>
-          <p>{enderecoCompleto(emitente)}</p>
-          {(emitente.telefone !== "" || emitente.email !== "") && (
-            <p>{[emitente.telefone, emitente.email].filter((p) => p !== "").join(" · ")}</p>
-          )}
-        </div>
+      {/* Sem logo: quem atesta é o cliente, então o cabeçalho é dele. A empresa atestada aparece no texto. */}
+      <div className="border-b border-black pb-3 text-[9pt] leading-snug">
+        <p className="text-[11pt] font-bold">{dados.clienteNome}</p>
+        {dados.clienteCnpj ? <p>CNPJ {formatarCnpj(dados.clienteCnpj)}</p> : null}
+        {dados.clienteEndereco ? <p>{dados.clienteEndereco}</p> : null}
       </div>
 
       <h1 className="doc-titulo mt-8 text-center text-[14pt] font-bold tracking-wide">ATESTADO DE CAPACIDADE TÉCNICA</h1>

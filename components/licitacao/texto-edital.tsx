@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Secao } from "./secao";
+import { Pilula } from "@/components/radar/pilula";
+import { Colapsavel } from "./colapsavel";
 
 const LIMITE = 700;
 
@@ -28,16 +29,25 @@ function TextoLongo({ rotulo, texto }: { rotulo: string; texto: string }) {
   );
 }
 
-/** Objeto original completo e informação complementar, com "ver mais" quando longos. */
+/** Objeto original completo e informação complementar, com "ver mais" quando longos. Começa recolhido. */
 export function TextoEdital({ objeto, informacaoComplementar }: { objeto: string; informacaoComplementar: string | null }) {
   return (
-    <Secao id="texto" titulo="Texto do edital">
-      <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4">
+    <Colapsavel
+      id="texto"
+      titulo="Texto do edital"
+      selos={
+        <>
+          <Pilula tom="neutro">Objeto</Pilula>
+          {informacaoComplementar ? <Pilula tom="neutro">Informação complementar</Pilula> : null}
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
         <TextoLongo rotulo="Objeto" texto={objeto || "Não informado."} />
         {informacaoComplementar ? (
           <TextoLongo rotulo="Informação complementar" texto={informacaoComplementar} />
         ) : null}
       </div>
-    </Secao>
+    </Colapsavel>
   );
 }

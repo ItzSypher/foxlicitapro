@@ -321,12 +321,13 @@ export const MAX_PROPOSTAS_DO_DIA = 3;
 /**
  * Itens que pedem proposta hoje: etapas anteriores à disputa, sem proposta aprovada, pronta ou enviada
  * (`comProposta`: ids dos itens que já têm), que fecham hoje ou amanhã (dia de São Paulo) e ainda não fecharam.
- * O mais próximo de fechar vem primeiro; no máximo 3.
+ * O mais próximo de fechar vem primeiro; no máximo `limite` (padrão 3).
  */
 export function escolherPropostasDoDia(
   itens: ReadonlyArray<ItemAlerta>,
   comProposta: ReadonlySet<string>,
   agora: Date,
+  limite: number = MAX_PROPOSTAS_DO_DIA,
 ): PropostaDoDia[] {
   const hoje = diaDeSaoPaulo(agora);
   const amanha = diaDeSaoPaulo(new Date(agora.getTime() + 24 * MS_HORA));
@@ -339,7 +340,7 @@ export function escolherPropostasDoDia(
       return dia === hoje || dia === amanha;
     })
     .sort((a, b) => a.fim - b.fim || a.item.id.localeCompare(b.item.id))
-    .slice(0, MAX_PROPOSTAS_DO_DIA)
+    .slice(0, limite)
     .map((x) => ({ itemId: x.item.id, objeto: x.item.objeto, valor: x.item.valor ?? null, dataEncerramento: x.item.dataEncerramento }));
 }
 
@@ -348,11 +349,11 @@ export function chavePropostasDoDia(usuarioId: string, dia: string): string {
   return `propdia:${usuarioId}:${dia}`;
 }
 
-/** Movimento de proposta (gerada, aprovada ou enviada) nas últimas 24 h. */
+/** Movimento de proposta (gerada, aprovada, enviada ou devolvida). */
 export interface MovimentoProposta {
   propostaId: string;
   objeto: string;
-  acao: "gerou" | "aprovou" | "enviou";
+  acao: "gerou" | "aprovou" | "enviou" | "devolveu";
   porId: string | null;
   porNome: string | null;
   /** Em reais */
@@ -699,6 +700,184 @@ export function juntarResumos(nome: string, blocos: ReadonlyArray<BlocoResumo>, 
   return cortar([saudacao, ...textos].join("\n\n"), max);
 }
 
+/* ---------- modelos aprovados (janela fechada) ---------- */
+
+/** Nomes dos modelos utilitários da Meta; as variáveis WA_TEMPLATE_RESUMO_7H e WA_TEMPLATE_ANDAMENTO_15H sobrescrevem. */
+export const MODELO_RESUMO_7H = "foxlicita_resumo_7h";
+export const MODELO_ANDAMENTO_15H = "foxlicita_andamento_15h";
+/** A Meta recusa parâmetro longo demais; ficamos bem abaixo do limite. */
+export const MAX_PARAMETRO_MODELO = 180;
+
+export type CanalDeEnvio = "texto" | "modelo" | "nenhum";
+
+/** Janela aberta: texto completo. Fechada: só modelo aprovado, e só com os modelos ligados. */
+export function escolherCanal(aberta: boolean, modelosLigados: boolean): CanalDeEnvio {
+  if (aberta) return "texto";
+  return modelosLigados ? "modelo" : "nenhum";
+}
+
+/** Parâmetro de modelo: sem quebra de linha, tab nem espaço repetido, nunca vazio, curto. */
+export function parametroDoModelo(texto: string): string {
+  const limpo = texto.replace(/\s+/g, " ").trim();
+  return limpo === "" ? "sem novidades" : cortar(limpo, MAX_PARAMETRO_MODELO);
+}
+
+/** Primeiro nome para o {{1}} dos modelos. */
+export function nomeParaModelo(nome: string): string {
+  return parametroDoModelo(primeiroNome(nome) === "" ? "equipe" : primeiroNome(nome));
+}
+
+function contar(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+function fechaHoje(i: ItemAlerta, agora: Date): boolean {
+  const fim = new Date(i.dataEncerramento).getTime();
+  return !Number.isNaN(fim) && fim > agora.getTime() && diaDeSaoPaulo(new Date(fim)) === diaDeSaoPaulo(agora);
+}
+
+/** "meta 2 de 5": o alvo é o mínimo até batê-lo e o ideal depois. */
+function metaCurta(feitas: number, meta: MetaConfig): string {
+  return `meta ${feitas} de ${feitas >= meta.minimo ? meta.ideal : meta.minimo}`;
+}
+
+/** Uma linha curta do resumo das 7h para o {{2}} do modelo, ex.: "3 prazos hoje, 2 propostas para fazer, meta 2 de 5". */
+export function linhaCurtaResumo(d: DadosResumoManha, agora: Date): string {
+  const e = d.escolhas;
+  const partes: string[] = [];
+  if (e.fechando) {
+    const n = d.itens.filter((i) => !ETAPAS_ENCERRADAS.includes(i.etapa) && fechaHoje(i, agora)).length;
+    if (n > 0) partes.push(contar(n, "prazo hoje", "prazos hoje"));
+  }
+  if (e.pendencias && d.propostasHoje.length > 0) {
+    partes.push(contar(d.propostasHoje.length, "proposta para fazer", "propostas para fazer"));
+  }
+  if (e.pendencias && d.pendencias.length > 0) partes.push(contar(d.pendencias.length, "aviso", "avisos"));
+  if (e.novas && d.novas.length > 0) partes.push(contar(d.novas.length, "nova do ramo", "novas do ramo"));
+  if (e.movimentos) {
+    const daEquipe = d.movimentos.filter((m) => m.porId !== d.usuarioId).length;
+    if (daEquipe > 0) partes.push(contar(daEquipe, "movimento da equipe", "movimentos da equipe"));
+  }
+  if (e.meta) partes.push(metaCurta(d.disputasNaSemana, d.meta));
+  return parametroDoModelo(partes.length === 0 ? "sem pendências hoje" : partes.join(", "));
+}
+
+/* ---------- andamento do dia (15h) ---------- */
+
+export interface DadosAndamento {
+  usuarioId: string;
+  nome: string;
+  escolhas: EscolhasAlerta;
+  /** Propostas geradas, aprovadas, enviadas ou devolvidas hoje */
+  propostas: ReadonlyArray<MovimentoProposta>;
+  /** Mudanças de etapa de hoje */
+  movimentos: ReadonlyArray<MovimentoEquipe>;
+  /** Itens que fecham hoje ou amanhã e ainda não têm proposta */
+  semProposta: ReadonlyArray<PropostaDoDia>;
+  /** Itens de prazos que ficaram na fila sem aviso (janela fechada) e ainda valem */
+  prazosPendentes: ReadonlyArray<ItemAlerta>;
+  /** Avisos que esperam esta pessoa */
+  pendencias: ReadonlyArray<string>;
+  /** Itens do Pipeline ainda em jogo */
+  emJogo: number;
+  disputasNaSemana: number;
+  vencidasNaSemana: VencidasDaSemana;
+  meta: MetaConfig;
+}
+
+/** Início do dia (00h) em São Paulo. */
+export function inicioDoDia(agora: Date): Date {
+  return new Date(`${diaDeSaoPaulo(agora)}T00:00:00-03:00`);
+}
+
+const ROTULO_ACAO: ReadonlyArray<{ acao: MovimentoProposta["acao"]; singular: string; plural: string }> = [
+  { acao: "gerou", singular: "gerada", plural: "geradas" },
+  { acao: "aprovou", singular: "aprovada", plural: "aprovadas" },
+  { acao: "enviou", singular: "enviada", plural: "enviadas" },
+  { acao: "devolveu", singular: "devolvida", plural: "devolvidas" },
+];
+
+/** "1 gerada, 2 enviadas"; null sem nenhuma. */
+function textoDasAcoes(propostas: ReadonlyArray<MovimentoProposta>): string | null {
+  const partes = ROTULO_ACAO.map((r) => {
+    const n = propostas.filter((p) => p.acao === r.acao).length;
+    return n === 0 ? null : contar(n, r.singular, r.plural);
+  }).filter((p): p is string => p !== null);
+  return partes.length === 0 ? null : partes.join(", ");
+}
+
+/** Um item por mudança: o mesmo item movido duas vezes no dia conta uma. */
+function itensMovidos(movimentos: ReadonlyArray<MovimentoEquipe>): MovimentoEquipe[] {
+  const vistos = new Set<string>();
+  return movimentos.filter((m) => {
+    if (vistos.has(m.itemId)) return false;
+    vistos.add(m.itemId);
+    return true;
+  });
+}
+
+/** Uma linha curta do andamento das 15h para o {{2}} do modelo. */
+export function linhaCurtaAndamento(d: DadosAndamento): string {
+  const partes: string[] = [];
+  const acoes = textoDasAcoes(d.propostas);
+  partes.push(acoes === null ? "nenhuma proposta mexida" : `propostas: ${acoes}`);
+  const etapas = itensMovidos(d.movimentos).length;
+  if (etapas > 0) partes.push(contar(etapas, "item mudou de etapa", "itens mudaram de etapa"));
+  if (d.semProposta.length > 0) {
+    partes.push(contar(d.semProposta.length, "fecha hoje ou amanhã sem proposta", "fecham hoje ou amanhã sem proposta"));
+  }
+  if (d.escolhas.meta) partes.push(metaCurta(d.disputasNaSemana, d.meta));
+  return parametroDoModelo(partes.join(", "));
+}
+
+/**
+ * Andamento do dia, curto e em linhas: propostas de hoje, mudanças de etapa, o que fecha hoje ou amanhã sem proposta,
+ * prazos e avisos que ficaram na fila e a meta da semana. Vazio quando não há nada em jogo nem nada aconteceu.
+ */
+export function textoAndamento(d: DadosAndamento, agora: Date): string {
+  const movidos = itensMovidos(d.movimentos);
+  const algo =
+    d.propostas.length > 0 || movidos.length > 0 || d.semProposta.length > 0 || d.prazosPendentes.length > 0 || d.pendencias.length > 0 || d.emJogo > 0;
+  if (!algo) return "";
+  const nome = primeiroNome(d.nome);
+  const linhas: string[] = [nome === "" ? "📊 Andamento do dia" : `📊 Andamento do dia, ${nome}`];
+
+  const acoes = textoDasAcoes(d.propostas);
+  linhas.push(acoes === null ? "⚠️ Nenhuma proposta mexida hoje" : `✅ Propostas hoje: ${acoes}`);
+
+  if (movidos.length === 0) {
+    linhas.push("⚠️ Nenhum item mudou de etapa hoje");
+  } else {
+    linhas.push(`✅ Mudaram de etapa: ${movidos.length}`);
+    linhas.push(...comResto(movidos.slice(0, MAX_LISTA_MANHA).map(linhaDoMovimento), movidos.length));
+  }
+
+  if (d.semProposta.length > 0) {
+    linhas.push(`⚠️ Fecham hoje ou amanhã sem proposta: ${d.semProposta.length}`);
+    const itens = d.semProposta
+      .slice(0, MAX_LISTA_MANHA)
+      .map((p) => `• ${objetoCurto(p.objeto, MAX_OBJETO_LISTA)} (${quandoFechaRelativo(p.dataEncerramento, agora)})`);
+    linhas.push(...comResto(itens, d.semProposta.length));
+  }
+
+  if (d.prazosPendentes.length > 0) {
+    linhas.push(`⏰ Prazos que ficaram sem aviso: ${d.prazosPendentes.length}`);
+    const itens = d.prazosPendentes
+      .slice(0, MAX_LISTA_MANHA)
+      .map((i) => `• ${objetoCurto(i.objeto, MAX_OBJETO_LISTA)} (em ${textoRestante(new Date(i.dataEncerramento).getTime() - agora.getTime())})`);
+    linhas.push(...comResto(itens, d.prazosPendentes.length));
+  }
+
+  if (d.pendencias.length > 0) {
+    linhas.push(`📌 Para você: ${d.pendencias.length}`);
+    const itens = d.pendencias.slice(0, MAX_LISTA_MANHA).map((t) => `• ${cortar(t.split("\n")[0] ?? t, MAX_OBJETO)}`);
+    linhas.push(...comResto(itens, d.pendencias.length));
+  }
+
+  if (d.escolhas.meta) linhas.push(textoDaMeta(d.disputasNaSemana, d.meta, null, d.vencidasNaSemana));
+  return cortar(linhas.join("\n"), MAX_TEXTO_WA);
+}
+
 /* ---------- comandos ---------- */
 
 export type Comando =
@@ -715,6 +894,10 @@ export type Comando =
   | { tipo: "gerar"; numero: number | null }
   /** Cumprimento curto: responde sem chamar o assistente */
   | { tipo: "saudacao" }
+  /** "resumo" / "ver resumo" (botão do modelo das 7h): manda o resumo completo do dia */
+  | { tipo: "ver_resumo" }
+  /** "andamento" / "ver andamento" (botão do modelo das 15h): manda o andamento completo do dia */
+  | { tipo: "ver_andamento" }
   /** "propostas": lista numerada das propostas que pedem ação */
   | { tipo: "propostas" }
   /** Número sozinho ("3"): escolhe da última lista de propostas */
@@ -761,6 +944,12 @@ export function lerComando(texto: string): Comando {
     case "minhas propostas":
     case "ver propostas":
       return { tipo: "propostas" };
+    case "resumo":
+    case "ver resumo":
+      return { tipo: "ver_resumo" };
+    case "andamento":
+    case "ver andamento":
+      return { tipo: "ver_andamento" };
     case "pipeline":
       return { tipo: "pipeline" };
     case "prazos":
@@ -796,7 +985,10 @@ export type AcaoBotao =
   | { tipo: "aprovar"; propostaId: string }
   | { tipo: "confirmar" }
   | { tipo: "cancelar" }
-  | { tipo: "continuar" };
+  | { tipo: "continuar" }
+  /** Botões dos modelos das 7h e das 15h (janela fechada) */
+  | { tipo: "ver_resumo" }
+  | { tipo: "ver_andamento" };
 
 const PREFIXO_BOTAO: Readonly<Record<"participar" | "atribuir" | "descartar" | "gerar", string>> = {
   participar: "part",
@@ -821,6 +1013,10 @@ export function payloadDoBotao(acao: AcaoBotao): string {
       return "nao";
     case "continuar":
       return "continuar";
+    case "ver_resumo":
+      return "ver_resumo";
+    case "ver_andamento":
+      return "ver_andamento";
   }
 }
 
@@ -828,6 +1024,8 @@ export function lerPayload(payload: string): AcaoBotao | null {
   if (payload === "sim") return { tipo: "confirmar" };
   if (payload === "nao") return { tipo: "cancelar" };
   if (payload === "continuar") return { tipo: "continuar" };
+  if (payload === "ver_resumo") return { tipo: "ver_resumo" };
+  if (payload === "ver_andamento") return { tipo: "ver_andamento" };
   const corte = payload.indexOf(":");
   if (corte < 0) return null;
   const prefixo = payload.slice(0, corte);

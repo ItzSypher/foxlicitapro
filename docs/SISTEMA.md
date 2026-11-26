@@ -18,22 +18,23 @@ Serviço de **acompanhamento de licitações no CNPJ do cliente**. O sistema ach
 
 | Área | O que entrega |
 |---|---|
-| **Radar** | Licitações abertas do ramo, com nota (selo "Seu foco" e o motivo principal em uma linha), filtros (estados, valor, modalidade, fonte), busca por palavra e busca direta no PNCP. Abas de novas, fechando e desertas. |
+| **Radar** | Licitações abertas do ramo, com nota e selos (Seu foco, Caixa baixo/médio/alto, ~R$ antes de receber), filtros (estados, valor, modalidade, fonte, Pouco caixa e "Caixa até R$ X"), busca por palavra e busca direta no PNCP. Abas de novas, fechando e desertas. Resumo do dia compacto. |
 | **Pipeline** | Quadro por etapa até o resultado, ordenado por prazo, com alerta do que fecha hoje sem proposta e vista "Por prazo". Item novo já entra com o responsável padrão (gestor). Adicionar pelo link do PNCP (na tela ou mandando "analisar <link>" no WhatsApp). Item em Disputa conta para a meta da semana. Cabeçalho enxuto (meta da semana numa linha, filtros, vista e link na mesma fileira) para o quadro ocupar o resto da tela. |
-| **Licitação** | Edital, itens, ficha resumida, semelhantes em outros órgãos, concorrentes. |
+| **Licitação** | Cartão Números no topo (valor, preço alvo, caixa, dias sem receber; para o dono, lucro × prejuízo com a comissão e o preço mínimo sem prejuízo), caminho do dinheiro compacto, ficha com exigências em ✓/⚠, itens, arquivos e acervo. Resumo, sinais, texto, nota, semelhantes e concorrentes começam recolhidos. A calculadora fica só como link. |
 | **Propostas** | Proposta com dados e assinatura da empresa, revisão e aprovação (ao subir para revisão o dono recebe no WhatsApp o link de leitura sem login, o link do sistema e o botão Aprovar; ao aprovar, o gestor é avisado), envio com comprovante, proposta feita fora do sistema, resultado lido do PNCP. Rascunho automático para as 3 melhores que fecham em até 5 dias. |
 | **Acervo** | Atestados, notas fiscais, contratos e certidões (PDF ou imagem até 4 MB) com área, cliente, período, valor e validade. A licitação sugere o que do acervo serve. |
 | **Atestados** | Atestado de capacidade técnica redigido pela empresa (ou pelo assistente) e assinado pelo cliente por link: assinatura na tela, declaração, data, hora, IP, SHA-256 e código de verificação público (/atestado/verificar/<código>). Assinado, vai sozinho para o acervo. Aceita também PDF assinado no gov.br. |
 | **Resultados** | O que fechou: ganho, perdido, preços praticados. A meta da semana mostra disputadas, vencidas e R$ ganhos. |
-| **Conselheiro** | Assistente que responde sobre a tela aberta e guarda as conversas. |
-| **WhatsApp** | Resumo das 7h (com "Propostas para hoje" e meta da semana) e prazos urgentes. O gestor recebe o operacional; o dono, o acompanhamento e os avisos de proposta (subiu, aprovou, enviou, registrou fora). |
+| **Conselheiro** | Assistente que responde sobre a tela aberta e guarda as conversas. O parecer decide só "Vale" ou "Não vale" (sem talvez), com a condição em números (ex.: preço mínimo sem prejuízo), a partir da conta de lucro × prejuízo e do caixa. |
+| **Fluxo de caixa** | Só o dono vê (/caixa): ganhas com valor, data prevista de pagamento (prazo do edital ou 30 + 30 dias), custo e comissão de quem opera; a receber, recebido e saldo por mês; botão "Recebi". Comissão padrão em Empresa (padrão 12%) e ajuste por item. |
+| **WhatsApp** | 7h para confirmar o dia (propostas para hoje, prazos, meta) e 15h com o andamento do dia (o que andou, o que fecha hoje ou amanhã sem proposta, prazos sem aviso). O gestor recebe o operacional; o dono, o acompanhamento e os avisos de proposta. |
 
 ## Quem acessa
 
 | Papel | Acesso |
 |---|---|
 | **Dono** | Tudo da própria empresa: configura ramo, estados, dados da proposta, equipe. |
-| **Gestor** | Opera Pipeline e propostas. Pode cuidar de várias empresas com um login (seletor no menu). |
+| **Gestor** | Opera Pipeline e propostas; o Pipeline abre em "Por prazo" com "Só os meus". Não vê comissão, lucro nem fluxo de caixa. Pode cuidar de várias empresas com um login (seletor no menu). |
 | **Membro** | O que o dono marcar em Equipe. |
 | **Superadmin** | Cria empresas e liga gestores a elas (Admin). |
 
@@ -56,7 +57,7 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 ## Regras do WhatsApp
 
 - Só resumo das 7h e prazo urgente (2 h e 24 h). Gestor com várias empresas recebe uma mensagem com um bloco por empresa.
-- O WhatsApp só permite texto livre até 24 h depois da última mensagem da pessoa. Com a janela fechada, o resumo das 7h sai como mensagem utilitária (cobrada pela Meta); se ela falhar, o resumo do dia vai na primeira mensagem que a pessoa mandar. A tela Alertas mostra a situação de cada um.
+- O WhatsApp só permite texto livre até 24 h depois da última mensagem da pessoa. Fora dela só passa modelo aprovado pelo Meta: às 7h sai o modelo `foxlicita_resumo_7h` (botão "Ver resumo") e às 15h o `foxlicita_andamento_15h` (botão "Ver andamento"); o toque abre a janela e o texto completo chega, com os avisos e prazos que ficaram na fila. Liga com `WA_TEMPLATES_RESUMO=true`. Texto livre "utilitário" na conversa existente não é entregue pelo Meta.
 - O gestor recebe "Propostas para hoje" e responde *gerar 1* para receber o rascunho com link e botão Aprovar; o dono é avisado.
 - Aviso de proposta (subiu, aprovou, enviou, registrou fora) sai a qualquer hora, porque nasce de uma ação da pessoa.
 - *propostas* lista as que pedem ação, numeradas (em revisão primeiro). Responder o número traz o link de leitura sem login, o link do sistema e, para quem aprova, o botão Aprovar. A lista vale 6 h.
@@ -110,7 +111,7 @@ Faixas: 75 ou mais é "boa"; de 50 a 74, "atenção"; abaixo de 50, "evitar". Fe
 
 ## Pagamento e caixa
 
-Na licitação, o cartão "Pagamento e caixa" mostra o caminho do dinheiro (empenho → ordem → entrega/execução → atesto e liquidação → pagamento em N dias), os dias sem receber e o caixa estimado (produto ≈ 80% do valor; serviço presencial ≈ 10%; serviço feito à distância ≈ 0; garantia soma). Sem ficha do edital, usa heurística. No Radar, selo "Pouco caixa"/"Caixa alto" e filtro `?caixa=1`.
+Na licitação, o cartão "Caminho do dinheiro" mostra o caminho do dinheiro (empenho → ordem → entrega/execução → atesto e liquidação → pagamento em N dias), os dias sem receber e o caixa estimado (produto ≈ 80% do valor; serviço presencial ≈ 10%; serviço feito à distância ≈ 0; garantia soma). Sem ficha do edital, usa heurística. No Radar, selos de nível e valor e filtros `?caixa=1` (pouco caixa) e `?caixaMax=` (caixa até R$ X). Lucro × prejuízo em `core/lucro.ts`: receita − custo (cotado ou estimado) − comissão (% do bruto; migration 026: `empresas.comissao_percentual`, `pipeline_itens.comissao_percentual`, `pagamento_previsto`, `recebido_em`, `valor_recebido`). Fluxo de caixa em `core/fluxo-caixa.ts`, `db/fluxo-caixa.ts`, `/caixa`.
 
 ## Página pública
 

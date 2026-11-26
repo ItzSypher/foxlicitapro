@@ -8,6 +8,7 @@ import { ehPorte, ehRegiao, normalizarFoco, type CnaePerfil, type PerfilEmpresa 
 import type { Regiao } from "@/core/types";
 import { criarUsuario } from "@/db/usuarios";
 import type { Usuario } from "@/core/types-equipe";
+import { normalizarComissao } from "@/core/lucro";
 
 const FORMATO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -289,4 +290,21 @@ export async function lerAssinatura(empresaId: string): Promise<string | null> {
   if (!FORMATO_ID.test(empresaId)) return null;
   const linhas = await sql<{ assinatura: string | null }[]>`select assinatura from empresas where id = ${empresaId}`;
   return linhas[0]?.assinatura ?? null;
+}
+
+/** Comissão padrão de quem opera as licitações (% sobre o bruto). Sem empresa ou sem valor, o padrão do sistema. */
+export async function lerComissaoPadrao(empresaId: string): Promise<number> {
+  if (!FORMATO_ID.test(empresaId)) return normalizarComissao(null);
+  const linhas = await sql<{ comissao_percentual: string | number | null }[]>`
+    select comissao_percentual from empresas where id = ${empresaId}`;
+  const bruto = linhas[0]?.comissao_percentual;
+  return normalizarComissao(bruto === null || bruto === undefined ? null : Number(bruto));
+}
+
+/** Grava a comissão padrão (0 a 30%). */
+export async function gravarComissaoPadrao(empresaId: string, percentual: number): Promise<boolean> {
+  if (!FORMATO_ID.test(empresaId) || !Number.isFinite(percentual)) return false;
+  const valor = normalizarComissao(percentual);
+  const r = await sql`update empresas set comissao_percentual = ${valor} where id = ${empresaId}`;
+  return r.count > 0;
 }

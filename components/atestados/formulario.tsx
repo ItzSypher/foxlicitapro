@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { consultarCnpjClienteAction, redigirAtestadoAction, salvarAtestadoAction } from "@/app/(app)/atestados/actions";
 import { lerValor, textoPadraoAtestado } from "@/core/atestados";
 import { somenteDigitos } from "@/core/brasilapi";
@@ -98,6 +99,16 @@ export function FormularioAtestado({ id, inicial, emissora, podeEditar, podeAssi
   const [salvando, iniciarSalvar] = useTransition();
   const [trabalhando, iniciarTrabalho] = useTransition();
 
+  const [maisAberto, setMaisAberto] = useState(
+    inicial.clienteCnpj !== "" ||
+      inicial.clienteEndereco !== "" ||
+      inicial.responsavelContato !== "" ||
+      inicial.areas !== "" ||
+      inicial.periodoInicio !== "" ||
+      inicial.periodoFim !== "" ||
+      inicial.valor !== "",
+  );
+
   const ocupado = salvando || trabalhando;
   const mudar = (campo: keyof ValoresAtestado) => (valor: string) => setV((a) => ({ ...a, [campo]: valor }));
 
@@ -164,6 +175,7 @@ export function FormularioAtestado({ id, inicial, emissora, podeEditar, podeAssi
     iniciarSalvar(async () => {
       const r = await salvarAtestadoAction(id, dados);
       if (!r.ok) {
+        setMaisAberto(true);
         setAviso({ tom: "erro", texto: r.erro });
         return;
       }
@@ -187,20 +199,7 @@ export function FormularioAtestado({ id, inicial, emissora, podeEditar, podeAssi
       className="flex flex-col gap-4"
     >
       <fieldset disabled={!podeEditar || ocupado} className="flex min-w-0 flex-col gap-4">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <Campo id="at-cnpj" rotulo="CNPJ do cliente (opcional)" valor={v.clienteCnpj} onMudar={mudar("clienteCnpj")} modo="numeric" placeholder="00.000.000/0000-00" max={18} />
-          <button type="button" onClick={buscarCnpj} disabled={somenteDigitos(v.clienteCnpj).length !== 14} className={BOTAO_SECUNDARIO}>
-            Buscar dados do CNPJ
-          </button>
-        </div>
-        <Campo id="at-cliente" rotulo="Cliente (razão social ou nome)" valor={v.clienteNome} onMudar={mudar("clienteNome")} max={200} />
-        <Campo id="at-endereco" rotulo="Endereço do cliente (opcional)" valor={v.clienteEndereco} onMudar={mudar("clienteEndereco")} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
-          <Campo id="at-resp" rotulo="Quem vai assinar pelo cliente" valor={v.responsavelNome} onMudar={mudar("responsavelNome")} max={120} />
-          <Campo id="at-cargo" rotulo="Cargo" valor={v.responsavelCargo} onMudar={mudar("responsavelCargo")} max={80} />
-        </div>
-        <Campo id="at-contato" rotulo="WhatsApp ou e-mail de quem assina (opcional)" valor={v.responsavelContato} onMudar={mudar("responsavelContato")} max={120} />
-
+        <Campo id="at-cliente" rotulo="Cliente" valor={v.clienteNome} onMudar={mudar("clienteNome")} max={200} />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="at-objeto" className="text-[13px] font-medium text-ink">
             Serviços prestados
@@ -215,12 +214,39 @@ export function FormularioAtestado({ id, inicial, emissora, podeEditar, podeAssi
             className="w-full resize-y rounded-control border border-control bg-raised p-3 text-base leading-snug text-ink outline-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-70"
           />
         </div>
-        <Campo id="at-areas" rotulo="Áreas (separadas por vírgula)" valor={v.areas} onMudar={mudar("areas")} placeholder="site, manutenção, redes" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-3">
-          <Campo id="at-inicio" rotulo="Início do período" tipo="date" valor={v.periodoInicio} onMudar={mudar("periodoInicio")} />
-          <Campo id="at-fim" rotulo="Fim do período" tipo="date" valor={v.periodoFim} onMudar={mudar("periodoFim")} />
-          <Campo id="at-valor" rotulo="Valor (R$)" valor={v.valor} onMudar={mudar("valor")} modo="numeric" placeholder="12.500,00" max={20} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+          <Campo id="at-resp" rotulo="Quem assina pelo cliente" valor={v.responsavelNome} onMudar={mudar("responsavelNome")} max={120} />
+          <Campo id="at-cargo" rotulo="Cargo" valor={v.responsavelCargo} onMudar={mudar("responsavelCargo")} max={80} />
         </div>
+
+        <details
+          open={maisAberto}
+          onToggle={(ev) => setMaisAberto(ev.currentTarget.open)}
+          className="group rounded-card border border-border"
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
+            <span>
+              Mais detalhes <span className="font-normal text-muted-foreground">(opcional)</span>
+            </span>
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+          </summary>
+          <div className="flex min-w-0 flex-col gap-4 px-3 pt-1 pb-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <Campo id="at-cnpj" rotulo="CNPJ do cliente" valor={v.clienteCnpj} onMudar={mudar("clienteCnpj")} modo="numeric" placeholder="00.000.000/0000-00" max={18} />
+              <button type="button" onClick={buscarCnpj} disabled={somenteDigitos(v.clienteCnpj).length !== 14} className={BOTAO_SECUNDARIO}>
+                Buscar pelo CNPJ
+              </button>
+            </div>
+            <Campo id="at-endereco" rotulo="Endereço do cliente" valor={v.clienteEndereco} onMudar={mudar("clienteEndereco")} />
+            <Campo id="at-contato" rotulo="WhatsApp ou e-mail de quem assina" valor={v.responsavelContato} onMudar={mudar("responsavelContato")} max={120} />
+            <Campo id="at-areas" rotulo="Áreas (separadas por vírgula)" valor={v.areas} onMudar={mudar("areas")} placeholder="site, manutenção, redes" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-3">
+              <Campo id="at-inicio" rotulo="Início do período" tipo="date" valor={v.periodoInicio} onMudar={mudar("periodoInicio")} />
+              <Campo id="at-fim" rotulo="Fim do período" tipo="date" valor={v.periodoFim} onMudar={mudar("periodoFim")} />
+              <Campo id="at-valor" rotulo="Valor (R$)" valor={v.valor} onMudar={mudar("valor")} modo="numeric" placeholder="12.500,00" max={20} />
+            </div>
+          </div>
+        </details>
 
         <div className="flex flex-col gap-2">
           <label htmlFor="at-texto" className="text-[13px] font-medium text-ink">

@@ -12,7 +12,7 @@ import { PrecoSugeridoDetalhe } from "@/components/preco/preco-sugerido-detalhe"
 import { SeloVeredito } from "@/components/preco/selo-veredito";
 import { Colapsavel } from "@/components/licitacao/colapsavel";
 import { FichaEditalSecao } from "@/components/licitacao/ficha-edital";
-import { PagamentoCaixa } from "@/components/licitacao/pagamento-caixa";
+import { NumerosLicitacao } from "@/components/licitacao/numeros";
 import { ItensCompra } from "@/components/licitacao/itens-compra";
 import { NotaCriterios } from "@/components/licitacao/nota-criterios";
 import { Resumo } from "@/components/licitacao/resumo";
@@ -22,10 +22,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { resumirObjeto } from "@/core/objeto";
 import { calcularCapitalGiro } from "@/core/capital-giro";
+import { caminhoDoDinheiro, type OportunidadeCaixa } from "@/core/caminho-dinheiro";
+import { COMISSAO_PADRAO, comissaoDoItem, contaLucro, type ContaLucro } from "@/core/lucro";
 import { montarResultado, type AmostraConcorrente, type ResultadoConcorrentes } from "@/core/concorrentes";
 import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
 import type { PrecoFornecedor } from "@/core/fornecedores";
-import { precoSugeridoDoItem } from "@/core/preco-sugerido";
+import { precoSugeridoDoItem, type PrecoSugerido } from "@/core/preco-sugerido";
 import { formatarMoeda } from "@/lib/formato";
 import { calcularScore } from "@/core/score";
 import type { FichaSalva } from "@/core/ficha";
@@ -38,6 +40,7 @@ import { obterRadar } from "@/lib/radar-dados";
 import { lerAmostrasEmCache, lerBuscaRecente } from "@/db/concorrentes";
 import { listarCotacoes, resumirCotacoesDoItem } from "@/db/cotacoes";
 import { listarPrecosRecentes } from "@/db/fornecedores";
+import { lerComissaoPadrao } from "@/db/empresas";
 import { lerFicha } from "@/db/fichas";
 import { lerPreferencias } from "@/db/preferencias";
 import { idsNoPipeline } from "@/db/pipeline";
@@ -135,6 +138,30 @@ const concorrentesDoPedido = cache(async (cnpj: string, ano: string, sequencial:
   return { detalhe, resultado, amostras, buscadoEm: busca?.buscadoEm ?? null };
 });
 
+/** Preço sugerido por regras (piso, alvo e teto) a partir das cotações do item e das amostras de concorrentes já gravadas. */
+const precoDoPedido = cache(async (cnpj: string, ano: string, sequencial: string): Promise<PrecoSugerido> => {
+  const [d, c] = await Promise.all([dadosDoPedido(cnpj, ano, sequencial), concorrentesDoPedido(cnpj, ano, sequencial)]);
+  const precosFornecedor =
+    d.resumoCotacoes === null
+      ? await listarPrecosRecentes(d.sessao.empresaId).catch((): PrecoFornecedor[] => [])
+      : [];
+  return precoSugeridoDoItem(
+    {
+      id: d.detalhe.numeroControle,
+      objeto: d.detalhe.objeto,
+      uf: d.detalhe.uf,
+      valorEstimado: d.detalhe.valorEstimado,
+      frente: d.score?.frenteCasada ?? null,
+      cnaes: d.score?.cnaesCasados ?? [],
+    },
+    d.perfil.porte,
+    d.resumoCotacoes,
+    c.amostras,
+    precosFornecedor,
+    resumirObjeto(d.detalhe.objeto),
+  );
+});
+
 /** Dispara a leitura do PNCP e do banco já na página, antes de qualquer seção pedir. */
 export function aquecer({ cnpj, ano, sequencial }: ChaveUrl): void {
   void dadosDoPedido(cnpj, ano, sequencial).catch(() => undefined);
@@ -156,7 +183,6 @@ export async function TopoLicitacao({ chave }: { chave: ChaveUrl }) {
         titulo={resumirObjeto(d.detalhe.objeto) || "Contratação sem objeto informado"}
         identificacao={linhaIdentificacao(d.detalhe)}
         score={d.score}
-        valorEstimado={d.detalhe.valorEstimado}
         dataEncerramento={d.detalhe.dataEncerramento}
         agoraInicial={d.agora}
       />
@@ -193,54 +219,49 @@ export async function SecaoFicha({ chave }: { chave: ChaveUrl }) {
   );
 }
 
+/** O que o caixa e o lucro precisam da compra: objeto, valor e, quando há, a frente do score. */
+function oportunidadeDoCaixa(d: Awaited<ReturnType<typeof dadosDoPedido>>): OportunidadeCaixa {
+  return { objeto: d.detalhe.objeto, valorEstimado: d.detalhe.valorEstimado, ...(d.score ? { score: d.score } : {}) };
+}
+
+/**
+ * Os números do topo: valor, preço alvo, caixa e prazo para todos; a conta de lucro e a comissão só para o dono.
+ * Receita é o preço alvo ou, sem ele, o valor estimado; o custo é o da cotação salva ou uma estimativa pelo tipo do objeto.
+ */
+export async function SecaoNumeros({ chave }: { chave: ChaveUrl }) {
+  const [d, preco] = await Promise.all([
+    dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial),
+    precoDoPedido(chave.cnpj, chave.ano, chave.sequencial),
+  ]);
+  const oportunidade = oportunidadeDoCaixa(d);
+  const caminho = caminhoDoDinheiro(d.ficha?.ficha ?? null, oportunidade);
+  const receita = preco.sugerido ?? d.detalhe.valorEstimado;
+  let lucro: ContaLucro | null = null;
+  if (d.sessao.papel === "dono" && receita !== null) {
+    const padrao = await lerComissaoPadrao(d.sessao.empresaId).catch(() => COMISSAO_PADRAO);
+    lucro = contaLucro({ receita, custo: d.custoCotado, comissaoPercentual: comissaoDoItem(null, padrao), oportunidade });
+  }
+  return (
+    <NumerosLicitacao
+      valorEstimado={d.detalhe.valorEstimado}
+      precoAlvo={preco.sugerido}
+      caixa={{ valor: caminho.caixaNecessario.valor, nivel: caminho.caixaNecessario.nivel }}
+      diasSemReceber={caminho.diasSemReceber}
+      lucro={lucro}
+      receitaDe={preco.sugerido === null ? "estimado" : "alvo"}
+      linkCalculadora={`/calculadora?item=${encodeURIComponent(d.detalhe.numeroControle)}`}
+    />
+  );
+}
+
 export async function SecaoCaixa({ chave }: { chave: ChaveUrl }) {
   const d = await dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial);
-  const oportunidade = { objeto: d.detalhe.objeto, valorEstimado: d.detalhe.valorEstimado, ...(d.score ? { score: d.score } : {}) };
-  return (
-    <>
-      <CaminhoDinheiro ficha={d.ficha?.ficha ?? null} oportunidade={oportunidade} />
-      <PagamentoCaixa
-      numeroControle={d.detalhe.numeroControle}
-      custoCotado={d.custoCotado}
-      origemCusto={
-        d.cotacao
-          ? `cotação salva em ${new Date(d.cotacao.criadoEm).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
-          : null
-      }
-      prazos={d.prazos}
-      valorEstimado={d.detalhe.valorEstimado}
-      limites={d.limites}
-      agoraInicial={d.agora}
-      />
-    </>
-  );
+  return <CaminhoDinheiro ficha={d.ficha?.ficha ?? null} oportunidade={oportunidadeDoCaixa(d)} />;
 }
 
 /** Preço sugerido por regras (piso, alvo e teto) a partir das cotações do item e das amostras de concorrentes já gravadas. */
 export async function SecaoPreco({ chave }: { chave: ChaveUrl }) {
-  const [d, c] = await Promise.all([
-    dadosDoPedido(chave.cnpj, chave.ano, chave.sequencial),
-    concorrentesDoPedido(chave.cnpj, chave.ano, chave.sequencial),
-  ]);
-  const precosFornecedor =
-    d.resumoCotacoes === null
-      ? await listarPrecosRecentes(d.sessao.empresaId).catch((): PrecoFornecedor[] => [])
-      : [];
-  const preco = precoSugeridoDoItem(
-    {
-      id: d.detalhe.numeroControle,
-      objeto: d.detalhe.objeto,
-      uf: d.detalhe.uf,
-      valorEstimado: d.detalhe.valorEstimado,
-      frente: d.score?.frenteCasada ?? null,
-      cnaes: d.score?.cnaesCasados ?? [],
-    },
-    d.perfil.porte,
-    d.resumoCotacoes,
-    c.amostras,
-    precosFornecedor,
-    resumirObjeto(d.detalhe.objeto),
-  );
+  const preco = await precoDoPedido(chave.cnpj, chave.ano, chave.sequencial);
   return (
     <Colapsavel
       id="preco-sugerido"
@@ -352,6 +373,21 @@ export function EsqueletoTopo() {
         <Skeleton className="h-11 w-36" />
       </div>
     </div>
+  );
+}
+
+/** Seção que chega recolhida: só a barra do título e um selo. */
+export function EsqueletoRecolhida({ id, titulo }: { id: string; titulo: string }) {
+  return (
+    <section
+      id={id}
+      aria-label={`${titulo} (carregando)`}
+      aria-busy="true"
+      className="flex min-h-11 flex-col gap-2 rounded-card border border-border bg-surface px-4 py-3"
+    >
+      <h2 className="text-sm font-semibold text-ink">{titulo}</h2>
+      <Skeleton className="h-5 w-24 rounded-full" />
+    </section>
   );
 }
 

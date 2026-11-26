@@ -7,10 +7,12 @@ import {
   botoesDoResumoManha,
   dentroDoHorario,
   escolhasDoPerfil,
+  escolherCanal,
   escolherPropostasDoDia,
   faixaDoPrazo,
   gerarCodigoAtivacao,
   inicioDaSemana,
+  inicioDoDia,
   itemParaPriorizar,
   janelaAberta,
   juntarResumos,
@@ -18,11 +20,16 @@ import {
   lerEscolhas,
   lerEventoRecebido,
   lerPayload,
+  linhaCurtaAndamento,
+  linhaCurtaResumo,
   linkAtivacao,
   mesDeSaoPaulo,
+  nomeParaModelo,
+  parametroDoModelo,
   partesDoResumoManha,
   payloadDoBotao,
   quandoFecha,
+  textoAndamento,
   textoAvisoAoDono,
   textoDoResumo,
   textoRascunhoPronto,
@@ -31,9 +38,11 @@ import {
   tituloAtribuir,
   type AcaoBotao,
   type BlocoResumo,
+  type DadosAndamento,
   type DadosResumoManha,
   type ItemAlerta,
   type MovimentoEquipe,
+  type MovimentoProposta,
   type NovaDoRamo,
   type PessoaWa,
   type TipoAlertaWa,
@@ -409,6 +418,9 @@ describe("lerComando", () => {
     expect(lerComando("Não")).toEqual({ tipo: "nao" });
     expect(lerComando("nao")).toEqual({ tipo: "nao" });
     expect(lerComando("Cancelar")).toEqual({ tipo: "nao" });
+    expect(lerComando("Ver resumo")).toEqual({ tipo: "ver_resumo" });
+    expect(lerComando("resumo")).toEqual({ tipo: "ver_resumo" });
+    expect(lerComando("Ver andamento")).toEqual({ tipo: "ver_andamento" });
   });
   it("o resto é texto livre, sem mexer no original", () => {
     expect(lerComando("  Quanto custa?  ")).toEqual({ tipo: "livre", texto: "Quanto custa?" });
@@ -436,6 +448,8 @@ describe("botões", () => {
       { tipo: "confirmar" },
       { tipo: "cancelar" },
       { tipo: "continuar" },
+      { tipo: "ver_resumo" },
+      { tipo: "ver_andamento" },
     ];
     for (const a of acoes) expect(lerPayload(payloadDoBotao(a))).toEqual(a);
     expect(payloadDoBotao({ tipo: "participar", itemId: "abc" })).toBe("part:abc");
@@ -673,5 +687,153 @@ describe("propostas do dia", () => {
       "📤 Paulo enviou no portal a proposta de Toner.\nComprovante e detalhes: l",
     );
     expect(textoAvisoAoDono({ nome: "", acao: "registrou", objeto: "Toner", total: 50, link: "l" })).toContain("Alguém da equipe registrou");
+  });
+});
+
+describe("escolha entre texto e modelo", () => {
+  it("janela aberta: texto completo, com ou sem modelos", () => {
+    expect(escolherCanal(true, false)).toBe("texto");
+    expect(escolherCanal(true, true)).toBe("texto");
+  });
+  it("janela fechada: modelo só com os modelos ligados", () => {
+    expect(escolherCanal(false, true)).toBe("modelo");
+    expect(escolherCanal(false, false)).toBe("nenhum");
+  });
+});
+
+describe("parâmetros dos modelos", () => {
+  it("sem quebra de linha, tab nem espaços repetidos, nunca vazio e até 180 caracteres", () => {
+    expect(parametroDoModelo("a\nb\tc    d  e")).toBe("a b c d e");
+    expect(parametroDoModelo("  \n ")).toBe("sem novidades");
+    const longo = parametroDoModelo("palavra ".repeat(100));
+    expect(longo.length).toBeLessThanOrEqual(180);
+    expect(longo).not.toMatch(/\s{2,}|[\n\t]/);
+  });
+  it("nome do modelo é o primeiro nome, ou equipe", () => {
+    expect(nomeParaModelo("Paulo Henrique")).toBe("Paulo");
+    expect(nomeParaModelo("  ")).toBe("equipe");
+  });
+});
+
+describe("linha curta do resumo das 7h", () => {
+  // 7h em São Paulo
+  const MANHA = new Date("2026-05-12T10:00:00Z");
+  const item = (id: string, fim: string): ItemAlerta => ({ id, etapa: "cotando", objeto: id, dataEncerramento: fim, responsavelId: null });
+
+  it("prazos de hoje, propostas, avisos e meta numa linha só", () => {
+    const linha = linhaCurtaResumo(
+      dados({
+        itens: [item("a", "2026-05-12T18:00:00Z"), item("b", "2026-05-12T20:00:00Z"), item("c", "2026-05-12T21:00:00Z"), item("d", "2026-05-14T18:00:00Z")],
+        propostasHoje: [
+          { itemId: "a", objeto: "A", valor: 1, dataEncerramento: "2026-05-12T18:00:00Z" },
+          { itemId: "b", objeto: "B", valor: 1, dataEncerramento: "2026-05-12T20:00:00Z" },
+        ],
+        pendencias: ["📝 Proposta para revisar"],
+        disputasNaSemana: 2,
+      }),
+      MANHA,
+    );
+    expect(linha).toBe("3 prazos hoje, 2 propostas para fazer, 1 aviso, meta 2 de 5");
+  });
+
+  it("sem nada além da meta, só a meta; sem meta, sem pendências", () => {
+    expect(linhaCurtaResumo(dados({ disputasNaSemana: 5 }), MANHA)).toBe("meta 5 de 10");
+    expect(linhaCurtaResumo(dados({ escolhas: { ...escolhasDoPerfil("operacional"), meta: false } }), MANHA)).toBe("sem pendências hoje");
+  });
+
+  it("nunca passa de 180 caracteres nem leva quebra de linha", () => {
+    const muitos = Array.from({ length: 40 }, (_, i) => item(`i${i}`, "2026-05-12T18:00:00Z"));
+    const linha = linhaCurtaResumo(dados({ itens: muitos, pendencias: Array.from({ length: 12 }, () => "x") }), MANHA);
+    expect(linha.length).toBeLessThanOrEqual(180);
+    expect(linha).not.toContain("\n");
+  });
+});
+
+describe("andamento do dia (15h)", () => {
+  // 15h em São Paulo
+  const TARDE = new Date("2026-05-12T18:00:00Z");
+
+  function prop(acao: MovimentoProposta["acao"], id: string): MovimentoProposta {
+    return { propostaId: id, objeto: "Toner", acao, porId: "paulo", porNome: "Paulo Henrique", total: 1_000 };
+  }
+
+  function andamento(parcial: Partial<DadosAndamento> = {}): DadosAndamento {
+    return {
+      usuarioId: "ana",
+      nome: "Ana Souza",
+      escolhas: escolhasDoPerfil("operacional"),
+      propostas: [],
+      movimentos: [],
+      semProposta: [],
+      prazosPendentes: [],
+      pendencias: [],
+      emJogo: 3,
+      disputasNaSemana: 2,
+      vencidasNaSemana: { vencidas: 0, valor: 0, estimado: false },
+      meta: { minimo: 5, ideal: 10 },
+      ...parcial,
+    };
+  }
+
+  it("início do dia é 0h em São Paulo", () => {
+    expect(inicioDoDia(TARDE).toISOString()).toBe("2026-05-12T03:00:00.000Z");
+  });
+
+  it("propostas do dia, mudanças de etapa, o que fecha sem proposta e a meta, em linhas curtas", () => {
+    const texto = textoAndamento(
+      andamento({
+        propostas: [prop("gerou", "p1"), prop("enviou", "p2"), prop("enviou", "p3"), prop("aprovou", "p4"), prop("devolveu", "p5")],
+        movimentos: [
+          { itemId: "i1", objeto: "Notebooks", de: "cotando", para: "proposta", porId: "paulo", porNome: "Paulo Henrique" },
+          { itemId: "i1", objeto: "Notebooks", de: "proposta", para: "disputa", porId: "paulo", porNome: "Paulo Henrique" },
+        ],
+        semProposta: [{ itemId: "i2", objeto: "Papel A4", valor: 900, dataEncerramento: "2026-05-12T20:00:00Z" }],
+      }),
+      TARDE,
+    );
+    expect(texto.split("\n")).toEqual([
+      "📊 Andamento do dia, Ana",
+      "✅ Propostas hoje: 1 gerada, 1 aprovada, 2 enviadas, 1 devolvida",
+      "✅ Mudaram de etapa: 1",
+      "• Paulo: Notebooks (Cotando fornecedor → Proposta pronta)",
+      "⚠️ Fecham hoje ou amanhã sem proposta: 1",
+      "• Papel A4 (hoje às 17h)",
+      "🎯 Meta: 2/5 disputas · faltam 3 até domingo",
+    ]);
+    expect(texto).not.toContain("\n\n");
+  });
+
+  it("dia parado com itens em jogo avisa com alerta; avisos e prazos da fila entram", () => {
+    const texto = textoAndamento(
+      andamento({
+        pendencias: ["📝 Proposta para revisar\nhttps://x.test/p"],
+        prazosPendentes: [{ id: "i3", etapa: "cotando", objeto: "Tinta", dataEncerramento: "2026-05-12T21:00:00Z", responsavelId: null }],
+      }),
+      TARDE,
+    );
+    expect(texto).toContain("⚠️ Nenhuma proposta mexida hoje");
+    expect(texto).toContain("⚠️ Nenhum item mudou de etapa hoje");
+    expect(texto).toContain("⏰ Prazos que ficaram sem aviso: 1\n• Tinta (em 3 h)");
+    expect(texto).toContain("📌 Para você: 1\n• 📝 Proposta para revisar");
+  });
+
+  it("sem nada em jogo e nada acontecido, não há texto", () => {
+    expect(textoAndamento(andamento({ emJogo: 0 }), TARDE)).toBe("");
+  });
+
+  it("linha curta do modelo: propostas, etapas, o que falta e a meta", () => {
+    const linha = linhaCurtaAndamento(
+      andamento({
+        propostas: [prop("enviou", "p1"), prop("enviou", "p2"), prop("gerou", "p3")],
+        movimentos: [{ itemId: "i1", objeto: "N", de: null, para: "proposta", porId: null, porNome: null }],
+        semProposta: [
+          { itemId: "a", objeto: "A", valor: null, dataEncerramento: "2026-05-12T20:00:00Z" },
+          { itemId: "b", objeto: "B", valor: null, dataEncerramento: "2026-05-13T20:00:00Z" },
+        ],
+      }),
+    );
+    expect(linha).toBe("propostas: 1 gerada, 2 enviadas, 1 item mudou de etapa, 2 fecham hoje ou amanhã sem proposta, meta 2 de 5");
+    expect(linha.length).toBeLessThanOrEqual(180);
+    expect(linhaCurtaAndamento(andamento({ escolhas: { ...escolhasDoPerfil("operacional"), meta: false } }))).toBe("nenhuma proposta mexida");
   });
 });
