@@ -30,6 +30,10 @@ describe("nivelCaixa sem ficha", () => {
     expect(tipoDoObjeto(SITE)).toBe("servico-remoto");
     expect(tipoDoObjeto({ objeto: "Licença do software ABBYY para acessibilização", valorEstimado: 1680 })).toBe("produto");
     expect(tipoDoObjeto({ objeto: "Subscrição de software de gestão jurídica", valorEstimado: 9000 })).toBe("produto");
+    expect(
+      tipoDoObjeto({ objeto: "Aquisição de 02 discos rígidos (HD) para o sistema de CFTV", valorEstimado: 4000, score: { frenteCasada: "servicos" } }),
+    ).toBe("produto");
+    expect(tipoDoObjeto({ objeto: "Aquisição de prestação de serviços de manutenção predial", valorEstimado: 4000 })).toBe("servico-presencial");
   });
 
   it("serviço presencial é baixo, e médio quando o valor é grande", () => {

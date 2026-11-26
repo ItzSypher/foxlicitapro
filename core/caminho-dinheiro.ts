@@ -89,11 +89,16 @@ function frenteDe(o: OportunidadeCaixa): Frente {
 
 /** Licença, assinatura ou subscrição de software comprada de terceiro: a empresa paga a revenda antes de receber. */
 const LICENCA_DE_TERCEIRO = /\b(licenca|licencas|licenciamento|subscricao|subscricoes|assinatura de software|assinaturas de software)\b/;
+const COMPRA_DE_BEM = /^(aquisicao|aquisicoes|compra|compras|fornecimento de (material|materiais|equipamento|equipamentos))\b/;
+const PRESTACAO_DE_SERVICO = /\bprestacao de servic/;
 
 /** Produto, serviço feito à distância (site, sistema, hospedagem) ou serviço presencial. */
 export function tipoDoObjeto(o: OportunidadeCaixa): TipoObjeto {
   // Licença de software é revenda: tem custo de compra, mesmo sendo entregue à distância.
-  if (LICENCA_DE_TERCEIRO.test(normalizarTexto(o.objeto))) return "produto";
+  const texto = normalizarTexto(o.objeto);
+  if (LICENCA_DE_TERCEIRO.test(texto)) return "produto";
+  // "Aquisição de..." é compra de bem, mesmo quando o score casou a frente de serviços (ex.: HD para CFTV).
+  if (COMPRA_DE_BEM.test(texto) && !PRESTACAO_DE_SERVICO.test(texto)) return "produto";
   if (servicoRemoto(o.objeto)) return "servico-remoto";
   return frenteDe(o) === "servicos" ? "servico-presencial" : "produto";
 }
