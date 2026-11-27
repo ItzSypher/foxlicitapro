@@ -343,7 +343,7 @@ function numeroOuNull(v: unknown): number | null {
 /** Terceirização e comissão do item; null se ele não está no pipeline da empresa. */
 export async function lerSoftwareDoItem(empresaId: string, id: string): Promise<DadosSoftware | null> {
   const linhas = await sql`
-    select terceirizavel, dev_custo, dev_parcelas, contrato_meses, comissao_percentual, preco_lance, horas_mes
+    select terceirizavel, dev_custo, dev_parcelas, contrato_meses, comissao_percentual, preco_lance, preco_lance_max, horas_mes
     from pipeline_itens
     where empresa_id = ${empresaId} and id = ${id}
     limit 1
@@ -357,6 +357,7 @@ export async function lerSoftwareDoItem(empresaId: string, id: string): Promise<
     contratoMeses: numeroOuNull(l.contrato_meses),
     comissaoPercentual: numeroOuNull(l.comissao_percentual),
     precoLance: numeroOuNull(l.preco_lance),
+    precoLanceMax: numeroOuNull(l.preco_lance_max),
     horasMes: numeroOuNull(l.horas_mes),
   };
 }
@@ -369,10 +370,11 @@ export async function gravarSoftwareDoItem(
 ): Promise<boolean> {
   const custo = d.devCusto === null ? null : Math.round(d.devCusto * 100) / 100;
   const lance = d.precoLance === null ? null : Math.round(d.precoLance * 100) / 100;
+  const lanceMax = d.precoLanceMax === null ? null : Math.round(d.precoLanceMax * 100) / 100;
   const r = await sql`
     update pipeline_itens
     set terceirizavel = ${d.terceirizavel}, dev_custo = ${custo}, dev_parcelas = ${d.devParcelas},
-        contrato_meses = ${d.contratoMeses}, preco_lance = ${lance}, horas_mes = ${d.horasMes}, atualizado_em = now()
+        contrato_meses = ${d.contratoMeses}, preco_lance = ${lance}, preco_lance_max = ${lanceMax}, horas_mes = ${d.horasMes}, atualizado_em = now()
     where empresa_id = ${empresaId} and id = ${id}
   `;
   return r.count > 0;

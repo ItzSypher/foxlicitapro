@@ -17,8 +17,10 @@ export interface DadosSoftware {
   contratoMeses: number | null;
   /** Comissão deste item em %; null = sem comissão */
   comissaoPercentual: number | null;
-  /** Preço que a empresa vai dar no lance; null enquanto ninguém disse */
+  /** Menor preço que a empresa aceita dar no lance (o "de" da faixa); null enquanto ninguém disse */
   precoLance: number | null;
+  /** Maior preço da faixa do lance (o "até"); null quando é um valor só */
+  precoLanceMax: number | null;
   /** Horas por mês do próprio dono quando não terceiriza */
   horasMes: number | null;
 }
@@ -39,6 +41,7 @@ export const entradaSoftwareSchema = z.object({
   devParcelas: z.number().int().min(1).max(MAXIMO_PARCELAS).nullable(),
   contratoMeses: z.number().int().min(1).max(MAXIMO_MESES_CONTRATO).nullable(),
   precoLance: z.number().finite().min(0).max(MAXIMO_LANCE).nullable().default(null),
+  precoLanceMax: z.number().finite().min(0).max(MAXIMO_LANCE).nullable().default(null),
   horasMes: z.number().int().min(1).max(MAXIMO_HORAS_MES).nullable().default(null),
 });
 export type EntradaSoftware = z.infer<typeof entradaSoftwareSchema>;

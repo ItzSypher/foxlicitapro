@@ -114,6 +114,7 @@ const ITEM_EM_BRANCO: DadosSoftware = {
   contratoMeses: null,
   comissaoPercentual: null,
   precoLance: null,
+  precoLanceMax: null,
   horasMes: null,
 };
 

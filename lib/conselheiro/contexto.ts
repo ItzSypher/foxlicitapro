@@ -322,7 +322,14 @@ function linhasSoftware(e: EntradaContexto, conta: ContaSoftware | null, valores
     linhas.push(`Horas próprias: ${e.software?.horasMes ?? 0} h por mês a ${guardar(VALOR_HORA)}, custo de ${guardar(conta.custoProprio)} no contrato.`);
   }
   const lance = e.software?.precoLance ?? null;
-  if (lance !== null && lance > 0) linhas.push(`Lance que a empresa vai dar: ${guardar(lance)}.`);
+  const lanceMax = e.software?.precoLanceMax ?? null;
+  if (lance !== null && lance > 0) {
+    linhas.push(
+      lanceMax !== null && lanceMax > lance
+        ? `Faixa do lance que a empresa aceita: de ${guardar(lance)} a ${guardar(lanceMax)} (a conta acima usa o menor).`
+        : `Lance que a empresa vai dar: ${guardar(lance)}.`,
+    );
+  }
   linhas.push(
     `Comissão: ${guardar(conta.comissao)}; sobra para o dono: ${guardar(conta.sobra)} (${conta.margemPercentual}%).`,
     `Veredito do sistema (conta de software): ${ROTULO_VEREDITO_SOFTWARE[conta.veredito]}. Motivo: ${conta.motivo}.`,

@@ -24,7 +24,10 @@ export async function salvarSoftwareAction(entrada: unknown): Promise<ResultadoS
   if (!lida.success) {
     return { ok: false, erro: "Confira os valores: custo do dev, parcelas (1 a 60), horas (1 a 744), meses (1 a 120) e lance." };
   }
-  const { compra, terceirizavel, devCusto, devParcelas, contratoMeses, precoLance, horasMes } = lida.data;
+  const { compra, terceirizavel, devCusto, devParcelas, contratoMeses, precoLance, precoLanceMax, horasMes } = lida.data;
+  if (precoLance !== null && precoLanceMax !== null && precoLanceMax < precoLance) {
+    return { ok: false, erro: "O \"até\" do lance tem que ser maior que o \"de\"." };
+  }
   const chave = lerChaveCompra(compra);
   if (!chave) return { ok: false, erro: "Licitação inválida." };
   try {
@@ -34,6 +37,7 @@ export async function salvarSoftwareAction(entrada: unknown): Promise<ResultadoS
       devParcelas,
       contratoMeses,
       precoLance,
+      precoLanceMax,
       horasMes,
     });
     if (!gravou) return { ok: false, erro: FORA_DO_PIPELINE };

@@ -124,6 +124,7 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
   const [parcelas, setParcelas] = useState(textoNumero(inicial.devParcelas));
   const [horas, setHoras] = useState(textoNumero(inicial.horasMes));
   const [lance, setLance] = useState(textoNumero(inicial.precoLance));
+  const [lanceMax, setLanceMax] = useState(textoNumero(inicial.precoLanceMax));
   const [comissao, setComissao] = useState<number | null>(inicial.comissaoPercentual);
   const [comissaoTexto, setComissaoTexto] = useState(inicial.comissaoPercentual === null ? "" : textoPercentual(inicial.comissaoPercentual));
   const [erro, setErro] = useState<string | null>(null);
@@ -133,7 +134,10 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
   const devNum = lerNumeroDigitado(devCusto);
   const parcelasNum = lerInteiroDigitado(parcelas, 1, MAXIMO_PARCELAS);
   const horasNum = lerInteiroDigitado(horas, 1, MAXIMO_HORAS_MES);
-  const lanceNum = lerNumeroDigitado(lance);
+  const lanceDigitado = lerNumeroDigitado(lance);
+  const lanceMaxNum = lerNumeroDigitado(lanceMax);
+  // Só o "até" preenchido vale como lance único.
+  const lanceNum = lanceDigitado ?? lanceMaxNum;
   const percentual = comissao ?? 0;
 
   /** Confere o que foi digitado; texto preenchido e inválido não é gravado. */
@@ -143,7 +147,9 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
       [devCusto.trim() !== "" && devNum === null, "Valor do dev: digite em reais, por exemplo 2.500,00."],
       [parcelas.trim() !== "" && parcelasNum === null, `Vezes do dev: use um número de 1 a ${MAXIMO_PARCELAS}.`],
       [horas.trim() !== "" && horasNum === null, `Horas por mês: use um número inteiro de 1 a ${MAXIMO_HORAS_MES}.`],
-      [lance.trim() !== "" && (lanceNum === null || lanceNum <= 0), "Lance: digite em reais, por exemplo 45.000,00."],
+      [lance.trim() !== "" && (lanceDigitado === null || lanceDigitado <= 0), "Lance: digite em reais, por exemplo 43.000,00."],
+      [lanceMax.trim() !== "" && (lanceMaxNum === null || lanceMaxNum <= 0), "Até: digite em reais, por exemplo 52.000,00."],
+      [lanceDigitado !== null && lanceMaxNum !== null && lanceMaxNum < lanceDigitado, "O \"até\" do lance tem que ser maior que o \"de\"."],
     ];
     const achado = invalido.find(([ruim]) => ruim);
     setErro(achado ? achado[1] : null);
@@ -160,6 +166,7 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
         devParcelas: parcelasNum,
         contratoMeses: mesesNum,
         precoLance: lanceNum,
+        precoLanceMax: lanceDigitado !== null && lanceMaxNum !== null && lanceMaxNum > lanceDigitado ? lanceMaxNum : null,
         horasMes: horasNum,
       });
       if (!r.ok) setErro(r.erro);
@@ -220,6 +227,9 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
   const base: "lance" | "minimo" | "edital" = doLance ? "lance" : precoMinimo > 0 ? "minimo" : "edital";
   const brutoUsado = base === "lance" ? (lanceNum ?? 0) : base === "minimo" ? precoMinimo : (valorReferencia ?? 0);
   const conta = brutoUsado > 0 ? contaSoftware({ ...entrada, bruto: brutoUsado }) : null;
+  // Faixa do lance: a conta principal usa o "de" (pior caso); o "até" mostra o melhor caso.
+  const faixa = doLance && lanceDigitado !== null && lanceMaxNum !== null && lanceMaxNum > lanceDigitado;
+  const contaMax = faixa && lanceMaxNum !== null ? contaSoftware({ ...entrada, bruto: lanceMaxNum }) : null;
   const baseTeto = doLance ? (lanceNum ?? 0) : (valorReferencia ?? precoMinimo);
   const teto = baseTeto > 0 ? tetoDoDev(baseTeto, percentual) : null;
   const repasse =
@@ -355,14 +365,14 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
 
             <Pergunta
               n={veConta ? 5 : 4}
-              titulo="Por quanto vai dar o lance?"
+              titulo="Entre quanto e quanto vai dar o lance?"
               ajuda={
                 precoMinimo > 0
-                  ? `Não baixe de ${formatarMoeda(precoMinimo)}.${valorReferencia === null ? "" : ` O edital estima ${formatarMoeda(valorReferencia)}.`} Sem lance, a conta usa o mínimo.`
-                  : "Sem lance, a conta usa o preço mínimo."
+                  ? `Não baixe de ${formatarMoeda(precoMinimo)}.${valorReferencia === null ? "" : ` O edital estima ${formatarMoeda(valorReferencia)}.`} Um valor só: preencha o "de". Sem lance, a conta usa o mínimo.`
+                  : `Um valor só: preencha o "de". Sem lance, a conta usa o preço mínimo.`
               }
             >
-              <label htmlFor={`${idBase}-lance`}>R$</label>
+              <label htmlFor={`${idBase}-lance`}>de R$</label>
               <input
                 id={`${idBase}-lance`}
                 inputMode="decimal"
@@ -371,7 +381,18 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
                 onChange={(e) => setLance(e.target.value)}
                 onBlur={() => gravar(terceirizavel)}
                 onKeyDown={aoEnter}
-                className={cn(CLASSE_CAMPO, "w-36 text-right tabular-nums")}
+                className={cn(CLASSE_CAMPO, "w-32 text-right tabular-nums")}
+              />
+              <label htmlFor={`${idBase}-lance-max`}>até R$</label>
+              <input
+                id={`${idBase}-lance-max`}
+                inputMode="decimal"
+                value={lanceMax}
+                placeholder="0,00"
+                onChange={(e) => setLanceMax(e.target.value)}
+                onBlur={() => gravar(terceirizavel)}
+                onKeyDown={aoEnter}
+                className={cn(CLASSE_CAMPO, "w-32 text-right tabular-nums")}
               />
             </Pergunta>
           </>
@@ -388,7 +409,7 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
               </div>
               {veConta ? (
                 <dl className="flex flex-col divide-y divide-border">
-                  <Linha rotulo={ROTULO_BASE[base]}>{formatarMoeda(conta.bruto)}</Linha>
+                  <Linha rotulo={faixa ? "Recebe no menor lance" : ROTULO_BASE[base]}>{formatarMoeda(conta.bruto)}</Linha>
                   {conta.devCusto > 0 ? (
                     <Linha rotulo="Dev" menos>
                       {formatarMoeda(conta.devCusto)}
@@ -414,6 +435,11 @@ export function BlocoSoftware({ compra, salvo, veConta, desenvolvimento, valorRe
                   <Linha rotulo="Preço mínimo">{formatarMoeda(precoMinimo)}</Linha>
                 </dl>
               )}
+              {veConta && faixa && contaMax && lanceNum !== null && lanceMaxNum !== null ? (
+                <p className="text-sm text-ink">
+                  {`Na faixa de ${formatarMoeda(lanceNum)} a ${formatarMoeda(lanceMaxNum)} (média ${formatarMoeda((lanceNum + lanceMaxNum) / 2)}), o lucro vai de ${formatarMoeda(conta.sobra)} (${conta.margemPercentual.toLocaleString("pt-BR")}%) a ${formatarMoeda(contaMax.sobra)} (${contaMax.margemPercentual.toLocaleString("pt-BR")}%).`}
+                </p>
+              ) : null}
               {conta.folga !== null && conta.folgaPercentual !== null ? (
                 <p className="text-sm text-ink">
                   {conta.folga >= 0
