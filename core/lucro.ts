@@ -6,8 +6,8 @@
 import { FRACAO_CUSTO_ESTIMADA } from "./caixa";
 import { FRACAO_CUSTO_SERVICO, tipoDoObjeto, type OportunidadeCaixa } from "./caminho-dinheiro";
 
-/** Comissão padrão sobre o bruto quando a empresa não definiu outra. */
-export const COMISSAO_PADRAO = 12;
+/** Percentual que aparece ao marcar "Tem comissão" quando a empresa não definiu outro. Sem marcar, não há comissão. */
+export const COMISSAO_AO_MARCAR = 10;
 export const COMISSAO_MINIMA = 0;
 export const COMISSAO_MAXIMA = 30;
 
@@ -44,16 +44,15 @@ function arredondar(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
-/** Comissão dentro da faixa permitida; valor inválido vira o padrão. */
-export function normalizarComissao(valor: number | null | undefined, padrao: number = COMISSAO_PADRAO): number {
+/** Comissão dentro da faixa permitida; valor inválido vira o padrão (sem comissão). */
+export function normalizarComissao(valor: number | null | undefined, padrao: number = 0): number {
   if (typeof valor !== "number" || !Number.isFinite(valor)) return padrao;
   return Math.min(Math.max(valor, COMISSAO_MINIMA), COMISSAO_MAXIMA);
 }
 
-/** Comissão que vale para um item: o ajuste dele ou, sem ajuste, o padrão da empresa. */
-export function comissaoDoItem(ajuste: number | null | undefined, padraoEmpresa: number | null | undefined): number {
-  const padrao = normalizarComissao(padraoEmpresa);
-  return ajuste === null || ajuste === undefined ? padrao : normalizarComissao(ajuste, padrao);
+/** Comissão de um item: só o que foi marcado nele; null (ninguém marcou "Tem comissão") é 0. */
+export function comissaoDoItem(ajuste: number | null | undefined): number {
+  return ajuste === null || ajuste === undefined ? 0 : normalizarComissao(ajuste);
 }
 
 /**

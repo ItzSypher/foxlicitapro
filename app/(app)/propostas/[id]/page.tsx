@@ -7,8 +7,8 @@ import { listarEventos } from "@/db/proposta-eventos";
 import { buscarDetalheCompra } from "@/core/pncp/detalhe";
 import { chaveDeNumeroControle, referenciasDoDetalhe } from "@/core/proposta";
 import { listarCotacoes } from "@/db/cotacoes";
-import { lerAssinatura, lerComissaoPadrao } from "@/db/empresas";
-import { COMISSAO_PADRAO, comissaoDoItem } from "@/core/lucro";
+import { lerAssinatura } from "@/db/empresas";
+import { lerComissaoDoItemPipeline } from "@/db/fluxo-caixa";
 import { lerProposta, type Proposta } from "@/db/propostas";
 import { podeAgirNaRevisao } from "@/core/permissoes";
 import { emitenteDoPerfil } from "@/core/proposta-emitente";
@@ -101,11 +101,9 @@ export default async function PropostaPage({ params, searchParams }: Props) {
     lerLinhaDoTempo(sessao.empresaId, proposta),
   ]);
   const avisoBruto = Array.isArray(aviso) ? aviso[0] : aviso;
-  // Só o dono vê a comissão; para o gestor o número nem chega ao navegador.
+  // Só o dono vê a comissão, a do próprio item do pipeline (0 sem marcar); para o gestor o número nem chega ao navegador.
   const comissaoPercentual =
-    sessao.papel === "dono"
-      ? comissaoDoItem(null, await lerComissaoPadrao(sessao.empresaId).catch(() => COMISSAO_PADRAO))
-      : null;
+    sessao.papel === "dono" ? await lerComissaoDoItemPipeline(sessao.empresaId, proposta.compraId).catch(() => 0) : null;
 
   return (
     <Editor

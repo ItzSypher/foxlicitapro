@@ -540,7 +540,7 @@ export function RadarView({
           {aviso ? <AvisoFalhaParcial texto={aviso} /> : null}
 
           {total === 0 && emDesertas ? (
-            <EstadoVazio frase="Dispensas sem vencedor nos últimos 60 dias; o órgão costuma repetir a compra." />
+            <EstadoVazio frase="Nenhuma compra deserta nos últimos 60 dias; quando o órgão reabrir, ela aparece no Radar." />
           ) : total === 0 && filtroTextoAtivo ? (
             <EstadoVazio
               frase="Nada encontrado com essa busca."
@@ -574,7 +574,7 @@ export function RadarView({
               {emDesertas ? (
                 <>
                   <p className="mb-3 text-sm text-muted-foreground">
-                    Dispensas sem vencedor nos últimos 60 dias; o órgão costuma repetir a compra.
+                    Compras que deram deserta nos últimos 60 dias e costumam reabrir; cada uma aparece uma vez e some quando reabre.
                   </p>
                   <ListaDesertas key={chaveLista} itens={dados.desertas} ocupado={pendente} />
                 </>

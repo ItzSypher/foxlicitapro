@@ -10,8 +10,8 @@ import type { DetalheCompra } from "@/core/types-detalhe";
 import type { Sessao } from "@/core/types-equipe";
 import { lerAmostrasEmCache } from "@/db/concorrentes";
 import { lerUltimaAnalise, salvarAnalise } from "@/db/conselheiro";
-import { lerComissaoPadrao } from "@/db/empresas";
 import { lerFicha } from "@/db/fichas";
+import { lerComissaoDoItemPipeline } from "@/db/fluxo-caixa";
 import { listarFornecedores, listarPrecosRecentes } from "@/db/fornecedores";
 import { listarPipeline } from "@/db/pipeline";
 import { lerPreferencias } from "@/db/preferencias";
@@ -104,7 +104,7 @@ async function executar(itemId: string, sessao: Sessao): Promise<ResultadoAnalis
     totalItensCompra: detalhe?.totalItens ?? 0,
     fornecedores: dados.fornecedores,
     excecoesPregao: dados.excecoes,
-    comissaoPercentual: await lerComissaoPadrao(sessao.empresaId).catch(() => undefined),
+    comissaoPercentual: await lerComissaoDoItemPipeline(sessao.empresaId, doPipeline.id).catch(() => 0),
   });
 
   let bruta: SaidaConselheiro;

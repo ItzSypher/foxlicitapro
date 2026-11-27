@@ -4,6 +4,8 @@ import { z } from "zod";
 import { sql } from "@/db/client";
 import type { OportunidadeComScore } from "@/core/types";
 import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
+import type { DadosSoftware } from "@/core/campos-software";
+import { COMISSAO_MAXIMA, COMISSAO_MINIMA } from "@/core/lucro";
 import type { ComentarioPipeline } from "@/core/types-equipe";
 import { validarSaidaDaRevisao, type MarcaJuridica } from "@/core/revisao-juridica";
 import { resumirCotacoesPorItem } from "@/db/cotacoes";
@@ -159,6 +161,32 @@ export async function idsNoPipeline(empresaId: string): Promise<Set<string>> {
   return new Set(linhas.map((l) => String(l.id)));
 }
 
+function motivoTravado(etapa: unknown): string {
+  return etapa === "disputa"
+    ? "Em disputa: não dá para tirar do pipeline."
+    : etapa === "ganha"
+      ? "Licitação ganha: não dá para tirar do pipeline."
+      : "Já tem proposta: não dá para tirar do pipeline.";
+}
+
+/**
+ * Se o item está no pipeline da empresa e, estando, por que não pode sair (o mesmo texto de `itensTravadosNoPipeline`).
+ * Uma consulta só, filtrada pelo item: a tela de licitação não precisa da lista inteira de ids.
+ */
+export async function situacaoNoPipeline(empresaId: string, id: string): Promise<{ salvo: boolean; travado: string | null }> {
+  const linhas = await sql`
+    select i.etapa,
+      (i.etapa in ('disputa', 'ganha')
+        or exists (select 1 from propostas p where p.empresa_id = i.empresa_id and (p.compra_id = i.id or p.pipeline_id = i.id))) as travado
+    from pipeline_itens i
+    where i.empresa_id = ${empresaId} and i.id = ${id}
+    limit 1
+  `;
+  const linha = linhas[0];
+  if (!linha) return { salvo: false, travado: null };
+  return { salvo: true, travado: linha.travado === true ? motivoTravado(linha.etapa) : null };
+}
+
 /**
  * Itens da empresa que não podem sair do pipeline com o alternador: em disputa, ganhos ou com proposta.
  * Devolve id → motivo (texto pronto para a tela). Com `id`, só olha esse item. Item livre não aparece no mapa.
@@ -176,13 +204,7 @@ export async function itensTravadosNoPipeline(empresaId: string, id: string | nu
   `;
   const mapa = new Map<string, string>();
   for (const l of linhas) {
-    const motivo =
-      l.etapa === "disputa"
-        ? "Em disputa: não dá para tirar do pipeline."
-        : l.etapa === "ganha"
-          ? "Licitação ganha: não dá para tirar do pipeline."
-          : "Já tem proposta: não dá para tirar do pipeline.";
-    mapa.set(String(l.id), motivo);
+    mapa.set(String(l.id), motivoTravado(l.etapa));
   }
   return mapa;
 }
@@ -308,6 +330,58 @@ export async function removerItem(empresaId: string, id: string): Promise<boolea
 export async function atualizarNotas(empresaId: string, id: string, notas: string): Promise<boolean> {
   const r = await sql`
     update pipeline_itens set notas = ${notas}, atualizado_em = now() where empresa_id = ${empresaId} and id = ${id}
+  `;
+  return r.count > 0;
+}
+
+function numeroOuNull(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Terceirização e comissão do item; null se ele não está no pipeline da empresa. */
+export async function lerSoftwareDoItem(empresaId: string, id: string): Promise<DadosSoftware | null> {
+  const linhas = await sql`
+    select terceirizavel, dev_custo, dev_parcelas, contrato_meses, comissao_percentual
+    from pipeline_itens
+    where empresa_id = ${empresaId} and id = ${id}
+    limit 1
+  `;
+  const l = linhas[0];
+  if (!l) return null;
+  return {
+    terceirizavel: typeof l.terceirizavel === "boolean" ? l.terceirizavel : null,
+    devCusto: numeroOuNull(l.dev_custo),
+    devParcelas: numeroOuNull(l.dev_parcelas),
+    contratoMeses: numeroOuNull(l.contrato_meses),
+    comissaoPercentual: numeroOuNull(l.comissao_percentual),
+  };
+}
+
+/** Grava a resposta de terceirização, o custo e as parcelas do dev e os meses de contrato. False se o item não está no pipeline. */
+export async function gravarSoftwareDoItem(
+  empresaId: string,
+  id: string,
+  d: Omit<DadosSoftware, "comissaoPercentual">,
+): Promise<boolean> {
+  const custo = d.devCusto === null ? null : Math.round(d.devCusto * 100) / 100;
+  const r = await sql`
+    update pipeline_itens
+    set terceirizavel = ${d.terceirizavel}, dev_custo = ${custo}, dev_parcelas = ${d.devParcelas},
+        contrato_meses = ${d.contratoMeses}, atualizado_em = now()
+    where empresa_id = ${empresaId} and id = ${id}
+  `;
+  return r.count > 0;
+}
+
+/** Comissão do item em qualquer etapa (0 a 30%); null = sem comissão. False se o item não está no pipeline ou o valor é inválido. */
+export async function gravarComissaoDoPipeline(empresaId: string, id: string, percentual: number | null): Promise<boolean> {
+  if (percentual !== null && (!Number.isFinite(percentual) || percentual < COMISSAO_MINIMA || percentual > COMISSAO_MAXIMA)) return false;
+  const valor = percentual === null ? null : Math.round(percentual * 100) / 100;
+  const r = await sql`
+    update pipeline_itens set comissao_percentual = ${valor}, atualizado_em = now()
+    where empresa_id = ${empresaId} and id = ${id}
   `;
   return r.count > 0;
 }

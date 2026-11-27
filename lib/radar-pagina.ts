@@ -1,4 +1,4 @@
-import type { Deserta } from "@/core/desertas";
+import { desertasParaMostrar, type Deserta } from "@/core/desertas";
 import type { PerfilEmpresa } from "@/core/perfil";
 import { recomendar, type PreferenciasDeRecomendacao } from "@/core/recomendacao";
 import type { Frente, ModalidadeId, OportunidadeComScore } from "@/core/types";
@@ -156,7 +156,8 @@ export function montarPaginaRadar(
 
   const paraVoce = consulta.aba === "para-voce";
   const emDesertas = consulta.aba === "desertas";
-  const todasDesertas = consulta.desertas ?? [];
+  // Uma deserta por compra repetida, e sem as que o órgão já reabriu (essas estão abertas no Radar).
+  const todasDesertas = desertasParaMostrar(consulta.desertas ?? [], oportunidades);
   const visiveis = paraVoce ? recomendadas.map((r) => r.item) : emDesertas ? [] : todas;
   const fatia = paginar(visiveis, consulta.pagina, consulta.porPagina);
   const fatiaDesertas = emDesertas ? paginar(todasDesertas, consulta.pagina, consulta.porPagina) : null;

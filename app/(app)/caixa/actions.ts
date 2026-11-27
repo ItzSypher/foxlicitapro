@@ -80,7 +80,7 @@ export async function salvarCustoRealAction(entrada: unknown): Promise<Resultado
   return gravar((empresaId) => gravarCustoRealDoItem(empresaId, id, custo), "custo real");
 }
 
-/** Comissão desta licitação (0 a 30%); vazio volta ao padrão da empresa. */
+/** Comissão desta licitação (0 a 30%); null tira a comissão (desmarcou "Tem comissão"). */
 export async function salvarComissaoDoItemAction(entrada: unknown): Promise<ResultadoCaixa> {
   const lido = ComissaoSchema.safeParse(entrada);
   if (!lido.success) return { ok: false, erro: `Use uma comissão de ${COMISSAO_MINIMA} a ${COMISSAO_MAXIMA}%.` };

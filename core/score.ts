@@ -82,9 +82,16 @@ function criterioCnae(frente: Frente, ativos: CasamentoCnae[], outros: Casamento
   return { ...base, pontos: 0, motivo: "Nenhum CNAE da empresa casa com o objeto" };
 }
 
+/**
+ * Nota mínima de quem bate com o foco e está dentro das áreas de atendimento: o foco é o que o dono diz que oferece,
+ * então a modalidade mais concorrida, a documentação mais pesada ou um local menos próximo não o jogam para as notas baixas.
+ */
+export const NOTA_MINIMA_FOCO = LIMITE_GO;
+
 /** O objeto bate com um termo do foco: vale o melhor casamento de ramo, como se o CNAE casasse com força. */
-function criterioFoco(termo: string): Criterio {
-  return { id: "cnae", rotulo: "Ramo e foco", maximo: 30, pontos: 30, aConfirmar: false, motivo: `Bate com o seu foco: ${termo}` };
+function criterioFoco(termo: string, elevada: boolean): Criterio {
+  const sufixo = elevada ? ` (a nota não fica abaixo de ${NOTA_MINIMA_FOCO} para o que você oferece)` : "";
+  return { id: "cnae", rotulo: "Ramo e foco", maximo: 30, pontos: 30, aConfirmar: false, motivo: `Bate com o seu foco: ${termo}${sufixo}` };
 }
 
 function criterioModalidade(o: Oportunidade): Criterio {
@@ -270,7 +277,7 @@ export function calcularScore(
   const foco = casarFoco(o.objeto, perfil.foco);
 
   const criterios: Criterio[] = [
-    foco !== null ? criterioFoco(foco) : criterioCnae(frente, ativos, outros),
+    criterioCnae(frente, ativos, outros),
     criterioModalidade(o),
     criterioLocal(o, frente, perfil),
     criterioDocumentacao(o),
@@ -281,9 +288,17 @@ export function calcularScore(
   if (cx) criterios.push(cx.criterio);
 
   // Com o critério de caixa o máximo passa de 100; a nota volta à escala de 100 proporcionalmente.
-  const soma = criterios.reduce((acc, c) => acc + c.pontos, 0);
-  const somaMaximos = criterios.reduce((acc, c) => acc + c.maximo, 0);
-  const total = cx ? Math.round((soma * 100) / somaMaximos) : soma;
+  const somaDe = (lista: Criterio[]): number => lista.reduce((acc, c) => acc + c.pontos, 0);
+  const notaDe = (lista: Criterio[]): number =>
+    cx ? Math.round((somaDe(lista) * 100) / lista.reduce((acc, c) => acc + c.maximo, 0)) : somaDe(lista);
+
+  // O foco substitui o critério de ramo; sem ele o CNAE decide.
+  if (foco !== null) criterios[0] = criterioFoco(foco, false);
+  let total = notaDe(criterios);
+  if (foco !== null && total < NOTA_MINIMA_FOCO && pontuacaoLocal(o, perfil.areas).dentro) {
+    total = NOTA_MINIMA_FOCO;
+    criterios[0] = criterioFoco(foco, true);
+  }
   const semCnae = ativos.length === 0 && outros.length === 0;
   const semMatch = semCnae && foco === null;
   // O foco conta como casado na frente ativa.

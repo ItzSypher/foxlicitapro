@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { ItemCaixaLinha } from "@/components/caixa/item-caixa";
 import { rotuloDoMes } from "@/components/caixa/formato";
+import { COMISSAO_AO_MARCAR } from "@/core/lucro";
 import { montarFluxoCaixa, type FluxoCaixa } from "@/core/fluxo-caixa";
 import { listarGanhosParaCaixa } from "@/db/fluxo-caixa";
 import { lerComissaoPadrao } from "@/db/empresas";
@@ -34,10 +35,10 @@ export default async function CaixaPage() {
 
   const hoje = diaDeHoje();
   let fluxo: FluxoCaixa | null = null;
-  let comissaoPadrao = 0;
+  let comissaoAoMarcar = COMISSAO_AO_MARCAR;
   try {
-    comissaoPadrao = await lerComissaoPadrao(sessao.empresaId);
-    fluxo = montarFluxoCaixa(await listarGanhosParaCaixa(sessao.empresaId), comissaoPadrao, hoje);
+    comissaoAoMarcar = await lerComissaoPadrao(sessao.empresaId);
+    fluxo = montarFluxoCaixa(await listarGanhosParaCaixa(sessao.empresaId), hoje);
   } catch (e) {
     console.error("[caixa] leitura falhou:", e instanceof Error ? e.message : e);
   }
@@ -92,7 +93,7 @@ export default async function CaixaPage() {
               </div>
               <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
                 {m.itens.map((i) => (
-                  <ItemCaixaLinha key={i.id} item={i} hoje={hoje} />
+                  <ItemCaixaLinha key={`${i.id}-${i.parcela?.numero ?? 0}`} item={i} hoje={hoje} comissaoAoMarcar={comissaoAoMarcar} />
                 ))}
               </ul>
             </section>

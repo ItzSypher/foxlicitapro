@@ -29,13 +29,13 @@ export function ComissaoPadrao({ percentual: inicial }: { percentual: number }) 
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-ink">Comissão</h2>
         <p className="text-[13px] text-muted-foreground">
-          Quanto vai para quem opera as licitações, sobre o valor bruto de cada uma. Entra na conta do lucro e do caixa; dá para ajustar licitação por licitação.
+          Só entra na licitação em que você marcar Tem comissão.
         </p>
       </div>
 
       <div className="flex flex-col gap-1 sm:max-w-48">
         <label htmlFor="comissao-padrao" className="text-sm font-medium text-ink">
-          Comissão de quem opera (% do bruto)
+          Comissão ao marcar (%)
         </label>
         <input
           id="comissao-padrao"

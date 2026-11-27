@@ -4,9 +4,31 @@ import type { ContratacaoPncp } from "./schema";
 
 const FUSO_BRASILIA = "-03:00";
 
-function ehModalidadeValida(id: number): id is ModalidadeId {
-  return id === 6 || id === 8;
+/** Grupo do Radar de cada modalidade do PNCP coletada; null para as que o Radar não trata. */
+export function grupoDaModalidadePncp(id: number): ModalidadeId | null {
+  if (id === 4 || id === 5 || id === 6 || id === 7) return 6;
+  if (id === 8 || id === 12) return 8;
+  return null;
 }
+
+/** Grupos do Radar das modalidades do PNCP, sem repetir. */
+export function gruposDeModalidades(codigos: ReadonlyArray<number>): ModalidadeId[] {
+  const grupos = new Set<ModalidadeId>();
+  for (const codigo of codigos) {
+    const grupo = grupoDaModalidadePncp(codigo);
+    if (grupo !== null) grupos.add(grupo);
+  }
+  return [...grupos];
+}
+
+const NOME_PADRAO: Readonly<Record<number, string>> = {
+  4: "Concorrência - Eletrônica",
+  5: "Concorrência - Presencial",
+  6: "Pregão - Eletrônico",
+  7: "Pregão - Presencial",
+  8: "Dispensa",
+  12: "Credenciamento",
+};
 
 /**
  * Converte a data da API em ISO 8601 com fuso. A API devolve data e hora sem
@@ -37,11 +59,12 @@ function textoOuNulo(valor: string | null | undefined): string | null {
 
 /**
  * Converte uma contratação do PNCP em Oportunidade.
- * Devolve null quando o item não serve: modalidade fora de 6/8, sem data de
+ * Devolve null quando o item não serve: modalidade que o Radar não coleta (4, 5, 6, 7, 8, 12), sem data de
  * encerramento válida ou com encerramento já no passado.
  */
 export function normalizarContratacao(c: ContratacaoPncp, agora: Date = new Date()): Oportunidade | null {
-  if (!ehModalidadeValida(c.modalidadeId)) return null;
+  const grupo = grupoDaModalidadePncp(c.modalidadeId);
+  if (grupo === null) return null;
 
   const dataEncerramento = paraIsoBrasilia(c.dataEncerramentoProposta);
   if (dataEncerramento === null) return null;
@@ -63,8 +86,8 @@ export function normalizarContratacao(c: ContratacaoPncp, agora: Date = new Date
     codigoIbge,
     uf,
     regiao: regiaoDe(codigoIbge, uf),
-    modalidadeId: c.modalidadeId,
-    modalidadeNome: limparTexto(c.modalidadeNome) || (c.modalidadeId === 6 ? "Pregão - Eletrônico" : "Dispensa"),
+    modalidadeId: grupo,
+    modalidadeNome: limparTexto(c.modalidadeNome) || (NOME_PADRAO[c.modalidadeId] ?? "Dispensa"),
     dataAbertura: paraIsoBrasilia(c.dataAberturaProposta),
     dataPublicacao: paraIsoBrasilia(c.dataPublicacaoPncp),
     dataEncerramento,

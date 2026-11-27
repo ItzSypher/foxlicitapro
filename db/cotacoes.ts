@@ -115,7 +115,10 @@ export async function listarCotacoes(empresaId: string, itemId: string | null, l
     order by criado_em desc
     limit ${Math.max(1, Math.min(50, Math.trunc(limite)))}
   `;
+  return lerLinhasCotacao(linhas);
+}
 
+function lerLinhasCotacao(linhas: readonly LinhaCotacao[]): CotacaoSalva[] {
   const cotacoes: CotacaoSalva[] = [];
   for (const l of linhas) {
     const entrada = EntradaSchema.safeParse(l.entrada);
@@ -216,4 +219,22 @@ export async function resumirCotacoesDoItem(empresaId: string, itemId: string): 
     where empresa_id = ${empresaId} and item_id = ${itemId}
   `;
   return agruparPorItem(linhas).get(itemId) ?? null;
+}
+
+/**
+ * A última cotação do item e o resumo de todas, numa consulta só (a tela de licitação pedia as duas).
+ * Mesmo resultado de `listarCotacoes(empresaId, itemId, 1)` junto com `resumirCotacoesDoItem(empresaId, itemId)`.
+ */
+export async function lerCotacoesDoItem(
+  empresaId: string,
+  itemId: string,
+): Promise<{ ultima: CotacaoSalva | null; resumo: ResumoCotacoes | null }> {
+  const linhas = await sql<LinhaCotacao[]>`
+    select id, item_id, descricao, frente, cnae, entrada, preco_minimo, preco_alvo, criado_em
+    from cotacoes
+    where empresa_id = ${empresaId} and item_id = ${itemId}
+    order by criado_em desc
+  `;
+  const ultima = lerLinhasCotacao(linhas.slice(0, 1))[0] ?? null;
+  return { ultima, resumo: agruparPorItem(linhas.map((l) => ({ ...l, item_id: itemId }))).get(itemId) ?? null };
 }

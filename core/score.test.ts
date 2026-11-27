@@ -138,6 +138,88 @@ describe("foco da empresa", () => {
   });
 });
 
+describe("foco alto mesmo sem CNAE casado", () => {
+  const FOCO_DO_DONO = [
+    "aplicativo",
+    "criação de site",
+    "desenvolvimento de sistema",
+    "desenvolvimento de site",
+    "equipamentos de informática",
+    "material de escritório",
+    "portal institucional",
+    "redesign",
+    "sistema web",
+    "site institucional",
+    "sítio eletrônico",
+    "software",
+    "suprimentos de informática",
+    "website",
+    "atendimento",
+    "tecnologia",
+    "prestação de serviço em tecnologia",
+  ];
+  const PERFIL: PerfilEmpresa = {
+    ...PERFIL_ORIGEM,
+    foco: FOCO_DO_DONO,
+    areas: { ufs: ["RJ", "SP", "ES"], municipiosIbge: [], base: { uf: "RJ", municipioIbge: "3303500" } },
+  };
+  // Pregão, o pior caso: pouca pontuação de modalidade e de documentação, e em outro estado.
+  const EM_SP = { modalidadeId: 6 as const, regiao: "fora-rj" as const, valorEstimado: 40000 };
+
+  it("desenvolvimento de site institucional em pregão fora do estado fica na faixa alta", () => {
+    const o = oportunidade({ ...EM_SP, objeto: "Contratação de empresa para desenvolvimento de site institucional" });
+    const s = calcularScore(o, "servicos", AGORA, undefined, PERFIL);
+    expect(s.foco).toBe("desenvolvimento de site");
+    expect(s.total).toBeGreaterThanOrEqual(75);
+    expect(s.faixa).toBe("go");
+  });
+
+  it("prestação de serviço em tecnologia da informação casa pelo foco com várias palavras", () => {
+    const o = oportunidade({ ...EM_SP, objeto: "Prestação de serviços em tecnologia da informação para a Secretaria" });
+    const s = calcularScore(o, "servicos", AGORA, undefined, PERFIL);
+    expect(s.foco).toBeDefined();
+    expect(s.total).toBeGreaterThanOrEqual(75);
+    expect(s.faixa).toBe("go");
+  });
+
+  it("serviço de atendimento casa pelo foco e sobe para a faixa alta", () => {
+    const o = oportunidade({ ...EM_SP, objeto: "Serviço de atendimento ao público" });
+    const s = calcularScore(o, "servicos", AGORA, undefined, PERFIL);
+    expect(s.foco).toBe("atendimento");
+    expect(s.faixa).toBe("go");
+    expect(s.criterios[0].motivo).toContain("não fica abaixo de 75");
+  });
+
+  it("o termo de várias palavras ignora acento, caixa e plural em ão", () => {
+    const perfil: PerfilEmpresa = { ...PERFIL, foco: ["prestação de serviço em tecnologia", "criação de site", "licença de software"] };
+    const a = calcularScore(oportunidade({ objeto: "PRESTACAO DE SERVICOS EM TECNOLOGIA" }), "servicos", AGORA, undefined, perfil);
+    expect(a.foco).toBe("prestação de serviço em tecnologia");
+    const b = calcularScore(oportunidade({ objeto: "Criações de sites para escolas" }), "servicos", AGORA, undefined, perfil);
+    expect(b.foco).toBe("criação de site");
+  });
+
+  it("fora das áreas de atendimento o foco não levanta a nota", () => {
+    const o = oportunidade({ ...EM_SP, objeto: "Desenvolvimento de site institucional" });
+    const soRJ: PerfilEmpresa = { ...PERFIL, areas: { ufs: ["RJ"], municipiosIbge: [], base: { uf: "RJ", municipioIbge: "3303500" } } };
+    const s = calcularScore(o, "servicos", AGORA, undefined, soRJ);
+    expect(s.criterios[0].motivo).not.toContain("não fica abaixo");
+  });
+
+  it("não eleva quem já passa de 75 nem quem não bate com o foco", () => {
+    const bom = calcularScore(oportunidade({ modalidadeId: 8, objeto: "Desenvolvimento de site institucional" }), "servicos", AGORA, undefined, PERFIL);
+    expect(bom.total).toBe(100);
+    expect(bom.criterios[0].motivo).not.toContain("não fica abaixo");
+    const fora = calcularScore(oportunidade({ ...EM_SP, objeto: "Aquisição de pneus para ambulância" }), "servicos", AGORA, undefined, PERFIL);
+    expect(fora.foco).toBeUndefined();
+    expect(fora.faixa).toBe("nogo");
+  });
+
+  it("poucas horas para o prazo ainda rebaixa o sinal para atenção", () => {
+    const o = oportunidade({ ...EM_SP, objeto: "Desenvolvimento de site institucional", dataEncerramento: "2026-11-10T16:00:00-03:00" });
+    expect(calcularScore(o, "servicos", AGORA, undefined, PERFIL).faixa).toBe("atencao");
+  });
+});
+
 describe("trava de nogo", () => {
   it("sem match vira nogo mesmo com total alto", () => {
     const o = oportunidade({ objeto: "Serviço de seguro para viaturas" });

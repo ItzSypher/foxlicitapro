@@ -3,6 +3,7 @@
  * Funções puras, sem rede nem banco. As datas são "AAAA-MM-DD" (dia civil), nunca instantes,
  * para o mês não mudar com o fuso.
  */
+import { cronogramaRepasse } from "./custo-software";
 import { comissaoDoItem, contaLucro } from "./lucro";
 
 /** Sem ficha do edital: 30 dias para entregar e 30 para o órgão pagar. */
@@ -29,7 +30,7 @@ export interface GanhoParaCaixa {
   valorRecebido: number | null;
   /** Custo informado pelo dono; null para estimar pelo tipo do objeto */
   custoReal: number | null;
-  /** Ajuste da comissão nesta licitação; null usa o padrão da empresa */
+  /** Comissão marcada nesta licitação; null é sem comissão */
   comissaoAjuste: number | null;
   /** Data que o dono combinou ou previu para o pagamento */
   pagamentoPrevisto: string | null;
@@ -39,6 +40,12 @@ export interface GanhoParaCaixa {
   prazoEntregaDias: number | null;
   prazoPagamentoDias: number | null;
   frente: "servicos" | "produtos" | null;
+  /** Total combinado com o dev e em quantas parcelas ele recebe (site, sistema e software terceirizados) */
+  devCusto?: number | null;
+  devParcelas?: number | null;
+  /** Meses de contrato; null é entrega única */
+  contratoMeses?: number | null;
+  terceirizavel?: boolean | null;
 }
 
 export interface ItemCaixa {
@@ -58,9 +65,13 @@ export interface ItemCaixa {
   custo: number;
   custoEstimado: boolean;
   comissaoPercentual: number;
-  /** true quando a comissão é um ajuste desta licitação, e não o padrão da empresa */
+  /** true quando há comissão marcada nesta licitação */
   comissaoAjustada: boolean;
   comissao: number;
+  /** Parcela do dev neste item (0 sem dev); já está no custo */
+  dev: number;
+  /** Mês do contrato quando o recebimento é dividido; null quando entra de uma vez */
+  parcela: { numero: number; total: number } | null;
   /** Valor menos custo e comissão */
   resultado: number;
   /** Dias de atraso; 0 quando não está atrasado */
@@ -124,6 +135,17 @@ export function somarDias(dia: string, dias: number): string {
   return new Date(base + dias * MS_DIA).toISOString().slice(0, 10);
 }
 
+/** Soma meses a um "AAAA-MM-DD", mantendo o dia (ou o último dia do mês, se não existir). */
+export function somarMeses(dia: string, meses: number): string {
+  const m = FORMATO_DIA.exec(dia);
+  if (!m || emMs(dia) === null) return dia;
+  const total = Number(m[1]) * 12 + (Number(m[2]) - 1) + meses;
+  const ano = Math.floor(total / 12);
+  const mes = total % 12;
+  const ultimo = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(ano, mes, Math.min(Number(m[3]), ultimo))).toISOString().slice(0, 10);
+}
+
 /** Dias entre duas datas (b − a); 0 se alguma for inválida. */
 export function diasEntre(a: string, b: string): number {
   const x = emMs(a);
@@ -164,17 +186,23 @@ export function dataPrevistaDoGanho(g: GanhoParaCaixa, hoje: string): { data: st
   return { data: somarDias(base, dias), estimada: true };
 }
 
+/** Ganho com dev terceirizado e custo informado: o recebimento se divide pelo cronograma do contrato. */
+function temDev(g: GanhoParaCaixa): g is GanhoParaCaixa & { devCusto: number } {
+  return g.terceirizavel === true && positivo(g.devCusto ?? null);
+}
+
 /** Um item do caixa: valor, data, status, custo e comissão. */
-export function itemDoCaixa(g: GanhoParaCaixa, comissaoPadrao: number, hoje: string): ItemCaixa {
+export function itemDoCaixa(g: GanhoParaCaixa, hoje: string): ItemCaixa {
   const { valor, origem } = valorDoGanho(g);
   const recebido = g.recebidoEm !== null && emMs(g.recebidoEm) !== null;
   const prevista = dataPrevistaDoGanho(g, hoje);
   const dataPrevista = recebido ? (g.recebidoEm as string).slice(0, 10) : prevista.data;
-  const comissaoPercentual = comissaoDoItem(g.comissaoAjuste, comissaoPadrao);
+  const comissaoPercentual = comissaoDoItem(g.comissaoAjuste);
+  const dev = temDev(g) ? g.devCusto : 0;
 
   const conta = contaLucro({
     receita: valor,
-    custo: g.custoReal,
+    custo: g.custoReal ?? (dev > 0 ? dev : null),
     comissaoPercentual,
     oportunidade: { objeto: g.objeto, valorEstimado: g.valorEstimado, score: { frenteCasada: g.frente } },
   });
@@ -199,9 +227,39 @@ export function itemDoCaixa(g: GanhoParaCaixa, comissaoPadrao: number, hoje: str
     comissaoPercentual,
     comissaoAjustada: g.comissaoAjuste !== null,
     comissao,
+    dev: g.custoReal === null ? dev : 0,
+    parcela: null,
     resultado: arredondar(valor - custo - comissao),
     diasAtraso: Math.max(0, atrasoDias),
   };
+}
+
+/**
+ * Os itens do caixa de um ganho. Com dev terceirizado ainda não recebido, o valor entra mês a mês
+ * (cronograma do contrato: comissão, parcela do dev e o que fica com o dono); senão é um item só.
+ */
+export function itensDoCaixa(g: GanhoParaCaixa, hoje: string): ItemCaixa[] {
+  const base = itemDoCaixa(g, hoje);
+  if (base.status === "recebido" || !temDev(g) || base.valor <= 0) return [base];
+  const linhas = cronogramaRepasse(base.valor, g.contratoMeses ?? null, base.comissaoPercentual, g.devCusto, g.devParcelas ?? null);
+  if (linhas.length === 0) return [base];
+  return linhas.map((l) => {
+    const dataPrevista = somarMeses(base.dataPrevista, l.mes - 1);
+    const atraso = Math.max(0, diasEntre(dataPrevista, hoje));
+    return {
+      ...base,
+      status: atraso > 0 ? ("atrasado" as const) : ("a-receber" as const),
+      valor: l.recebe,
+      dataPrevista,
+      custo: l.dev,
+      custoEstimado: false,
+      comissao: l.comissao,
+      dev: l.dev,
+      parcela: linhas.length > 1 ? { numero: l.mes, total: linhas.length } : null,
+      resultado: l.dono,
+      diasAtraso: atraso,
+    };
+  });
 }
 
 /**
@@ -209,9 +267,9 @@ export function itemDoCaixa(g: GanhoParaCaixa, comissaoPadrao: number, hoje: str
  * o que falta receber, o que já entrou, o custo, a comissão e o saldo.
  * `hoje` é o dia civil de agora, "AAAA-MM-DD".
  */
-export function montarFluxoCaixa(ganhos: readonly GanhoParaCaixa[], comissaoPadrao: number, hoje: string): FluxoCaixa {
-  const itens = ganhos.map((g) => itemDoCaixa(g, comissaoPadrao, hoje));
-  itens.sort((a, b) => (a.dataPrevista < b.dataPrevista ? -1 : a.dataPrevista > b.dataPrevista ? 1 : a.id.localeCompare(b.id)));
+export function montarFluxoCaixa(ganhos: readonly GanhoParaCaixa[], hoje: string): FluxoCaixa {
+  const itens = ganhos.flatMap((g) => itensDoCaixa(g, hoje));
+  itens.sort((a, b) => (a.dataPrevista < b.dataPrevista ? -1 : a.dataPrevista > b.dataPrevista ? 1 : a.id.localeCompare(b.id) || (a.parcela?.numero ?? 0) - (b.parcela?.numero ?? 0)));
 
   const porMes = new Map<string, MesCaixa>();
   for (const i of itens) {

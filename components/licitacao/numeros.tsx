@@ -1,8 +1,10 @@
+import type { ComponentProps } from "react";
 import Link from "next/link";
 import { Calculator, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { Pilula, type TomPilula } from "@/components/radar/pilula";
 import { NOME_NIVEL_CAIXA, type NivelCaixa } from "@/core/caminho-dinheiro";
 import type { ContaLucro } from "@/core/lucro";
+import { BlocoSoftware } from "@/components/licitacao/software";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatarMoeda, formatarMoedaCurta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -21,6 +23,8 @@ interface Props {
   receitaDe: "alvo" | "estimado";
   /** Calculadora já com o item aberto */
   linkCalculadora: string;
+  /** Objeto de site, sistema ou software: dados do bloco de terceirização; null nos demais objetos */
+  software: ComponentProps<typeof BlocoSoftware> | null;
 }
 
 const TOM_NIVEL: Record<NivelCaixa, TomPilula> = { baixo: "positivo", medio: "neutro", alto: "aviso" };
@@ -98,7 +102,7 @@ function Resultado({ lucro, receitaDe }: { lucro: ContaLucro; receitaDe: "alvo" 
 }
 
 /** Os números da licitação logo no topo: valor, preço alvo, caixa, prazo sem receber e, para o dono, lucro ou prejuízo. */
-export function NumerosLicitacao({ valorEstimado, precoAlvo, caixa, diasSemReceber, lucro, receitaDe, linkCalculadora }: Props) {
+export function NumerosLicitacao({ valorEstimado, precoAlvo, caixa, diasSemReceber, lucro, receitaDe, linkCalculadora, software }: Props) {
   return (
     <section
       id="numeros"
@@ -120,6 +124,7 @@ export function NumerosLicitacao({ valorEstimado, precoAlvo, caixa, diasSemReceb
         <Celula rotulo="Dias sem receber">{textoDias(diasSemReceber)}</Celula>
       </dl>
       {lucro ? <Resultado lucro={lucro} receitaDe={receitaDe} /> : null}
+      {software ? <BlocoSoftware {...software} /> : null}
       <div className="border-t border-border px-3 sm:px-4">
         <Link
           href={linkCalculadora}

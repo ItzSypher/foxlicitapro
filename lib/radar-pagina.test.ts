@@ -217,7 +217,7 @@ describe("aba Desertas", () => {
     orgao: `Órgão ${i}`,
     orgaoCnpj: `${i}`.padStart(14, "0"),
     unidade: "",
-    objeto: `Objeto ${i}`,
+    objeto: `Fornecimento de gêneros alimentícios lote ${i}`,
     valorEstimado: 100 * i,
     itensSemVencedor: 1,
     totalItens: 1,
@@ -235,6 +235,14 @@ describe("aba Desertas", () => {
     expect(p.total).toBe(5);
     expect(p.totalPaginas).toBe(3);
     expect(p.contagensAbas.desertas).toBe(5);
+  });
+
+  it("esconde a deserta que o órgão já reabriu e junta as repetidas", () => {
+    const reaberta = oportunidade(2, { objeto: "Fornecimento de gêneros alimentícios lote 2", orgaoCnpj: desertas[2].orgaoCnpj });
+    const repetida = { ...desertas[4], id: "d-4b", desertaEm: "2026-10-01T12:00:00-03:00" };
+    const p = montar(consulta({ aba: "desertas", desertas: [...desertas, repetida], porPagina: 12 }), [reaberta]);
+    expect(p.desertas.map((d) => d.id)).toEqual(["d-0", "d-1", "d-3", "d-4"]);
+    expect(p.contagensAbas.desertas).toBe(4);
   });
 
   it("conta as desertas nas outras abas sem listá-las", () => {

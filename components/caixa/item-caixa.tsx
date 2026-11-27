@@ -35,7 +35,7 @@ function fraseData(i: ItemCaixa): string {
 
 type Painel = "recebi" | "data" | null;
 
-export function ItemCaixaLinha({ item, hoje }: { item: ItemCaixa; hoje: string }) {
+export function ItemCaixaLinha({ item, hoje, comissaoAoMarcar }: { item: ItemCaixa; hoje: string; comissaoAoMarcar: number }) {
   const idBase = useId();
   const [painel, setPainel] = useState<Painel>(null);
   const [diaRecebido, setDiaRecebido] = useState(hoje);
@@ -71,11 +71,14 @@ export function ItemCaixaLinha({ item, hoje }: { item: ItemCaixa; hoje: string }
     executar(() => salvarPagamentoPrevistoAction({ id: item.id, dia }), () => setPainel(null));
   }
 
+  function marcarComissao(marcar: boolean) {
+    executar(() => salvarComissaoDoItemAction({ id: item.id, percentual: marcar ? comissaoAoMarcar : null }));
+  }
+
   function salvarComissao(texto: string) {
-    const limpo = texto.trim();
-    const percentual = limpo === "" ? null : lerValorDigitado(limpo);
-    if (limpo !== "" && (percentual === null || percentual < COMISSAO_MINIMA || percentual > COMISSAO_MAXIMA)) {
-      setErro(`Use uma comissão de ${COMISSAO_MINIMA} a ${COMISSAO_MAXIMA}%.`);
+    const percentual = lerValorDigitado(texto.trim());
+    if (percentual === null || percentual < COMISSAO_MINIMA || percentual > COMISSAO_MAXIMA) {
+      setErro(`Use uma comissão de ${COMISSAO_MINIMA} a ${COMISSAO_MAXIMA}%, ou desmarque Tem comissão.`);
       return;
     }
     if (percentual === item.comissaoPercentual) {
@@ -100,6 +103,8 @@ export function ItemCaixaLinha({ item, hoje }: { item: ItemCaixa; hoje: string }
   }
 
   const recebido = item.status === "recebido";
+  // Das parcelas de um contrato, só a primeira tem os controles; o resto é leitura.
+  const somenteLeitura = item.parcela !== null && item.parcela.numero > 1;
 
   return (
     <li className="flex min-w-0 flex-col gap-3 p-4">
@@ -120,57 +125,92 @@ export function ItemCaixaLinha({ item, hoje }: { item: ItemCaixa; hoje: string }
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
         <p className="text-xl leading-tight font-semibold tabular-nums text-ink">{formatarMoedaCurta(item.valor)}</p>
         <p className={item.status === "atrasado" ? "text-sm text-negative" : "text-sm text-muted-foreground"}>{fraseData(item)}</p>
+        {item.parcela ? (
+          <p className="text-sm text-muted-foreground">
+            Mês {item.parcela.numero} de {item.parcela.total}
+          </p>
+        ) : null}
       </div>
       {item.origemValor === "estimado" ? <p className="-mt-2 text-xs text-faint">Valor do edital; confirme o homologado.</p> : null}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <label htmlFor={`${idBase}-comissao`}>Comissão</label>
-          <input
-            id={`${idBase}-comissao`}
-            key={item.comissaoPercentual}
-            inputMode="decimal"
-            defaultValue={textoPercentual(item.comissaoPercentual)}
-            disabled={salvando}
-            onBlur={(e) => salvarComissao(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            aria-describedby={`${idBase}-comissao-valor`}
-            className={`${CLASSE_CAMPO} w-20 text-center tabular-nums`}
-          />
-          <span aria-hidden="true">%</span>
-        </div>
-        <p id={`${idBase}-comissao-valor`} className="tabular-nums">
-          {formatarMoedaCurta(item.comissao)}
+      {somenteLeitura ? (
+        <p className="text-sm text-muted-foreground tabular-nums">
+          Comissão {formatarMoedaCurta(item.comissao)} · dev {formatarMoedaCurta(item.dev)} · fica com você {formatarMoedaCurta(item.resultado)}
         </p>
-      </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <label htmlFor={`${idBase}-tem-comissao`} className="flex min-h-11 cursor-pointer items-center gap-2">
+              <input
+                id={`${idBase}-tem-comissao`}
+                type="checkbox"
+                checked={item.comissaoAjustada}
+                disabled={salvando}
+                onChange={(e) => marcarComissao(e.currentTarget.checked)}
+                className="size-4 accent-brand"
+              />
+              Tem comissão
+            </label>
+            {item.comissaoAjustada ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <input
+                    id={`${idBase}-comissao`}
+                    aria-label="Comissão em porcentagem"
+                    key={item.comissaoPercentual}
+                    inputMode="decimal"
+                    defaultValue={textoPercentual(item.comissaoPercentual)}
+                    disabled={salvando}
+                    onBlur={(e) => salvarComissao(e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                    aria-describedby={`${idBase}-comissao-valor`}
+                    className={`${CLASSE_CAMPO} w-20 text-center tabular-nums`}
+                  />
+                  <span aria-hidden="true">%</span>
+                </div>
+                <p id={`${idBase}-comissao-valor`} className="tabular-nums">
+                  {formatarMoedaCurta(item.comissao)}
+                </p>
+              </>
+            ) : null}
+          </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <label htmlFor={`${idBase}-custo`}>Custo real</label>
-          <span aria-hidden="true">R$</span>
-          <input
-            id={`${idBase}-custo`}
-            key={item.custoEstimado ? "estimado" : item.custo}
-            inputMode="decimal"
-            defaultValue={item.custoEstimado ? "" : String(item.custo).replace(".", ",")}
-            placeholder={String(item.custo).replace(".", ",")}
-            disabled={salvando}
-            onBlur={(e) => salvarCusto(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            aria-describedby={`${idBase}-custo-nota`}
-            className={`${CLASSE_CAMPO} w-28 text-right tabular-nums`}
-          />
-        </div>
-        <p id={`${idBase}-custo-nota`} className="text-faint tabular-nums">
-          {item.custoEstimado ? "Estimado: digite o custo real" : "Custo real informado"} · saldo {formatarMoedaCurta(item.resultado)}
-        </p>
-      </div>
+          {item.dev > 0 ? (
+            <p className="text-sm text-muted-foreground tabular-nums">
+              Dev {formatarMoedaCurta(item.dev)}
+              {item.parcela ? " neste mês" : ""} · fica com você {formatarMoedaCurta(item.resultado)}
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <label htmlFor={`${idBase}-custo`}>Custo real</label>
+                <span aria-hidden="true">R$</span>
+                <input
+                  id={`${idBase}-custo`}
+                  key={item.custoEstimado ? "estimado" : item.custo}
+                  inputMode="decimal"
+                  defaultValue={item.custoEstimado ? "" : String(item.custo).replace(".", ",")}
+                  placeholder={String(item.custo).replace(".", ",")}
+                  disabled={salvando}
+                  onBlur={(e) => salvarCusto(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  aria-describedby={`${idBase}-custo-nota`}
+                  className={`${CLASSE_CAMPO} w-28 text-right tabular-nums`}
+                />
+              </div>
+              <p id={`${idBase}-custo-nota`} className="text-faint tabular-nums">
+                {item.custoEstimado ? "Estimado: digite o custo real" : "Custo real informado"} · saldo {formatarMoedaCurta(item.resultado)}
+              </p>
+            </div>
+          )}
+        </>
+      )}
 
-      {painel === null ? (
+      {painel === null && !somenteLeitura ? (
         <div className="flex flex-wrap gap-2">
           {recebido ? (
             <button

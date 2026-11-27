@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { sql } from "./client";
-import type { ModalidadeId, Oportunidade } from "@/core/types";
+import type { ModalidadePncp, Oportunidade } from "@/core/types";
 
 const dataIso = z.string().refine((v) => !Number.isNaN(Date.parse(v)), "data inválida");
 
@@ -30,10 +30,41 @@ const oportunidadeSchema: z.ZodType<Oportunidade> = z.object({
 
 export interface LinhaCache {
   uf: string;
-  modalidadeId: ModalidadeId;
+  /** Código da modalidade no PNCP (4, 5, 6, 7, 8 ou 12); a `Oportunidade` guarda só o grupo */
+  modalidadeId: ModalidadePncp;
   oportunidades: Oportunidade[];
   atualizadoEm: Date;
   falhouEm: Date | null;
+}
+
+function ehModalidadePncp(id: number): id is ModalidadePncp {
+  return id === 4 || id === 5 || id === 6 || id === 7 || id === 8 || id === 12;
+}
+
+/** Violação de CHECK do Postgres (23514): o banco ainda não aceita a modalidade (migração 027 por aplicar). */
+export function violouCheckDaModalidade(erro: unknown): boolean {
+  return typeof erro === "object" && erro !== null && "code" in erro && (erro as { code?: unknown }).code === "23514";
+}
+
+class SondaDesfeita extends Error {}
+
+/**
+ * Pergunta ao banco se ele aceita gravar a modalidade, sem deixar rastro (a gravação de teste é desfeita).
+ * Devolve false só quando o CHECK recusa; qualquer outro erro sobe.
+ */
+export async function bancoAceitaModalidade(modalidadeId: ModalidadePncp): Promise<boolean> {
+  try {
+    await sql.begin(async (tx) => {
+      await tx`insert into radar_cache (uf, modalidade_id, oportunidades, total, atualizado_em)
+        values ('--', ${modalidadeId}, '[]'::jsonb, 0, now())`;
+      throw new SondaDesfeita();
+    });
+    return true;
+  } catch (e) {
+    if (e instanceof SondaDesfeita) return true;
+    if (violouCheckDaModalidade(e)) return false;
+    throw e;
+  }
 }
 
 /**
@@ -48,7 +79,7 @@ export async function lerCacheRadar(ufs?: ReadonlyArray<string>): Promise<LinhaC
     ${ufs === undefined ? sql`` : sql`where uf in ${sql([...ufs])}`}`;
 
   return linhas.flatMap((l) => {
-    if (l.modalidade_id !== 6 && l.modalidade_id !== 8) return [];
+    if (!ehModalidadePncp(l.modalidade_id)) return [];
     const brutas = Array.isArray(l.oportunidades) ? l.oportunidades : [];
     const oportunidades = brutas.flatMap((b) => {
       const r = oportunidadeSchema.safeParse(b);
@@ -59,7 +90,7 @@ export async function lerCacheRadar(ufs?: ReadonlyArray<string>): Promise<LinhaC
 }
 
 /** Grava o resultado de uma UF e modalidade (substitui a lista e zera a falha). */
-export async function gravarModalidade(uf: string, modalidadeId: ModalidadeId, oportunidades: Oportunidade[], em: Date): Promise<void> {
+export async function gravarModalidade(uf: string, modalidadeId: ModalidadePncp, oportunidades: Oportunidade[], em: Date): Promise<void> {
   await sql`
     insert into radar_cache (uf, modalidade_id, oportunidades, total, atualizado_em, falhou_em)
     values (${uf}, ${modalidadeId}, ${sql.json(JSON.parse(JSON.stringify(oportunidades)))}, ${oportunidades.length}, ${em}, null)
@@ -69,7 +100,7 @@ export async function gravarModalidade(uf: string, modalidadeId: ModalidadeId, o
 }
 
 /** Marca que a última tentativa da UF e modalidade falhou, sem apagar a lista anterior. */
-export async function marcarFalha(uf: string, modalidadeId: ModalidadeId, em: Date): Promise<void> {
+export async function marcarFalha(uf: string, modalidadeId: ModalidadePncp, em: Date): Promise<void> {
   await sql`update radar_cache set falhou_em = ${em} where uf = ${uf} and modalidade_id = ${modalidadeId}`;
 }
 

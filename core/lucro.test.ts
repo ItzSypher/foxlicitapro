@@ -32,9 +32,9 @@ describe("lucro × prejuízo", () => {
 
   it("comissão fica entre 0 e 30 e o item usa o ajuste ou o padrão", () => {
     expect(normalizarComissao(45)).toBe(30);
-    expect(normalizarComissao(Number.NaN)).toBe(12);
-    expect(comissaoDoItem(null, 10)).toBe(10);
-    expect(comissaoDoItem(15, 10)).toBe(15);
+    expect(normalizarComissao(Number.NaN)).toBe(0);
+    expect(comissaoDoItem(null)).toBe(0);
+    expect(comissaoDoItem(15)).toBe(15);
     expect(precoMinimoSemPrejuizo(880, 12)).toBe(1_000);
   });
 });

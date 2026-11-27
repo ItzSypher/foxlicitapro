@@ -89,7 +89,7 @@ function ItemDeserta({ d, indice }: { d: Deserta; indice: number }) {
   );
 }
 
-/** Dispensas sem vencedor das áreas da empresa: o órgão costuma abrir a mesma compra de novo. */
+/** Compras que deram deserta nas áreas da empresa, sem repetição: o órgão costuma abrir a mesma compra de novo. */
 export function ListaDesertas({ itens, ocupado }: { itens: ReadonlyArray<Deserta>; ocupado: boolean }) {
   return (
     <ul

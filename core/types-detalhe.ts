@@ -74,6 +74,9 @@ export interface DetalheCompra {
   falhas: Array<"itens" | "arquivos">;
 }
 
+/** A parte lenta do detalhe (itens e arquivos), buscada à parte para não segurar os dados gerais. */
+export type ComplementoCompra = Pick<DetalheCompra, "itens" | "totalItens" | "arquivos" | "falhas">;
+
 export interface ItemProposta {
   numero: number;
   descricao: string;

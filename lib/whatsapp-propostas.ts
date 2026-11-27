@@ -14,9 +14,8 @@ import {
   type CustoDaProposta,
   type ItemAlerta,
 } from "@/core/whatsapp-alertas";
-import { COMISSAO_PADRAO, comissaoDoItem } from "@/core/lucro";
 import { resultadoDaProposta } from "@/core/proposta-custo";
-import { lerComissaoPadrao } from "@/db/empresas";
+import { lerComissaoDoItemPipeline } from "@/db/fluxo-caixa";
 import { estaAprovada } from "@/core/revisao";
 import type { ItemPipeline } from "@/components/pipeline/tipos";
 import { gerarTokenPublico, lerProposta, listarPropostas, propostaRecenteDoAssistente } from "@/db/propostas";
@@ -148,12 +147,12 @@ export async function avisarSobreProposta(autor: AutorAviso, acao: AcaoAvisoProp
   }
 }
 
-/** Prejuízo (com a comissão padrão da empresa) e itens sem custo da proposta; null se não der para calcular ou for externa. */
+/** Prejuízo (com a comissão do item do pipeline, 0 sem marcar) e itens sem custo da proposta; null se não der para calcular ou for externa. */
 async function custoParaAviso(empresaId: string, proposta: Proposta): Promise<CustoDaProposta | null> {
   if (proposta.externa) return null;
   try {
-    const comissao = await lerComissaoPadrao(empresaId).catch(() => COMISSAO_PADRAO);
-    const r = resultadoDaProposta(proposta.dados, comissaoDoItem(null, comissao));
+    const comissao = await lerComissaoDoItemPipeline(empresaId, proposta.compraId).catch(() => 0);
+    const r = resultadoDaProposta(proposta.dados, comissao);
     return { prejuizo: r.prejuizo, itensSemCusto: r.itensSemCusto };
   } catch {
     return null;

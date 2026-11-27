@@ -9,7 +9,7 @@ import type { OportunidadeComScore } from "@/core/types";
 import type { ItemCompra } from "@/core/types-detalhe";
 import { textoPerfil } from "@/lib/assistente/prompt";
 import { caminhoDoDinheiro } from "@/core/caminho-dinheiro";
-import { contaLucro, normalizarComissao } from "@/core/lucro";
+import { comissaoDoItem, contaLucro } from "@/core/lucro";
 import { avaliarPregao, type RegraPregao } from "./pregao";
 
 /** Texto do contexto enviado ao assistente: dados já calculados pelo sistema, sem rede e sem banco. */
@@ -87,7 +87,7 @@ export interface EntradaContexto {
   /** Fornecedores cadastrados da empresa (o filtro por objeto é feito aqui) */
   fornecedores: readonly Fornecedor[];
   excecoesPregao: readonly string[];
-  /** Comissão de quem opera, % sobre o bruto (padrão da empresa) */
+  /** Comissão de quem opera, % sobre o bruto (a do item do pipeline; 0 sem marcar) */
   comissaoPercentual?: number;
 }
 
@@ -193,7 +193,7 @@ function linhasLucro(e: EntradaContexto, valores: number[]): string[] {
     valores.push(v);
     return brl(v);
   };
-  const comissao = normalizarComissao(e.comissaoPercentual);
+  const comissao = comissaoDoItem(e.comissaoPercentual);
   const receita = e.preco?.alvo ?? e.preco?.sugerido ?? e.item.valorEstimado;
   const conta = receita === null ? null : contaLucro({ receita, custo: e.preco?.custoTotal ?? null, comissaoPercentual: comissao, oportunidade: e.item });
   const linhas: string[] = [];

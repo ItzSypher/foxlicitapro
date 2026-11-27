@@ -1,4 +1,4 @@
-import type { ModalidadeId } from "../types";
+import type { ModalidadePncp } from "../types";
 import { contratacaoSchema, paginaSchema, type ContratacaoPncp } from "./schema";
 
 const URL_BASE = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta";
@@ -9,7 +9,14 @@ const TIMEOUT_MS = 8000;
 const DIAS_A_FRENTE = 60;
 const REVALIDAR_SEGUNDOS = 3600;
 
-export const MODALIDADES: readonly ModalidadeId[] = [6, 8];
+/** As duas modalidades que o Radar sempre coleta primeiro: pregão eletrônico e dispensa. */
+export const MODALIDADES_PRIORITARIAS: readonly ModalidadePncp[] = [6, 8];
+
+/** Coletadas depois das prioritárias, com o tempo que sobrar: concorrência eletrônica, concorrência presencial, pregão presencial, credenciamento. */
+export const MODALIDADES_EXTRAS: readonly ModalidadePncp[] = [4, 12, 5, 7];
+
+/** Todas as modalidades coletadas, na ordem de prioridade. */
+export const MODALIDADES: readonly ModalidadePncp[] = [...MODALIDADES_PRIORITARIAS, ...MODALIDADES_EXTRAS];
 
 export class ErroPncp extends Error {
   constructor(mensagem: string, readonly status?: number) {
@@ -19,14 +26,18 @@ export class ErroPncp extends Error {
 }
 
 export interface ResultadoModalidade {
-  modalidadeId: ModalidadeId;
+  modalidadeId: ModalidadePncp;
   contratacoes: ContratacaoPncp[];
   /** true quando a primeira página falhou ou alguma página seguinte falhou */
   falhou: boolean;
 }
 
 /** Esperas, em ms, antes de cada nova tentativa quando o PNCP limita a taxa ou oscila. */
-const ESPERAS_RETRY_PADRAO_MS: readonly number[] = [700, 1500];
+const ESPERAS_RETRY_PADRAO_MS: readonly number[] = [700, 1500, 3000];
+/** Pausa entre um lote de páginas e o seguinte, para o PNCP não ver rajada (0 quando o retry está desligado). */
+const PAUSA_ENTRE_LOTES_MS = 150;
+/** Espera antes de refazer, em série, as páginas que ainda deram erro depois dos retries. */
+const PAUSA_ANTES_DA_SEGUNDA_PASSADA_MS = 2500;
 const STATUS_COM_RETRY: ReadonlySet<number> = new Set([429, 502, 503, 504]);
 
 /** Estado da consulta quando ninguém pede outro: o Radar diário olha só o Rio de Janeiro. */
@@ -48,6 +59,10 @@ export interface OpcoesBusca {
   timeoutMs?: number;
   /** Janela, em dias a partir de hoje, das propostas que ainda encerram; ausente vale 60 */
   diasAFrente?: number;
+  /** Instante (ms) a partir do qual nenhuma página nova é pedida; o que já veio fica e a busca conta como parcial */
+  prazoMs?: number;
+  /** Modalidades de `buscarContratacoes`; ausente vale as prioritárias (6 e 8) */
+  modalidades?: readonly ModalidadePncp[];
 }
 
 /** Parâmetros da consulta que mudam conforme a busca; o resto é fixo. */
@@ -71,7 +86,7 @@ export function dataFinalPara(agora: Date, dias: number = DIAS_A_FRENTE): string
 
 /** URL da consulta. Sem `uf` na consulta o parâmetro some (Brasil todo); o município só entra se informado. */
 export function montarUrl(
-  modalidadeId: ModalidadeId,
+  modalidadeId: ModalidadePncp,
   dataFinal: string,
   pagina: number,
   consulta: ParametrosConsulta = { uf: UF_PADRAO },
@@ -122,7 +137,7 @@ async function chamar(
 
 async function lerPagina(
   fetchImpl: typeof fetch,
-  modalidadeId: ModalidadeId,
+  modalidadeId: ModalidadePncp,
   dataFinal: string,
   pagina: number,
   esperasMs: readonly number[],
@@ -159,7 +174,7 @@ export interface ResultadoModalidadeDetalhado extends ResultadoModalidade {
  * até `maxPaginas` (10 por padrão). Nunca lança: a falha vira `falhou`.
  */
 export async function buscarModalidadeDetalhada(
-  modalidadeId: ModalidadeId,
+  modalidadeId: ModalidadePncp,
   opcoes: OpcoesBusca = {},
 ): Promise<ResultadoModalidadeDetalhado> {
   const fetchImpl = opcoes.fetchImpl ?? fetch;
@@ -183,23 +198,43 @@ export async function buscarModalidadeDetalhada(
   const numerosRestantes: number[] = [];
   for (let n = 2; n <= ultima; n += 1) numerosRestantes.push(n);
 
-  // O PNCP responde 429 a rajadas: as páginas seguem em lotes pequenos, não todas de uma vez.
-  const restantes: PromiseSettledResult<PaginaLida>[] = [];
+  // O PNCP responde 429 a rajadas: as páginas seguem em lotes pequenos, com pausa entre eles.
+  const pausa = esperasMs.length > 0 ? PAUSA_ENTRE_LOTES_MS : 0;
+  const contratacoes = [...primeira.itens];
+  const faltaram: number[] = [];
+  let falhou = false;
+  const ler = (n: number): Promise<PaginaLida> => lerPagina(fetchImpl, modalidadeId, dataFinal, n, esperasMs, consulta, timeoutMs);
+  const passouDoPrazo = (): boolean => opcoes.prazoMs !== undefined && Date.now() > opcoes.prazoMs;
   for (let i = 0; i < numerosRestantes.length; i += PAGINAS_POR_LOTE) {
     const lote = numerosRestantes.slice(i, i + PAGINAS_POR_LOTE);
-    restantes.push(
-      ...(await Promise.allSettled(
-        lote.map((n) => lerPagina(fetchImpl, modalidadeId, dataFinal, n, esperasMs, consulta, timeoutMs)),
-      )),
-    );
+    if (passouDoPrazo()) {
+      falhou = true;
+      break;
+    }
+    if (i > 0 && pausa > 0) await esperar(pausa);
+    const resultados = await Promise.allSettled(lote.map(ler));
+    resultados.forEach((r, k) => {
+      if (r.status === "fulfilled") contratacoes.push(...r.value.itens);
+      else faltaram.push(lote[k]);
+    });
   }
 
-  const contratacoes = [...primeira.itens];
-  let falhou = false;
-  for (const r of restantes) {
-    if (r.status === "fulfilled") contratacoes.push(...r.value.itens);
-    else falhou = true;
+  // Segunda passada: as páginas que o 429 derrubou voltam uma a uma, depois de uma pausa maior.
+  if (faltaram.length > 0 && esperasMs.length > 0) {
+    await esperar(PAUSA_ANTES_DA_SEGUNDA_PASSADA_MS);
+    for (const n of faltaram.splice(0)) {
+      if (passouDoPrazo()) {
+        faltaram.push(n);
+        continue;
+      }
+      try {
+        contratacoes.push(...(await ler(n)).itens);
+      } catch {
+        faltaram.push(n);
+      }
+    }
   }
+  if (faltaram.length > 0) falhou = true;
   return {
     modalidadeId,
     contratacoes,
@@ -211,19 +246,19 @@ export async function buscarModalidadeDetalhada(
 
 /** Busca todas as contratações de uma modalidade. Nunca lança: a falha vira `falhou`. */
 export async function buscarModalidade(
-  modalidadeId: ModalidadeId,
+  modalidadeId: ModalidadePncp,
   opcoes: OpcoesBusca = {},
 ): Promise<ResultadoModalidade> {
   const { contratacoes, falhou } = await buscarModalidadeDetalhada(modalidadeId, opcoes);
   return { modalidadeId, contratacoes, falhou };
 }
 
-/** Busca as duas modalidades de forma independente. */
+/** Busca as modalidades pedidas (por padrão as duas prioritárias) de forma independente. */
 export async function buscarContratacoes(opcoes: OpcoesBusca = {}): Promise<ResultadoModalidade[]> {
-  return Promise.all(MODALIDADES.map((m) => buscarModalidade(m, opcoes)));
+  return Promise.all((opcoes.modalidades ?? MODALIDADES_PRIORITARIAS).map((m) => buscarModalidade(m, opcoes)));
 }
 
 /** Igual a `buscarContratacoes`, com a conta de páginas de cada modalidade. */
 export async function buscarContratacoesDetalhadas(opcoes: OpcoesBusca = {}): Promise<ResultadoModalidadeDetalhado[]> {
-  return Promise.all(MODALIDADES.map((m) => buscarModalidadeDetalhada(m, opcoes)));
+  return Promise.all((opcoes.modalidades ?? MODALIDADES_PRIORITARIAS).map((m) => buscarModalidadeDetalhada(m, opcoes)));
 }

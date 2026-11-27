@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { CnaePerfil } from "./perfil";
 import {
   casaComRamo,
+  deduplicarDesertas,
   desertasDoRamo,
+  desertasParaMostrar,
   diasParaVarrer,
   diaPncp,
   montarDeserta,
+  semReabertura,
   somarDias,
   tipoSemVencedor,
   type Deserta,
@@ -109,6 +112,45 @@ describe("ramo", () => {
     const velha: Deserta = { ...nova, id: "V", desertaEm: "2026-08-01T10:00:00-03:00" };
     const fora: Deserta = { ...nova, id: "F", objeto: "Aquisição de pneus", desertaEm: "2026-11-12T10:00:00-03:00" };
     expect(desertasDoRamo([nova, velha, fora, mais], CNAES, AGORA).map((d) => d.id)).toEqual(["M", "N"]);
+  });
+});
+
+describe("repetidas e reabertas", () => {
+  const base = montarDeserta(COMPRA, [item(1, 4)], AGORA) as Deserta;
+  const objeto = "Contratação de empresa para desenvolvimento de site institucional";
+  const antiga: Deserta = { ...base, id: "A", objeto, desertaEm: "2026-10-01T10:00:00-03:00" };
+  const nova: Deserta = { ...base, id: "B", objeto: objeto.toUpperCase(), desertaEm: "2026-11-05T10:00:00-03:00" };
+  const outroOrgao: Deserta = { ...nova, id: "C", orgaoCnpj: "22222222000122" };
+  const outroObjeto: Deserta = { ...nova, id: "D", objeto: "Aquisição de notebooks" };
+
+  it("mesmo órgão e mesmo objeto viram um cartão, o da mais recente", () => {
+    expect(deduplicarDesertas([antiga, nova]).map((d) => d.id)).toEqual(["B"]);
+    expect(deduplicarDesertas([nova, antiga]).map((d) => d.id)).toEqual(["B"]);
+  });
+
+  it("órgão ou objeto diferente continua separado e a ordem é mantida", () => {
+    expect(deduplicarDesertas([nova, outroOrgao, outroObjeto, antiga]).map((d) => d.id)).toEqual(["B", "C", "D"]);
+  });
+
+  it("some a deserta cujo órgão já abriu a compra de novo", () => {
+    const aberta = { orgaoCnpj: base.orgaoCnpj, objeto: "Contratação de empresa para o desenvolvimento de site institucional" };
+    expect(semReabertura([nova, outroObjeto], [aberta]).map((d) => d.id)).toEqual(["D"]);
+  });
+
+  it("licitação aberta de outro órgão ou de outro assunto não esconde a deserta", () => {
+    const deOutroOrgao = { orgaoCnpj: "22222222000122", objeto };
+    const deOutroAssunto = { orgaoCnpj: base.orgaoCnpj, objeto: "Aquisição de merenda escolar" };
+    expect(semReabertura([nova], [deOutroOrgao, deOutroAssunto])).toEqual([nova]);
+  });
+
+  it("a descrição dos itens não atrapalha o casamento com a reabertura", () => {
+    const comItens: Deserta = { ...nova, objeto: `${objeto} — itens sem vencedor: Item 1; Item 2` };
+    expect(semReabertura([comItens], [{ orgaoCnpj: base.orgaoCnpj, objeto }])).toEqual([]);
+  });
+
+  it("desertasParaMostrar junta as duas regras", () => {
+    const aberta = { orgaoCnpj: base.orgaoCnpj, objeto: "Aquisição de notebooks" };
+    expect(desertasParaMostrar([antiga, nova, outroOrgao, outroObjeto], [aberta]).map((d) => d.id)).toEqual(["B", "C"]);
   });
 });
 

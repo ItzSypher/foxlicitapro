@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, ChevronUp, Lock, Plus, Trash2 } from "lucide-react";
 import { CampoData, CampoInline } from "@/components/propostas/campo-inline";
@@ -107,7 +106,6 @@ export function DocumentoEditavel({ form, dados, emitente, editavel, aoEditar, r
 
         <div className="flex flex-col gap-2">
           <div className="flex items-start gap-3 border-b border-black pb-3">
-            <Image src="/raposa.svg" alt="" width={249} height={254} unoptimized className="h-12 w-auto shrink-0" />
             <div className="min-w-0 text-[15px] leading-snug">
               <p className="text-base font-bold">{emitente.razaoSocial}</p>
               <p>CNPJ {emitente.cnpj}</p>

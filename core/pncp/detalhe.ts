@@ -1,4 +1,4 @@
-import type { ArquivoCompra, ChaveCompra, DetalheCompra, ItemCompra } from "../types-detalhe";
+import type { ArquivoCompra, ChaveCompra, ComplementoCompra, DetalheCompra, ItemCompra } from "../types-detalhe";
 import { ErroPncp } from "./client";
 import {
   arquivoSchema,
@@ -313,9 +313,55 @@ async function buscarArquivos(base: string, config: Config): Promise<ArquivoComp
   return normalizarArquivos(lista.data);
 }
 
+function configDe(opcoes: OpcoesDetalhe): Config {
+  return {
+    fetchImpl: opcoes.fetchImpl ?? fetch,
+    esperaRetryMs: opcoes.esperaRetryMs ?? ESPERA_RETRY_MS,
+  };
+}
+
+function baseDe(chave: ChaveCompra): string {
+  return `${chave.cnpj}/compras/${chave.ano}/${chave.sequencial}`;
+}
+
+/**
+ * Só os dados gerais da contratação (uma chamada ao PNCP): itens e arquivos vêm vazios, sem aviso de falha.
+ * É o que o topo da tela precisa; a parte lenta vem de `buscarComplementoCompra`.
+ * Devolve null quando a contratação não existe; falha nos dados gerais lança erro.
+ */
+export async function buscarDetalheGeral(
+  chave: ChaveCompra,
+  opcoes: OpcoesDetalhe = {},
+): Promise<DetalheCompra | null> {
+  const geral = await buscarGeral(baseDe(chave), configDe(opcoes), chave);
+  return geral === null ? null : montarDetalhe(chave, geral, [], 0, [], []);
+}
+
+/**
+ * Itens (até 4 páginas, em série) e arquivos, com no máximo 2 chamadas ao mesmo tempo.
+ * Nunca lança: o que não carregou entra em `falhas`.
+ */
+export async function buscarComplementoCompra(
+  chave: ChaveCompra,
+  opcoes: OpcoesDetalhe = {},
+): Promise<ComplementoCompra> {
+  const config = configDe(opcoes);
+  const base = baseDe(chave);
+  const [itensR, arquivosR] = await Promise.allSettled([buscarItens(base, config), buscarArquivos(base, config)]);
+  const falhas: ComplementoCompra["falhas"] = [];
+  if (itensR.status === "rejected") falhas.push("itens");
+  if (arquivosR.status === "rejected") falhas.push("arquivos");
+  return {
+    itens: itensR.status === "fulfilled" ? itensR.value.itens : [],
+    totalItens: itensR.status === "fulfilled" ? itensR.value.total : 0,
+    arquivos: arquivosR.status === "fulfilled" ? arquivosR.value : [],
+    falhas,
+  };
+}
+
 /**
  * Busca no PNCP tudo sobre uma contratação: dados gerais, itens e arquivos.
- * Assinatura fixa: a tela de licitação e o módulo de propostas dependem dela
+ * Assinatura fixa: o módulo de propostas e o assistente dependem dela
  * (o segundo parâmetro é opcional e serve aos testes).
  * Devolve null quando a contratação não existe. Dados gerais falhando lança erro;
  * itens ou arquivos falhando entram em `falhas` e o resto segue.
@@ -324,27 +370,7 @@ export async function buscarDetalheCompra(
   chave: ChaveCompra,
   opcoes: OpcoesDetalhe = {},
 ): Promise<DetalheCompra | null> {
-  const config: Config = {
-    fetchImpl: opcoes.fetchImpl ?? fetch,
-    esperaRetryMs: opcoes.esperaRetryMs ?? ESPERA_RETRY_MS,
-  };
-  const base = `${chave.cnpj}/compras/${chave.ano}/${chave.sequencial}`;
-
-  const geral = await buscarGeral(base, config, chave);
-  if (geral === null) return null;
-
-  // No máximo 2 chamadas ao mesmo tempo: itens (em série) e arquivos.
-  const [itensR, arquivosR] = await Promise.allSettled([buscarItens(base, config), buscarArquivos(base, config)]);
-  const falhas: DetalheCompra["falhas"] = [];
-  if (itensR.status === "rejected") falhas.push("itens");
-  if (arquivosR.status === "rejected") falhas.push("arquivos");
-
-  return montarDetalhe(
-    chave,
-    geral,
-    itensR.status === "fulfilled" ? itensR.value.itens : [],
-    itensR.status === "fulfilled" ? itensR.value.total : 0,
-    arquivosR.status === "fulfilled" ? arquivosR.value : [],
-    falhas,
-  );
+  const detalhe = await buscarDetalheGeral(chave, opcoes);
+  if (detalhe === null) return null;
+  return { ...detalhe, ...(await buscarComplementoCompra(chave, opcoes)) };
 }

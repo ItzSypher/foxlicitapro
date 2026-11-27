@@ -51,7 +51,7 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 
 ## Fontes de licitação
 
-1. **PNCP** — coleta diária às 7h dos estados escolhidos (dispensa e pregão eletrônico). Inclui o que BNC, BLL, Licitanet, Portal de Compras Públicas e Compras RJ publicam no PNCP.
+1. **PNCP** — coleta diária às 7h dos estados escolhidos (dispensa e pregão eletrônico primeiro; depois concorrência eletrônica e presencial, pregão presencial e credenciamento). Licitação que casa com o foco da empresa tem nota mínima 75. Desertas aparecem uma vez por compra e somem quando o órgão reabre. Inclui o que BNC, BLL, Licitanet, Portal de Compras Públicas e Compras RJ publicam no PNCP.
 2. **Busca direta no PNCP** — em tempo real, pela palavra.
 3. **Alerta Licitação** — diários oficiais e sites de prefeituras pequenas, que só serão obrigadas a usar o PNCP em abril de 2027.
 

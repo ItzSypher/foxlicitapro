@@ -1,5 +1,5 @@
 import { buscarContratacoes } from "./pncp/client";
-import { normalizarLista } from "./pncp/normalize";
+import { gruposDeModalidades, normalizarLista } from "./pncp/normalize";
 import type { LimitesCaixa } from "./caixa";
 import { PERFIL_ORIGEM } from "./empresa";
 import type { PerfilEmpresa } from "./perfil";
@@ -37,10 +37,11 @@ export async function buscarRadar(frente: Frente, limites?: LimitesCaixa, perfil
   const agora = new Date();
   const resultados = await buscarContratacoes({ agora });
 
-  const falhas: ModalidadeId[] = resultados.filter((r) => r.falhou).map((r) => r.modalidadeId);
+  const quemFalhou = resultados.filter((r) => r.falhou);
+  const falhas: ModalidadeId[] = gruposDeModalidades(quemFalhou.map((r) => r.modalidadeId));
   const brutas = resultados.flatMap((r) => r.contratacoes);
 
-  if (falhas.length === resultados.length && brutas.length === 0) {
+  if (quemFalhou.length === resultados.length && brutas.length === 0) {
     throw new Error("Não foi possível consultar o PNCP: as duas modalidades falharam");
   }
 

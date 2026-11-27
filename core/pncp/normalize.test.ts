@@ -100,9 +100,18 @@ describe("normalizarContratacao", () => {
     expect(normalizarContratacao(ler(AMOSTRA_DISPENSA), new Date("2026-11-11T12:00:00Z"))).toBeNull();
   });
 
-  it("descarta item sem data de encerramento ou com modalidade fora de 6 e 8", () => {
+  it("descarta item sem data de encerramento ou com modalidade que o Radar não coleta", () => {
     expect(normalizarContratacao(ler({ ...AMOSTRA_DISPENSA, dataEncerramentoProposta: null }), AGORA)).toBeNull();
-    expect(normalizarContratacao(ler({ ...AMOSTRA_DISPENSA, modalidadeId: 4 }), AGORA)).toBeNull();
+    expect(normalizarContratacao(ler({ ...AMOSTRA_DISPENSA, modalidadeId: 9 }), AGORA)).toBeNull();
+  });
+
+  it("agrupa concorrência e pregão presencial como disputa e credenciamento como contratação direta", () => {
+    for (const codigo of [4, 5, 7]) {
+      expect(normalizarContratacao(ler({ ...AMOSTRA_DISPENSA, modalidadeId: codigo, modalidadeNome: "" }), AGORA)?.modalidadeId).toBe(6);
+    }
+    const cred = normalizarContratacao(ler({ ...AMOSTRA_DISPENSA, modalidadeId: 12, modalidadeNome: "" }), AGORA);
+    expect(cred?.modalidadeId).toBe(8);
+    expect(cred?.modalidadeNome).toBe("Credenciamento");
   });
 
   it("remove repetidos na lista", () => {

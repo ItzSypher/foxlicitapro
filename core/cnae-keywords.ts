@@ -699,14 +699,21 @@ function escaparRegex(texto: string): string {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Uma palavra com seus plurais: "s"/"es" e, no fim da palavra, "ão" (ões, ães), "al" (ais) e "m" (ns). */
+function palavraComPlural(palavra: string): string {
+  if (palavra.length < 4) return escaparRegex(palavra);
+  if (palavra.endsWith("ao")) return `${escaparRegex(palavra.slice(0, -2))}(?:ao|oes|aes|aos)`;
+  if (palavra.endsWith("al")) return `${escaparRegex(palavra.slice(0, -2))}(?:al|ais)`;
+  if (palavra.endsWith("m")) return `${escaparRegex(palavra.slice(0, -1))}(?:m|ns)`;
+  return `${escaparRegex(palavra)}(?:e?s)?`;
+}
+
 /**
- * Monta a expressão de um termo: limite de palavra nas pontas e plural simples
- * ("s" ou "es") em palavras com 4 letras ou mais.
+ * Monta a expressão de um termo: limite de palavra nas pontas, sem acento e com plural
+ * ("s", "es", "ões", "ais", "ns") em palavras com 4 letras ou mais. Termos de várias palavras casam em sequência.
  */
 export function regexDoTermo(termo: string): RegExp {
-  const palavras = normalizarTexto(termo)
-    .split(" ")
-    .map((p) => (p.length >= 4 ? `${escaparRegex(p)}(?:e?s)?` : escaparRegex(p)));
+  const palavras = normalizarTexto(termo).split(" ").map(palavraComPlural);
   return new RegExp(`(?<![a-z0-9])${palavras.join(" ")}(?![a-z0-9])`);
 }
 

@@ -7,7 +7,15 @@ export type Frente = "servicos" | "produtos";
 
 export type Regiao = "nova-iguacu" | "baixada" | "capital" | "rj" | "fora-rj";
 
+/** Grupo da modalidade no Radar e no Pipeline: 6 = disputa (pregão, concorrência), 8 = contratação direta (dispensa, credenciamento). */
 export type ModalidadeId = 6 | 8;
+
+/**
+ * Código da modalidade no PNCP que a coleta consulta e o cache guarda:
+ * 4 concorrência eletrônica, 5 concorrência presencial, 6 pregão eletrônico, 7 pregão presencial, 8 dispensa, 12 credenciamento.
+ * Na `Oportunidade` vale o grupo (`ModalidadeId`); o nome real segue em `modalidadeNome`.
+ */
+export type ModalidadePncp = 4 | 5 | 6 | 7 | 8 | 12;
 
 export interface Oportunidade {
   /** numeroControlePNCP */

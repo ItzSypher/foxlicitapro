@@ -1,4 +1,4 @@
-import { casarCnaes } from "./cnae-keywords";
+import { casarCnaes, normalizarTexto } from "./cnae-keywords";
 import type { CnaePerfil } from "./perfil";
 import { paraIsoBrasilia } from "./pncp/normalize";
 import type { ContratacaoPncp } from "./pncp/schema";
@@ -26,6 +26,9 @@ export interface ItemSituacao {
   /** dataAtualizacao do item, sem fuso, como o PNCP manda */
   atualizadoEm: string | null;
 }
+
+/** Entre o objeto da compra e a descrição dos itens sem vencedor, no texto do `objeto` da deserta. */
+export const SEPARADOR_ITENS = " — itens sem vencedor: ";
 
 export type SituacaoDeserta = "deserta" | "fracassada" | "mista";
 
@@ -98,7 +101,7 @@ export function montarDeserta(c: ContratacaoPncp, itens: ReadonlyArray<ItemSitua
     .slice(0, 5)
     .join("; ");
   const objetoCompra = limpar(c.objetoCompra);
-  const objeto = descricoes === "" || objetoCompra.includes(descricoes) ? objetoCompra : `${objetoCompra} — itens sem vencedor: ${descricoes}`;
+  const objeto = descricoes === "" || objetoCompra.includes(descricoes) ? objetoCompra : `${objetoCompra}${SEPARADOR_ITENS}${descricoes}`;
   if (objeto === "") return null;
 
   let quando: string | null = encerramento;
@@ -143,6 +146,69 @@ export function desertasDoRamo(
   return desertas
     .filter((d) => Date.parse(d.desertaEm) >= limite && casaComRamo(d.objeto, cnaes))
     .sort((a, b) => Date.parse(b.desertaEm) - Date.parse(a.desertaEm) || a.id.localeCompare(b.id));
+}
+
+/**
+ * Uma deserta por compra repetida: mesmo órgão e mesmo objeto (com os itens sem vencedor) valem um cartão só,
+ * o da mais recente. O órgão reabre a compra com outro número e a mesma descrição, e cada tentativa virava um cartão.
+ * A ordem da lista é mantida.
+ */
+export function deduplicarDesertas(desertas: ReadonlyArray<Deserta>): Deserta[] {
+  const melhores = new Map<string, Deserta>();
+  for (const d of desertas) {
+    const chave = `${d.orgaoCnpj}|${normalizarTexto(d.objeto)}`;
+    const atual = melhores.get(chave);
+    const maisNova = atual === undefined || Date.parse(d.desertaEm) > Date.parse(atual.desertaEm);
+    if (maisNova) melhores.set(chave, d);
+  }
+  const escolhidas = new Set(melhores.values());
+  return desertas.filter((d) => escolhidas.has(d));
+}
+
+/** Palavras do objeto da compra (sem a descrição dos itens), sem acento e sem repetição. */
+function palavrasDoObjeto(objeto: string): Set<string> {
+  const base = objeto.split(SEPARADOR_ITENS)[0] ?? objeto;
+  return new Set(normalizarTexto(base).split(" ").filter((p) => p.length > 2));
+}
+
+/** Parecença de 0 a 1 entre dois conjuntos de palavras (interseção sobre união). */
+function parecenca(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let comuns = 0;
+  for (const p of a) if (b.has(p)) comuns += 1;
+  return comuns / (a.size + b.size - comuns);
+}
+
+/** A partir desta parecença, o objeto aberto conta como a reabertura da compra que deu deserta. */
+const PARECENCA_REABERTURA = 0.8;
+
+export interface AbertaParaReabertura {
+  orgaoCnpj: string;
+  objeto: string;
+}
+
+/**
+ * Tira as desertas cuja compra já foi reaberta: há licitação aberta do mesmo órgão com objeto praticamente igual.
+ * Elas já aparecem no Radar com prazo correndo, e o cartão de deserta não tem mais o que oferecer.
+ */
+export function semReabertura(desertas: ReadonlyArray<Deserta>, abertas: ReadonlyArray<AbertaParaReabertura>): Deserta[] {
+  const porOrgao = new Map<string, Set<string>[]>();
+  for (const a of abertas) {
+    const lista = porOrgao.get(a.orgaoCnpj) ?? [];
+    lista.push(palavrasDoObjeto(a.objeto));
+    porOrgao.set(a.orgaoCnpj, lista);
+  }
+  return desertas.filter((d) => {
+    const doOrgao = porOrgao.get(d.orgaoCnpj);
+    if (doOrgao === undefined) return true;
+    const palavras = palavrasDoObjeto(d.objeto);
+    return !doOrgao.some((aberta) => parecenca(palavras, aberta) >= PARECENCA_REABERTURA);
+  });
+}
+
+/** As desertas que a aba mostra: sem repetição e sem as que já reabriram. */
+export function desertasParaMostrar(desertas: ReadonlyArray<Deserta>, abertas: ReadonlyArray<AbertaParaReabertura>): Deserta[] {
+  return semReabertura(deduplicarDesertas(desertas), abertas);
 }
 
 /** Dia yyyyMMdd (fuso de Brasília) a `dias` de `agora`; negativo olha para trás. */

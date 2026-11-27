@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sql } from "@/db/client";
 import { lerFichaSalva } from "@/core/ficha";
 import type { GanhoParaCaixa } from "@/core/fluxo-caixa";
+import { comissaoDoItem } from "@/core/lucro";
 import { COMISSAO_MAXIMA, COMISSAO_MINIMA } from "@/core/lucro";
 
 const numeroBruto = z.union([z.string(), z.number()]).nullable();
@@ -21,6 +22,10 @@ const linhaSchema = z.object({
   pagamento_previsto: z.string().nullable(),
   recebido_em: z.string().nullable(),
   ganho_em: z.date().nullable(),
+  dev_custo: numeroBruto,
+  dev_parcelas: numeroBruto,
+  contrato_meses: numeroBruto,
+  terceirizavel: z.boolean().nullable(),
   ficha: z.unknown(),
 });
 
@@ -41,6 +46,7 @@ export async function listarGanhosParaCaixa(empresaId: string): Promise<GanhoPar
            i.dados->>'orgao' as orgao,
            i.dados->'score'->>'frenteCasada' as frente,
            i.valor_estimado, i.valor_homologado, i.valor_recebido, i.custo_real, i.comissao_percentual,
+           i.dev_custo, i.dev_parcelas, i.contrato_meses, i.terceirizavel,
            to_char(i.pagamento_previsto, 'YYYY-MM-DD') as pagamento_previsto,
            to_char(i.recebido_em, 'YYYY-MM-DD') as recebido_em,
            (select max(p.total) from propostas p
@@ -72,6 +78,10 @@ export async function listarGanhosParaCaixa(empresaId: string): Promise<GanhoPar
       prazoEntregaDias: ficha?.prazoEntregaDias.valor ?? null,
       prazoPagamentoDias: ficha?.prazoPagamentoDias.valor ?? null,
       frente: l.frente,
+      devCusto: numero(l.dev_custo),
+      devParcelas: numero(l.dev_parcelas),
+      contratoMeses: numero(l.contrato_meses),
+      terceirizavel: l.terceirizavel,
     });
   }
   return ganhos;
@@ -128,7 +138,7 @@ export async function gravarCustoRealDoItem(empresaId: string, id: string, custo
   return r.count > 0;
 }
 
-/** Comissão desta licitação (0 a 30%); null volta a usar o padrão da empresa. */
+/** Comissão desta licitação (0 a 30%); null tira a comissão (sem "Tem comissão" marcado). */
 export async function gravarComissaoDoItem(empresaId: string, id: string, percentual: number | null): Promise<boolean> {
   if (percentual !== null && (!Number.isFinite(percentual) || percentual < COMISSAO_MINIMA || percentual > COMISSAO_MAXIMA)) return false;
   const valor = percentual === null ? null : Math.round(percentual * 100) / 100;
@@ -138,4 +148,14 @@ export async function gravarComissaoDoItem(empresaId: string, id: string, percen
     where empresa_id = ${empresaId} and id = ${id} and etapa = 'ganha'
   `;
   return r.count > 0;
+}
+
+/** Comissão do item do pipeline (0 quando ninguém marcou "Tem comissão"); sempre só da empresa informada. */
+export async function lerComissaoDoItemPipeline(empresaId: string, itemId: string | null): Promise<number> {
+  if (itemId === null) return 0;
+  const linhas = await sql<{ comissao_percentual: string | number | null }[]>`
+    select comissao_percentual from pipeline_itens
+    where empresa_id = ${empresaId} and id = ${itemId}
+  `;
+  return comissaoDoItem(numero(linhas[0]?.comissao_percentual ?? null));
 }
