@@ -23,6 +23,7 @@ import {
   linhaCurtaAndamento,
   linhaCurtaResumo,
   linkAtivacao,
+  linkDaLicitacao,
   mesDeSaoPaulo,
   nomeParaModelo,
   parametroDoModelo,
@@ -853,5 +854,113 @@ describe("andamento do dia (15h)", () => {
     expect(linha).toBe("propostas: 1 gerada, 2 enviadas, 1 item mudou de etapa, 2 fecham hoje ou amanhã sem proposta, meta 2 de 5");
     expect(linha.length).toBeLessThanOrEqual(180);
     expect(linhaCurtaAndamento(andamento({ escolhas: { ...escolhasDoPerfil("operacional"), meta: false } }))).toBe("nenhuma proposta mexida");
+  });
+});
+
+describe("título inteiro e link da licitação", () => {
+  const ID = "00394502000144-1-016696/2026";
+  const LINK = "https://licitapro.foxtisolutions.com.br/licitacao/00394502000144/2026/16696";
+  const longo = `Aquisição de ${"equipamentos de informática e suprimentos para as escolas municipais ".repeat(3).trim()}`;
+  const TARDE = new Date("2026-05-12T18:00:00Z");
+
+  it("linkDaLicitacao converte o número de controle e ignora id que não converte", () => {
+    expect(linkDaLicitacao(ID)).toBe(LINK);
+    expect(linkDaLicitacao("i1")).toBeNull();
+    expect(linkDaLicitacao("")).toBeNull();
+  });
+
+  it("alerta de prazo: título inteiro e o link numa linha própria abaixo", () => {
+    const r = alertasDePrazo([item({ id: ID, objeto: longo, dataEncerramento: depois(HORA) })], [ana], AGORA);
+    const linhas = (r[0]?.texto ?? "").split("\n");
+    expect(r[0]?.texto).not.toContain("…");
+    expect(linhas[1]).toBe(longo);
+    expect(linhas[2]).toBe(LINK);
+  });
+
+  it("id que não converte: sem link e sem erro", () => {
+    const r = alertasDePrazo([item({ id: "i1", dataEncerramento: depois(HORA) })], [ana], AGORA);
+    expect(r[0]?.texto).not.toContain("http");
+  });
+
+  it("novas do ramo e propostas do dia: título inteiro e link abaixo do título", () => {
+    const propostasHoje = [{ itemId: ID, objeto: longo, valor: 1_000, dataEncerramento: depois(3 * HORA) }];
+    const novas = [nova({ id: ID, objeto: longo })];
+    const texto = textoResumoManha(dados({ novas, propostasHoje }), AGORA).texto;
+    expect(texto).not.toContain("…");
+    expect(texto).toContain(`1. *${longo}*\n${LINK}\n`);
+    expect(texto.split(LINK).length - 1).toBe(2);
+  });
+
+  it("fecham em 48 h, aguardando, movimentos e disputa trazem o link", () => {
+    const itens = [
+      item({ id: ID, objeto: longo, dataEncerramento: depois(30 * HORA) }),
+      item({ id: ID.replace("016696", "000001"), etapa: "disputa", objeto: "Cadeiras", dataEncerramento: depois(-5 * HORA) }),
+    ];
+    const movimentos: MovimentoEquipe[] = [{ itemId: ID, objeto: longo, de: "proposta", para: "disputa", porId: "paulo", porNome: "Paulo Henrique" }];
+    const escolhas = { ...escolhasDoPerfil("operacional"), movimentos: true, disputa: true };
+    const texto = textoResumoManha(dados({ itens, movimentos, escolhas }), AGORA).texto;
+    expect(texto).toContain(`⏰ Fecham em 48 h: 1\n• ${longo} (em 1 d 6 h)\n${LINK}`);
+    expect(texto).toContain("⌛ Aguardando resultado: 1\n• Cadeiras\nhttps://licitapro.foxtisolutions.com.br/licitacao/00394502000144/2026/1");
+    expect(texto).toContain(`• Paulo: ${longo} (Proposta pronta → Em disputa)\n${LINK}`);
+    expect(texto).toContain(`🏁 Entraram em disputa: 1\n• ${longo}\n${LINK}`);
+    expect(texto).not.toContain("…");
+  });
+
+  it("andamento: movimentos, sem proposta e prazos pendentes com título inteiro e link", () => {
+    const semProposta = [{ itemId: ID, objeto: longo, valor: null, dataEncerramento: "2026-05-12T21:00:00Z" }];
+    const prazosPendentes = [item({ id: ID, objeto: longo, dataEncerramento: "2026-05-12T21:00:00Z" })];
+    const movimentos: MovimentoEquipe[] = [{ itemId: ID, objeto: longo, de: "radar", para: "analisando", porId: "paulo", porNome: "Paulo" }];
+    const texto = textoAndamento(
+      {
+        usuarioId: "ana",
+        nome: "Ana",
+        escolhas: escolhasDoPerfil("operacional"),
+        propostas: [],
+        movimentos,
+        semProposta,
+        prazosPendentes,
+        pendencias: [],
+        emJogo: 1,
+        disputasNaSemana: 0,
+        vencidasNaSemana: { vencidas: 0, valor: 0, estimado: false },
+        meta: { minimo: 5, ideal: 10 },
+      },
+      TARDE,
+    );
+    expect(texto).not.toContain("…");
+    expect(texto.split(LINK).length - 1).toBe(3);
+    expect(texto).toContain(`• ${longo} (hoje às 18h)\n${LINK}`);
+  });
+
+  it("título absurdo para no teto de 400 caracteres", () => {
+    const r = alertasDePrazo([item({ id: ID, objeto: "palavra ".repeat(200), dataEncerramento: depois(HORA) })], [ana], AGORA);
+    expect((r[0]?.texto ?? "").split("\n")[1]?.length).toBeLessThanOrEqual(400);
+  });
+
+  it("resumo da manhã acima de 4000: tira itens da lista, sem cortar título nem link", () => {
+    const novas = Array.from({ length: 8 }, (_, i) =>
+      nova({ id: `00394502000144-1-${String(i + 1).padStart(6, "0")}/2026`, objeto: `${i} ${"objeto muito detalhado ".repeat(14).trim()}` }),
+    );
+    const r = textoResumoManha(dados({ novas }), AGORA);
+    expect(r.texto.length).toBeLessThanOrEqual(4000);
+    expect(r.novasMostradas.length).toBeLessThan(8);
+    expect(r.novasMostradas.length).toBeGreaterThan(0);
+    expect(r.texto).toContain("+");
+    expect(r.texto).not.toContain("…");
+    for (const l of r.texto.split("\n").filter((x) => x.startsWith("http"))) expect(l).toMatch(/\/licitacao\/\d{14}\/2026\/\d+$/);
+  });
+
+  it("juntarResumos: a linha do link sai junto com o título da lista", () => {
+    const parte = ["⏰ Fecham em 48 h: 3", "• Aaa (em 1 h)\nhttps://x.test/a", "• Bbb (em 2 h)\nhttps://x.test/b", "• Ccc (em 3 h)\nhttps://x.test/c"].join("\n");
+    const texto = juntarResumos("Ana", [{ empresa: "Alfa", partes: [parte] }], 140);
+    expect(texto).toContain("• Aaa (em 1 h)\nhttps://x.test/a");
+    expect(texto).not.toContain("Ccc");
+    expect(texto).not.toMatch(/\n• Bbb[^\n]*$/);
+  });
+
+  it("os modelos aprovados continuam curtos e sem link", () => {
+    const d = dados({ novas: [nova({ id: ID, objeto: longo })] });
+    expect(linhaCurtaResumo(d, AGORA)).not.toContain("http");
+    expect(linhaCurtaResumo(d, AGORA).length).toBeLessThanOrEqual(180);
   });
 });

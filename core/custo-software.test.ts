@@ -71,6 +71,32 @@ describe("contaSoftware", () => {
   });
 });
 
+describe("contaSoftware com horas próprias e lance", () => {
+  const base = { meses: 12, comissaoPercentual: 0, valorReferencia: 64860 };
+  it("horas próprias viram custo a R$ 175 e o lucro não é 100%", () => {
+    const c = contaSoftware({ ...base, bruto: 50000, terceirizavel: false, devCusto: null, horasMes: 10 });
+    expect(c?.custoProprio).toBe(21000);
+    expect(c?.sobra).toBe(29000);
+    expect(c?.margemPercentual).toBe(58);
+    expect(c?.veredito).toBe("vale");
+  });
+  it("sem horas informadas fica pendente", () => {
+    expect(contaSoftware({ ...base, bruto: 50000, terceirizavel: false, devCusto: null })?.veredito).toBe("pendente");
+  });
+  it("horas acima do mínimo sobem o preço mínimo com a comissão", () => {
+    const c = contaSoftware({ ...base, bruto: 60000, comissaoPercentual: 10, terceirizavel: false, devCusto: null, horasMes: 30 });
+    expect(c?.precoMinimo).toBe(70000);
+    expect(c?.veredito).toBe("nao-vale");
+  });
+  it("outro serviço não tem o mínimo de R$ 3.500/mês", () => {
+    const c = contaSoftware({ ...base, bruto: 12000, desenvolvimento: false, terceirizavel: false, devCusto: null, horasMes: 4 });
+    expect(c?.minimo).toBe(0);
+    expect(c?.abaixoDoMinimo).toBe(false);
+    expect(c?.precoMinimo).toBe(8400);
+    expect(c?.veredito).toBe("vale");
+  });
+});
+
 describe("cronogramaRepasse", () => {
   it("paga Paulo todo mês e o dev nas primeiras parcelas", () => {
     const r = cronogramaRepasse(42000, 12, 10, 2000, 2);

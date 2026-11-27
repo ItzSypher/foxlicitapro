@@ -26,7 +26,7 @@ import type { Sessao } from "@/core/types-equipe";
 import type { CotacaoSalva } from "@/db/cotacoes";
 import { resumirObjeto } from "@/core/objeto";
 import { calcularCapitalGiro } from "@/core/capital-giro";
-import { caminhoDoDinheiro, type OportunidadeCaixa } from "@/core/caminho-dinheiro";
+import { caminhoDoDinheiro, tipoDoObjeto, type OportunidadeCaixa } from "@/core/caminho-dinheiro";
 import { COMISSAO_AO_MARCAR, comissaoDoItem, contaLucro, type ContaLucro } from "@/core/lucro";
 import type { DadosSoftware } from "@/core/campos-software";
 import { ehDesenvolvimento, mesesSugeridos } from "@/core/custo-software";
@@ -107,6 +107,16 @@ const complementoDoPedido = cache(async (cnpj: string, ano: string, sequencial: 
  * junto com a chamada ao PNCP em vez de esperar por ela; se o PNCP trouxer outro número, a leitura se repete com ele.
  */
 const preferenciasDoPedido = cache((empresaId: string) => noBanco(() => lerPreferencias(empresaId)));
+const ITEM_EM_BRANCO: DadosSoftware = {
+  terceirizavel: null,
+  devCusto: null,
+  devParcelas: null,
+  contratoMeses: null,
+  comissaoPercentual: null,
+  precoLance: null,
+  horasMes: null,
+};
+
 function comMesesSugeridos(dados: DadosSoftware, sugeridos: number | null): DadosSoftware {
   return dados.contratoMeses === null && sugeridos !== null ? { ...dados, contratoMeses: sugeridos } : dados;
 }
@@ -310,7 +320,8 @@ function oportunidadeDoCaixa(d: Awaited<ReturnType<typeof dadosDoPedido>>): Opor
 }
 
 /**
- * Os números do topo: valor, preço alvo, caixa e prazo para todos; a conta de lucro e a comissão só para o dono.
+ * Os números do topo: valor, preço alvo, caixa e prazo para todos; a conta de lucro e a comissão para dono e gestor.
+ * Em serviço, a conta é a do bloco de perguntas (dev ou horas, meses, comissão e lance), não a do valor estimado.
  * A comissão é a do próprio item do pipeline (sem marcar, ou fora do pipeline, é 0).
  * Receita é o preço alvo ou, sem ele, o valor estimado; o custo é o da cotação salva ou uma estimativa pelo tipo do objeto.
  */
@@ -322,14 +333,18 @@ export async function SecaoNumeros({ chave }: { chave: ChaveUrl }) {
   const oportunidade = oportunidadeDoCaixa(d);
   const caminho = caminhoDoDinheiro(d.ficha?.ficha ?? null, oportunidade);
   const receita = preco.sugerido ?? d.detalhe.valorEstimado;
-  const ehDono = d.sessao.papel === "dono";
+  // Dono e gestor veem a conta inteira; o jurídico, só os números do edital e o veredito.
+  const veConta = d.sessao.papel === "dono" || d.sessao.papel === "gestor";
   const doItem = await softwareDoPedido(d.sessao.empresaId, d.detalhe.numeroControle);
+  const desenvolvimento = ehDesenvolvimento(d.detalhe.objeto);
+  // Serviço não tem custo de mercadoria: a conta vem das perguntas (dev ou horas) e do lance, não do valor estimado.
+  const servico = desenvolvimento || tipoDoObjeto(oportunidade) !== "produto";
   let lucro: ContaLucro | null = null;
-  if (ehDono && receita !== null) {
+  if (veConta && !servico && receita !== null) {
     lucro = contaLucro({ receita, custo: d.custoCotado, comissaoPercentual: comissaoDoItem(doItem?.comissaoPercentual), oportunidade });
   }
-  const desenvolvimento = ehDesenvolvimento(d.detalhe.objeto);
-  const comissaoPadrao = ehDono && desenvolvimento ? await comissaoPadraoDoPedido(d.sessao.empresaId) : COMISSAO_AO_MARCAR;
+  const comissaoPadrao = veConta && servico ? await comissaoPadraoDoPedido(d.sessao.empresaId) : COMISSAO_AO_MARCAR;
+  const mesesDoEdital = mesesSugeridos(d.detalhe.objeto, d.ficha?.ficha.natureza.valor ?? null);
   return (
     <NumerosLicitacao
       valorEstimado={d.detalhe.valorEstimado}
@@ -340,19 +355,17 @@ export async function SecaoNumeros({ chave }: { chave: ChaveUrl }) {
       receitaDe={preco.sugerido === null ? "estimado" : "alvo"}
       linkCalculadora={`/calculadora?item=${encodeURIComponent(d.detalhe.numeroControle)}`}
       software={
-        desenvolvimento
+        servico
           ? {
               compra: chaveCompra(chave),
               salvo: doItem !== null,
-              ehDono,
-              bruto: receita,
+              veConta,
+              desenvolvimento,
               valorReferencia: d.detalhe.valorEstimado,
               comissaoPadrao,
+              mesesDoEdital,
               // Sem meses gravados, sugere pelo objeto e pela ficha (serviço contínuo = 12); entrega única fica vazio.
-              inicial: comMesesSugeridos(
-                doItem ?? { terceirizavel: null, devCusto: null, devParcelas: null, contratoMeses: null, comissaoPercentual: null },
-                mesesSugeridos(d.detalhe.objeto, d.ficha?.ficha.natureza.valor ?? null),
-              ),
+              inicial: comMesesSugeridos(doItem ?? ITEM_EM_BRANCO, mesesDoEdital),
             }
           : null
       }

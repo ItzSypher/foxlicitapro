@@ -239,10 +239,13 @@ function contaLucroDe(e: EntradaContexto): ContaLucro | null {
 /** Conta de site, sistema e software; null quando o objeto não é desenvolvimento ou falta valor. */
 function contaSoftwareDe(e: EntradaContexto): ContaSoftware | null {
   if (!ehDesenvolvimento(e.item.objeto)) return null;
-  const bruto = receitaDe(e);
+  // O lance que a empresa disse vale mais que o preço alvo ou o estimado: é o que ela vai receber.
+  const lance = e.software?.precoLance ?? null;
+  const bruto = lance !== null && lance > 0 ? lance : receitaDe(e);
   if (bruto === null) return null;
   return contaSoftware({
     bruto,
+    horasMes: e.software?.horasMes ?? null,
     meses: e.software?.contratoMeses ?? null,
     comissaoPercentual: comissaoDe(e),
     terceirizavel: e.software?.terceirizavel ?? null,
@@ -315,6 +318,11 @@ function linhasSoftware(e: EntradaContexto, conta: ContaSoftware | null, valores
         : "Dev ainda sem cotação.",
     );
   }
+  if (terceirizavel === false && conta.custoProprio > 0) {
+    linhas.push(`Horas próprias: ${e.software?.horasMes ?? 0} h por mês a ${guardar(VALOR_HORA)}, custo de ${guardar(conta.custoProprio)} no contrato.`);
+  }
+  const lance = e.software?.precoLance ?? null;
+  if (lance !== null && lance > 0) linhas.push(`Lance que a empresa vai dar: ${guardar(lance)}.`);
   linhas.push(
     `Comissão: ${guardar(conta.comissao)}; sobra para o dono: ${guardar(conta.sobra)} (${conta.margemPercentual}%).`,
     `Veredito do sistema (conta de software): ${ROTULO_VEREDITO_SOFTWARE[conta.veredito]}. Motivo: ${conta.motivo}.`,

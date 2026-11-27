@@ -64,6 +64,10 @@ export interface EntradaSoftware {
   devCusto: number | null;
   /** Valor estimado do edital, para saber quanto dá para baixar */
   valorReferencia?: number | null;
+  /** Horas por mês que o próprio dono gasta quando não terceiriza; cada hora custa R$ 175 */
+  horasMes?: number | null;
+  /** Site, sistema ou software (vale o mínimo de R$ 3.500/mês); false nos demais serviços. Padrão: true */
+  desenvolvimento?: boolean;
 }
 
 export interface ContaSoftware {
@@ -78,7 +82,9 @@ export interface ContaSoftware {
   /** Teto do dev quando é terceirizável; null quando não é ou falta resposta */
   tetoDev: number | null;
   devCusto: number;
-  /** Bruto menos comissão e dev */
+  /** Horas próprias × R$ 175 × meses quando não terceiriza; 0 sem horas */
+  custoProprio: number;
+  /** Bruto menos comissão, dev e horas próprias */
   sobra: number;
   margemPercentual: number;
   /** Menor preço aceitável: o mínimo mensal ou o que mantém a margem com o dev informado */
@@ -93,23 +99,27 @@ export interface ContaSoftware {
 
 const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-/** A conta de software completa; null sem valor para calcular. */
+/** A conta de serviço completa (site, sistema e software, ou outro serviço); null sem valor para calcular. */
 export function contaSoftware(e: EntradaSoftware): ContaSoftware | null {
   if (!positivo(e.bruto)) return null;
+  const desenvolvimento = e.desenvolvimento !== false;
   const meses = mesesDoContrato(e.meses);
   const bruto = arredondar(e.bruto);
   const valorMensal = arredondar(bruto / meses);
-  const minimo = minimoDoContrato(e.meses);
-  const abaixoDoMinimo = valorMensal + 0.005 < MINIMO_MENSAL_SOFTWARE;
+  const minimo = desenvolvimento ? minimoDoContrato(e.meses) : 0;
   const c = Math.max(0, e.comissaoPercentual);
   const comissao = arredondar((bruto * c) / 100);
   const tetoDev = e.terceirizavel === true ? tetoDoDev(bruto, c) : null;
   const devCusto = e.terceirizavel === true && positivo(e.devCusto) ? arredondar(e.devCusto) : 0;
-  const sobra = arredondar(bruto - comissao - devCusto);
+  const horas = e.terceirizavel === false && positivo(e.horasMes) ? e.horasMes : 0;
+  const custoProprio = arredondar(horas * VALOR_HORA * meses);
+  const sobra = arredondar(bruto - comissao - devCusto - custoProprio);
   const margemPercentual = Math.round((sobra / bruto) * 1000) / 10;
   const fracaoLivre = 1 - c / 100 - MARGEM_MINIMA_DONO / 100;
   const pelaMargem = devCusto > 0 && fracaoLivre > 0 ? arredondar(devCusto / fracaoLivre) : 0;
-  const precoMinimo = Math.max(minimo, pelaMargem);
+  const pelasHoras = custoProprio > 0 && c < 100 ? arredondar(custoProprio / (1 - c / 100)) : 0;
+  const precoMinimo = Math.max(minimo, pelaMargem, pelasHoras);
+  const abaixoDoMinimo = desenvolvimento && valorMensal + 0.005 < MINIMO_MENSAL_SOFTWARE;
   const referencia = positivo(e.valorReferencia) ? e.valorReferencia : null;
   const folga = referencia === null ? null : arredondar(referencia - precoMinimo);
   const folgaPercentual = referencia === null || folga === null ? null : Math.round((folga / referencia) * 1000) / 10;
@@ -128,6 +138,12 @@ export function contaSoftware(e: EntradaSoftware): ContaSoftware | null {
   } else if (tetoDev !== null && devCusto > tetoDev + 0.005) {
     veredito = "nao-vale";
     motivo = `Dev de ${moeda.format(devCusto)} passa do teto de ${moeda.format(tetoDev)}`;
+  } else if (!e.terceirizavel && horas === 0) {
+    veredito = "pendente";
+    motivo = "Diga quantas horas por mês vai gastar";
+  } else if (bruto + 0.005 < precoMinimo) {
+    veredito = "nao-vale";
+    motivo = `Abaixo do preço mínimo de ${moeda.format(precoMinimo)}`;
   } else {
     veredito = "vale";
     motivo = `Sobra ${moeda.format(sobra)} (${margemPercentual.toLocaleString("pt-BR")}%)`;
@@ -143,6 +159,7 @@ export function contaSoftware(e: EntradaSoftware): ContaSoftware | null {
     comissao,
     tetoDev,
     devCusto,
+    custoProprio,
     sobra,
     margemPercentual,
     precoMinimo,

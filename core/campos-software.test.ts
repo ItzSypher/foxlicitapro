@@ -72,6 +72,13 @@ describe("entradaSoftwareSchema", () => {
       entradaSoftwareSchema.safeParse({ compra: COMPRA, terceirizavel: null, devCusto: null, devParcelas: null, contratoMeses: null }).success,
     ).toBe(true);
   });
+  it("aceita lance e horas próprias e recusa fora da faixa", () => {
+    const base = { compra: COMPRA, terceirizavel: false, devCusto: null, devParcelas: null, contratoMeses: 12 };
+    expect(entradaSoftwareSchema.safeParse({ ...base, precoLance: 45000, horasMes: 20 }).success).toBe(true);
+    expect(entradaSoftwareSchema.safeParse({ ...base, horasMes: 0 }).success).toBe(false);
+    expect(entradaSoftwareSchema.safeParse({ ...base, horasMes: 745 }).success).toBe(false);
+    expect(entradaSoftwareSchema.safeParse({ ...base, precoLance: -1 }).success).toBe(false);
+  });
   it("recusa chave ruim, parcelas e meses fora da faixa e custo negativo", () => {
     const base = { compra: COMPRA, terceirizavel: true, devCusto: 100, devParcelas: 2, contratoMeses: 6 };
     expect(entradaSoftwareSchema.safeParse({ ...base, compra: "x" }).success).toBe(false);

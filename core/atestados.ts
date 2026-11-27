@@ -351,4 +351,4 @@ export function urlVerificacao(base: string, codigo: string): string {
   return `${base.replace(/\/+$/, "")}/atestado/verificar/${codigo}`;
 }
 
-export const BASE_PADRAO_APP = "https://licitapro.foxtisolutions.com.br";
+export { BASE_PADRAO_APP } from "./app-base";

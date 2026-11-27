@@ -343,7 +343,7 @@ function numeroOuNull(v: unknown): number | null {
 /** Terceirização e comissão do item; null se ele não está no pipeline da empresa. */
 export async function lerSoftwareDoItem(empresaId: string, id: string): Promise<DadosSoftware | null> {
   const linhas = await sql`
-    select terceirizavel, dev_custo, dev_parcelas, contrato_meses, comissao_percentual
+    select terceirizavel, dev_custo, dev_parcelas, contrato_meses, comissao_percentual, preco_lance, horas_mes
     from pipeline_itens
     where empresa_id = ${empresaId} and id = ${id}
     limit 1
@@ -356,20 +356,23 @@ export async function lerSoftwareDoItem(empresaId: string, id: string): Promise<
     devParcelas: numeroOuNull(l.dev_parcelas),
     contratoMeses: numeroOuNull(l.contrato_meses),
     comissaoPercentual: numeroOuNull(l.comissao_percentual),
+    precoLance: numeroOuNull(l.preco_lance),
+    horasMes: numeroOuNull(l.horas_mes),
   };
 }
 
-/** Grava a resposta de terceirização, o custo e as parcelas do dev e os meses de contrato. False se o item não está no pipeline. */
+/** Grava terceirização, custo e parcelas do dev, horas próprias, meses de contrato e preço do lance. False se o item não está no pipeline. */
 export async function gravarSoftwareDoItem(
   empresaId: string,
   id: string,
   d: Omit<DadosSoftware, "comissaoPercentual">,
 ): Promise<boolean> {
   const custo = d.devCusto === null ? null : Math.round(d.devCusto * 100) / 100;
+  const lance = d.precoLance === null ? null : Math.round(d.precoLance * 100) / 100;
   const r = await sql`
     update pipeline_itens
     set terceirizavel = ${d.terceirizavel}, dev_custo = ${custo}, dev_parcelas = ${d.devParcelas},
-        contrato_meses = ${d.contratoMeses}, atualizado_em = now()
+        contrato_meses = ${d.contratoMeses}, preco_lance = ${lance}, horas_mes = ${d.horasMes}, atualizado_em = now()
     where empresa_id = ${empresaId} and id = ${id}
   `;
   return r.count > 0;

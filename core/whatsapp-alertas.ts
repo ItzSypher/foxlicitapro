@@ -5,7 +5,9 @@
 import { lerNumeroEscolhido } from "./whatsapp-propostas-lista";
 import { diaDeSaoPaulo, textoRestante } from "@/core/avisos";
 import { inicioDaSemana, type MetaConfig } from "@/core/meta";
-import { lerLinksPncp } from "@/core/link-pncp";
+import { BASE_PADRAO_APP } from "@/core/app-base";
+import { caminhoInterno, lerLinksPncp } from "@/core/link-pncp";
+import { chaveDeNumeroControle } from "@/core/proposta";
 import { resumirObjeto } from "@/core/objeto";
 import { ROTULO_ETAPA, ehEtapa } from "@/components/pipeline/tipos";
 import { z } from "zod";
@@ -15,7 +17,11 @@ export const JANELA_MS = 24 * MS_HORA;
 export const MARGEM_JANELA_MS = 30 * 60_000;
 export const HORA_INICIO = 7;
 export const HORA_FIM = 20;
+/** Corte das linhas de aviso (pendências), que não são títulos de licitação. */
 const MAX_OBJETO = 120;
+/** Teto de segurança do título de uma licitação: só um objeto absurdo passa disso. */
+const MAX_TITULO = 400;
+const MAX_TEXTO_WA = 4000;
 const MAX_LISTA_RESUMO = 8;
 const MAX_LISTA_MANHA = 5;
 const ETAPAS_ENCERRADAS: ReadonlyArray<string> = ["ganha", "perdida"];
@@ -206,8 +212,29 @@ function cortar(texto: string, max: number): string {
   return texto.length <= max ? texto : `${texto.slice(0, max - 1).trimEnd()}…`;
 }
 
-function objetoCurto(objeto: string, max: number = MAX_OBJETO): string {
-  return cortar(resumirObjeto(objeto), max);
+/** Título da licitação inteiro (sem "…"), com o teto de segurança. */
+function objetoCurto(objeto: string): string {
+  return cortar(resumirObjeto(objeto), MAX_TITULO);
+}
+
+/** Link da página da licitação no sistema; id que não é número de controle do PNCP fica sem link. */
+export function linkDaLicitacao(id: string): string | null {
+  const chave = chaveDeNumeroControle(id);
+  return chave === null ? null : `${BASE_PADRAO_APP}${caminhoInterno(chave)}`;
+}
+
+/** Linha do link logo abaixo do título (começa em quebra de linha); vazia sem link. */
+function linhaDoLink(id: string): string {
+  const link = linkDaLicitacao(id);
+  return link === null ? "" : `\n${link}`;
+}
+
+/** Corta nos limites de linha (nunca no meio de um título ou link) quando o texto passa de `max`. */
+function cortarEmLinhas(texto: string, max: number): string {
+  if (texto.length <= max) return texto;
+  const dentro = texto.slice(0, max);
+  const fim = dentro.lastIndexOf("\n");
+  return (fim > 0 ? dentro.slice(0, fim) : dentro).trimEnd();
 }
 
 function rotuloDaEtapa(etapa: string): string {
@@ -239,7 +266,7 @@ export function alertasDePrazo(
     const responsavel = item.responsavelId === null ? null : querem.find((id) => id === item.responsavelId);
     const destinos = responsavel ? [responsavel] : querem;
     const onde = empresa === undefined ? "" : ` (${empresa})`;
-    const texto = `⏰ Prazo em ${textoRestante(encerramento.getTime() - agora.getTime())}${onde}\n${objetoCurto(item.objeto)}`;
+    const texto = `⏰ Prazo em ${textoRestante(encerramento.getTime() - agora.getTime())}${onde}\n${objetoCurto(item.objeto)}${linhaDoLink(item.id)}`;
     for (const usuarioId of destinos) {
       alertas.push({ usuarioId, tipo: faixa, chave: `${faixa}:${item.id}`, texto, itemId: item.id, validade: encerramento });
     }
@@ -270,14 +297,24 @@ export function textoDoResumo(alertas: ReadonlyArray<{ tipo: TipoAlertaWa; texto
     const total = alertas.filter((a) => grupoDoTipo(a.tipo) === g.grupo).length;
     return total === 0 ? null : `${total} ${total === 1 ? g.singular : g.plural}`;
   }).filter((c): c is string => c !== null);
-  const lista = alertas.slice(0, MAX_LISTA_RESUMO).map((a) => a.texto);
-  const resto = alertas.length - lista.length;
-  return [
-    `Urgente: ${contagens.join(", ")}.`,
-    lista.join("\n\n"),
-    ...(resto > 0 ? [`+${resto}`] : []),
-    "Responda *prazos* ou *pipeline* para ver mais.",
-  ].join("\n\n");
+  const montar = (limite: number): string => {
+    const lista = alertas.slice(0, limite).map((a) => a.texto);
+    const resto = alertas.length - lista.length;
+    return [
+      `Urgente: ${contagens.join(", ")}.`,
+      lista.join("\n\n"),
+      ...(resto > 0 ? [`+${resto}`] : []),
+      "Responda *prazos* ou *pipeline* para ver mais.",
+    ].join("\n\n");
+  };
+  // Passou de 4000: tira itens da lista em vez de cortar no meio de um título ou link.
+  let limite = Math.min(MAX_LISTA_RESUMO, alertas.length);
+  let texto = montar(limite);
+  while (texto.length > MAX_TEXTO_WA && limite > 1) {
+    limite -= 1;
+    texto = montar(limite);
+  }
+  return cortarEmLinhas(texto, MAX_TEXTO_WA);
 }
 
 /** Licitação nova do ramo, com o que o resumo mostra. */
@@ -390,9 +427,6 @@ export interface ResumoManha {
   novasMostradas: string[];
 }
 
-const MAX_TEXTO_WA = 4000;
-const MAX_OBJETO_LISTA = 90;
-
 const formatoReais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 function reais(valor: number): string {
@@ -432,19 +466,19 @@ function linhaDaNova(n: NovaDoRamo, posicao: number): string {
   const onde = [n.municipio, n.uf].filter((p) => p !== "").join("/");
   const detalhes = [n.valor === null ? "Valor sigiloso" : reais(n.valor), onde, cortar(n.modalidade, 30)].filter((p) => p !== "");
   const fecha = `Fecha ${quandoFecha(n.dataEncerramento)}${n.bateu ? ` · Bateu: ${n.bateu}` : ""}`;
-  return `${posicao}. *${objetoCurto(n.objeto, MAX_OBJETO_LISTA)}*\n${detalhes.join(" · ")}\n${fecha}`;
+  return `${posicao}. *${objetoCurto(n.objeto)}*${linhaDoLink(n.id)}\n${detalhes.join(" · ")}\n${fecha}`;
 }
 
 function linhaDoMovimento(m: MovimentoEquipe): string {
   const quem = m.porNome ? `${primeiroNome(m.porNome)}: ` : "";
   const trecho = m.de !== null && m.de !== m.para ? `${rotuloDaEtapa(m.de)} → ${rotuloDaEtapa(m.para)}` : rotuloDaEtapa(m.para);
-  return `• ${quem}${objetoCurto(m.objeto, MAX_OBJETO_LISTA)} (${trecho})`;
+  return `• ${quem}${objetoCurto(m.objeto)} (${trecho})${linhaDoLink(m.itemId)}`;
 }
 
 function linhaDaPropostaMovida(m: MovimentoProposta): string {
   const quem = m.porNome ? primeiroNome(m.porNome) : "Alguém";
   const valor = m.total > 0 ? ` (${reais(m.total)})` : "";
-  return `• ${quem} ${m.acao} a proposta de ${objetoCurto(m.objeto, MAX_OBJETO_LISTA)}${valor}`;
+  return `• ${quem} ${m.acao} a proposta de ${objetoCurto(m.objeto)}${valor}`;
 }
 
 /** "14h" ou "9h30": só a hora de uma data ISO, em São Paulo. */
@@ -461,7 +495,7 @@ function quandoFechaRelativo(iso: string, agora: Date): string {
 
 function linhaDaPropostaDoDia(p: PropostaDoDia, posicao: number, agora: Date): string {
   const valor = p.valor === null ? "Valor sigiloso" : reais(p.valor);
-  return `${posicao}. *${objetoCurto(p.objeto, MAX_OBJETO_LISTA)}*\n${valor} · fecha ${quandoFechaRelativo(p.dataEncerramento, agora)}`;
+  return `${posicao}. *${objetoCurto(p.objeto)}*${linhaDoLink(p.itemId)}\n${valor} · fecha ${quandoFechaRelativo(p.dataEncerramento, agora)}`;
 }
 
 function comResto(linhas: string[], total: number): string[] {
@@ -501,7 +535,7 @@ function textoDasVencidas(v: VencidasDaSemana | null): string {
 export function textoDaMeta(
   feitas: number,
   meta: MetaConfig,
-  priorizar: { objeto: string; restanteMs: number } | null = null,
+  priorizar: { objeto: string; restanteMs: number; id?: string } | null = null,
   vencidas: VencidasDaSemana | null = null,
 ): string {
   const ganhas = textoDasVencidas(vencidas);
@@ -513,7 +547,8 @@ export function textoDaMeta(
   const faltam = meta.minimo - feitas;
   const placar = `🎯 Meta: ${feitas}/${meta.minimo} disputas · ${faltam === 1 ? "falta 1" : `faltam ${faltam}`} até domingo${ganhas}`;
   if (priorizar === null) return placar;
-  return `${placar}\nPriorize: ${objetoCurto(priorizar.objeto, MAX_OBJETO_LISTA)} (fecha em ${textoRestante(priorizar.restanteMs)})`;
+  const link = priorizar.id === undefined ? "" : linhaDoLink(priorizar.id);
+  return `${placar}\nPriorize: ${objetoCurto(priorizar.objeto)} (fecha em ${textoRestante(priorizar.restanteMs)})${link}`;
 }
 
 /** As partes do resumo (cada uma é um trecho com título e lista) e as novas que apareceram nelas. */
@@ -522,9 +557,14 @@ export interface PartesResumo {
   novasMostradas: string[];
 }
 
-/** Cada parte só entra se tiver o que dizer; a meta entra sempre que escolhida. */
-export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesResumo {
+/**
+ * Cada parte só entra se tiver o que dizer; a meta entra sempre que escolhida.
+ * `reducao`: quantos itens tirar de cada lista (mínimo 1 por lista), para a mensagem caber sem cortar título ou link.
+ */
+export function partesDoResumoManha(d: DadosResumoManha, agora: Date, reducao: number = 0): PartesResumo {
   const e = d.escolhas;
+  const maxResumo = Math.max(1, MAX_LISTA_RESUMO - reducao);
+  const maxManha = Math.max(1, MAX_LISTA_MANHA - reducao);
   const partes: string[] = [];
   const mostradas = new Set<string>();
 
@@ -536,7 +576,7 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
   }
 
   if (e.novas && d.novas.length > 0) {
-    const lista = d.novas.slice(0, MAX_LISTA_RESUMO);
+    const lista = d.novas.slice(0, maxResumo);
     for (const n of lista) mostradas.add(n.id);
     const titulo = `🆕 ${d.novas.length} ${d.novas.length === 1 ? "nova do seu ramo" : "novas do seu ramo"}`;
     partes.push([titulo, ...comResto(lista.map((n, i) => linhaDaNova(n, i + 1)), d.novas.length)].join("\n\n"));
@@ -545,7 +585,7 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
   if (e.grandes) {
     const grandes = d.novas.filter((n) => n.valor !== null && n.valor >= e.valorGrande);
     if (grandes.length > 0) {
-      const lista = grandes.slice(0, MAX_LISTA_MANHA);
+      const lista = grandes.slice(0, maxManha);
       for (const n of lista) mostradas.add(n.id);
       const titulo = `💰 Acima de ${reaisCurto(e.valorGrande)}: ${grandes.length}`;
       partes.push([titulo, ...comResto(lista.map((n, i) => linhaDaNova(n, i + 1)), grandes.length)].join("\n\n"));
@@ -561,8 +601,8 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
       .sort((a, b) => a.encerramento.getTime() - b.encerramento.getTime());
     if (fechando.length > 0) {
       const linhas = fechando
-        .slice(0, MAX_LISTA_MANHA)
-        .map((x) => `• ${objetoCurto(x.item.objeto, MAX_OBJETO_LISTA)} (em ${textoRestante(x.encerramento.getTime() - agora.getTime())})`);
+        .slice(0, maxManha)
+        .map((x) => `• ${objetoCurto(x.item.objeto)} (em ${textoRestante(x.encerramento.getTime() - agora.getTime())})${linhaDoLink(x.item.id)}`);
       partes.push([`⏰ Fecham em 48 h: ${fechando.length}`, ...comResto(linhas, fechando.length)].join("\n"));
     }
   }
@@ -573,20 +613,20 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
       return i.etapa === "disputa" && !Number.isNaN(fim) && fim <= agora.getTime();
     });
     if (aguardando.length > 0) {
-      const linhas = aguardando.slice(0, MAX_LISTA_MANHA).map((i) => `• ${objetoCurto(i.objeto, MAX_OBJETO_LISTA)}`);
+      const linhas = aguardando.slice(0, maxManha).map((i) => `• ${objetoCurto(i.objeto)}${linhaDoLink(i.id)}`);
       partes.push([`⌛ Aguardando resultado: ${aguardando.length}`, ...comResto(linhas, aguardando.length)].join("\n"));
     }
   }
 
   if (e.pendencias && d.pendencias.length > 0) {
-    const linhas = d.pendencias.slice(0, MAX_LISTA_MANHA).map((t) => `• ${cortar(t.split("\n")[0] ?? t, MAX_OBJETO)}`);
+    const linhas = d.pendencias.slice(0, maxManha).map((t) => `• ${cortar(t.split("\n")[0] ?? t, MAX_OBJETO)}`);
     partes.push([`📌 Para você: ${d.pendencias.length}`, ...comResto(linhas, d.pendencias.length)].join("\n"));
   }
 
   if (e.movimentos) {
     const daEquipe = d.movimentos.filter((m) => m.porId !== d.usuarioId);
     if (daEquipe.length > 0) {
-      const linhas = daEquipe.slice(0, MAX_LISTA_RESUMO).map(linhaDoMovimento);
+      const linhas = daEquipe.slice(0, maxResumo).map(linhaDoMovimento);
       const titulo = `👥 A equipe moveu ${daEquipe.length} ${daEquipe.length === 1 ? "item" : "itens"} nas últimas 24 h`;
       partes.push([titulo, ...comResto(linhas, daEquipe.length)].join("\n"));
     }
@@ -595,7 +635,7 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
   if (e.movimentos) {
     const daEquipe = d.propostasMovidas.filter((m) => m.porId !== d.usuarioId);
     if (daEquipe.length > 0) {
-      const linhas = daEquipe.slice(0, MAX_LISTA_RESUMO).map(linhaDaPropostaMovida);
+      const linhas = daEquipe.slice(0, maxResumo).map(linhaDaPropostaMovida);
       partes.push([`📄 Propostas nas últimas 24 h: ${daEquipe.length}`, ...comResto(linhas, daEquipe.length)].join("\n"));
     }
   }
@@ -608,14 +648,14 @@ export function partesDoResumoManha(d: DadosResumoManha, agora: Date): PartesRes
       return true;
     });
     if (entraram.length > 0) {
-      const linhas = entraram.slice(0, MAX_LISTA_MANHA).map((m) => `• ${objetoCurto(m.objeto, MAX_OBJETO_LISTA)}`);
+      const linhas = entraram.slice(0, maxManha).map((m) => `• ${objetoCurto(m.objeto)}${linhaDoLink(m.itemId)}`);
       partes.push([`🏁 Entraram em disputa: ${entraram.length}`, ...comResto(linhas, entraram.length)].join("\n"));
     }
   }
 
   if (e.meta) {
     const prioridade = e.perfil === "operacional" && d.disputasNaSemana < d.meta.minimo ? itemParaPriorizar(d.itens, agora) : null;
-    const priorizar = prioridade === null ? null : { objeto: prioridade.objeto, restanteMs: new Date(prioridade.dataEncerramento).getTime() - agora.getTime() };
+    const priorizar = prioridade === null ? null : { objeto: prioridade.objeto, restanteMs: new Date(prioridade.dataEncerramento).getTime() - agora.getTime(), id: prioridade.id };
     partes.push(textoDaMeta(d.disputasNaSemana, d.meta, priorizar, d.vencidasNaSemana));
   }
 
@@ -631,9 +671,17 @@ function saudacaoDaManha(nome: string): string {
  * a meta entra sempre que escolhida. Sem nenhuma parte, texto vazio.
  */
 export function textoResumoManha(d: DadosResumoManha, agora: Date): ResumoManha {
-  const { partes, novasMostradas } = partesDoResumoManha(d, agora);
+  let reducao = 0;
+  let { partes, novasMostradas } = partesDoResumoManha(d, agora, reducao);
   if (partes.length === 0) return { texto: "", novasMostradas: [] };
-  return { texto: cortar([saudacaoDaManha(d.nome), ...partes].join("\n\n"), MAX_TEXTO_WA), novasMostradas };
+  let texto = [saudacaoDaManha(d.nome), ...partes].join("\n\n");
+  // Passou de 4000: tira itens das listas em vez de cortar no meio de um título ou link.
+  while (texto.length > MAX_TEXTO_WA && reducao < MAX_LISTA_RESUMO) {
+    reducao += 1;
+    ({ partes, novasMostradas } = partesDoResumoManha(d, agora, reducao));
+    texto = [saudacaoDaManha(d.nome), ...partes].join("\n\n");
+  }
+  return { texto: cortarEmLinhas(texto, MAX_TEXTO_WA), novasMostradas };
 }
 
 /** Parte do resumo de uma empresa, com o nome curto dela. */
@@ -653,6 +701,8 @@ function tirarUltimaEntrada(parte: string): { parte: string | null; perdidos: nu
   const ultima = entradas.pop() ?? "";
   const resto = /^\+(\d+)$/.exec(ultima);
   const perdidos = resto?.[1] ? Number(resto[1]) : 1;
+  // Em lista de uma linha por entrada, a linha do link pertence ao título de cima: sai junto.
+  if (separador === "\n" && /^https?:\/\//.test(ultima) && entradas.length > 1) entradas.pop();
   return entradas.length <= 1 ? { parte: null, perdidos } : { parte: entradas.join(separador), perdidos };
 }
 
@@ -697,7 +747,7 @@ export function juntarResumos(nome: string, blocos: ReadonlyArray<BlocoResumo>, 
     pendentes = pendentes.filter((i) => !cabem.includes(i));
   }
   const textos = comConteudo.map((b, i) => ajustarBloco(b, orcamentos.get(i) ?? 0));
-  return cortar([saudacao, ...textos].join("\n\n"), max);
+  return cortarEmLinhas([saudacao, ...textos].join("\n\n"), max);
 }
 
 /* ---------- modelos aprovados (janela fechada) ---------- */
@@ -839,6 +889,15 @@ export function textoAndamento(d: DadosAndamento, agora: Date): string {
   const algo =
     d.propostas.length > 0 || movidos.length > 0 || d.semProposta.length > 0 || d.prazosPendentes.length > 0 || d.pendencias.length > 0 || d.emJogo > 0;
   if (!algo) return "";
+  // Passou de 4000: tira itens das listas em vez de cortar no meio de um título ou link.
+  let texto = montarAndamento(d, movidos, agora, MAX_LISTA_MANHA);
+  for (let limite = MAX_LISTA_MANHA - 1; texto.length > MAX_TEXTO_WA && limite >= 1; limite -= 1) {
+    texto = montarAndamento(d, movidos, agora, limite);
+  }
+  return cortarEmLinhas(texto, MAX_TEXTO_WA);
+}
+
+function montarAndamento(d: DadosAndamento, movidos: ReadonlyArray<MovimentoEquipe>, agora: Date, limite: number): string {
   const nome = primeiroNome(d.nome);
   const linhas: string[] = [nome === "" ? "📊 Andamento do dia" : `📊 Andamento do dia, ${nome}`];
 
@@ -849,33 +908,33 @@ export function textoAndamento(d: DadosAndamento, agora: Date): string {
     linhas.push("⚠️ Nenhum item mudou de etapa hoje");
   } else {
     linhas.push(`✅ Mudaram de etapa: ${movidos.length}`);
-    linhas.push(...comResto(movidos.slice(0, MAX_LISTA_MANHA).map(linhaDoMovimento), movidos.length));
+    linhas.push(...comResto(movidos.slice(0, limite).map(linhaDoMovimento), movidos.length));
   }
 
   if (d.semProposta.length > 0) {
     linhas.push(`⚠️ Fecham hoje ou amanhã sem proposta: ${d.semProposta.length}`);
     const itens = d.semProposta
-      .slice(0, MAX_LISTA_MANHA)
-      .map((p) => `• ${objetoCurto(p.objeto, MAX_OBJETO_LISTA)} (${quandoFechaRelativo(p.dataEncerramento, agora)})`);
+      .slice(0, limite)
+      .map((p) => `• ${objetoCurto(p.objeto)} (${quandoFechaRelativo(p.dataEncerramento, agora)})${linhaDoLink(p.itemId)}`);
     linhas.push(...comResto(itens, d.semProposta.length));
   }
 
   if (d.prazosPendentes.length > 0) {
     linhas.push(`⏰ Prazos que ficaram sem aviso: ${d.prazosPendentes.length}`);
     const itens = d.prazosPendentes
-      .slice(0, MAX_LISTA_MANHA)
-      .map((i) => `• ${objetoCurto(i.objeto, MAX_OBJETO_LISTA)} (em ${textoRestante(new Date(i.dataEncerramento).getTime() - agora.getTime())})`);
+      .slice(0, limite)
+      .map((i) => `• ${objetoCurto(i.objeto)} (em ${textoRestante(new Date(i.dataEncerramento).getTime() - agora.getTime())})${linhaDoLink(i.id)}`);
     linhas.push(...comResto(itens, d.prazosPendentes.length));
   }
 
   if (d.pendencias.length > 0) {
     linhas.push(`📌 Para você: ${d.pendencias.length}`);
-    const itens = d.pendencias.slice(0, MAX_LISTA_MANHA).map((t) => `• ${cortar(t.split("\n")[0] ?? t, MAX_OBJETO)}`);
+    const itens = d.pendencias.slice(0, limite).map((t) => `• ${cortar(t.split("\n")[0] ?? t, MAX_OBJETO)}`);
     linhas.push(...comResto(itens, d.pendencias.length));
   }
 
   if (d.escolhas.meta) linhas.push(textoDaMeta(d.disputasNaSemana, d.meta, null, d.vencidasNaSemana));
-  return cortar(linhas.join("\n"), MAX_TEXTO_WA);
+  return linhas.join("\n");
 }
 
 /* ---------- comandos ---------- */
@@ -1080,7 +1139,7 @@ export function textoRascunhoPronto(p: { objeto: string; total: number; itens: n
   const itens = `${p.itens} ${p.itens === 1 ? "item" : "itens"}`;
   return [
     abertura,
-    `*${objetoCurto(p.objeto, MAX_OBJETO_LISTA)}*`,
+    `*${objetoCurto(p.objeto)}*`,
     `Valor total: ${reais(p.total)} · ${itens}`,
     p.link,
     p.podeAprovar ? "Revise e aprove pelo link (ou toque em Aprovar)." : "Revise e aprove pelo link.",
@@ -1119,7 +1178,7 @@ export function textoAvisoAoDono(p: {
   custo?: CustoDaProposta | null;
 }): string {
   const quem = primeiroNome(p.nome) === "" ? "Alguém da equipe" : primeiroNome(p.nome);
-  const objeto = objetoCurto(p.objeto, MAX_OBJETO_LISTA);
+  const objeto = objetoCurto(p.objeto);
   const valor = p.total > 0 ? ` (${reais(p.total)})` : "";
   const alerta = linhaAvisoCusto(p.custo);
   switch (p.acao) {

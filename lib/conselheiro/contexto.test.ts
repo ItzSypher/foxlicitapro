@@ -163,7 +163,7 @@ describe("montarContexto", () => {
       entrada({
         item: site,
         preco: { ...PRECO, alvo: 48000, sugerido: 48000, custoTotal: 0 },
-        software: { terceirizavel: true, devCusto: 10000, devParcelas: 4, contratoMeses: 12, comissaoPercentual: 10 },
+        software: { terceirizavel: true, devCusto: 10000, devParcelas: 4, contratoMeses: 12, comissaoPercentual: 10, precoLance: null, horasMes: null },
       }),
     );
     expect(c.texto).toContain("SITE, SISTEMA E SOFTWARE");
@@ -185,7 +185,7 @@ describe("montarContexto", () => {
       entrada({
         item: site,
         preco: { ...PRECO, alvo: 30000, sugerido: 30000, custoTotal: 0 },
-        software: { terceirizavel: true, devCusto: 20000, devParcelas: 1, contratoMeses: 12, comissaoPercentual: null },
+        software: { terceirizavel: true, devCusto: 20000, devParcelas: 1, contratoMeses: 12, comissaoPercentual: null, precoLance: null, horasMes: null },
       }),
     );
     expect(c.texto).toContain("NÃO VALE");

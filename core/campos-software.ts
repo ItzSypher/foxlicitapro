@@ -17,25 +17,33 @@ export interface DadosSoftware {
   contratoMeses: number | null;
   /** Comissão deste item em %; null = sem comissão */
   comissaoPercentual: number | null;
+  /** Preço que a empresa vai dar no lance; null enquanto ninguém disse */
+  precoLance: number | null;
+  /** Horas por mês do próprio dono quando não terceiriza */
+  horasMes: number | null;
 }
 
 export const MAXIMO_DEV_CUSTO = 1_000_000_000;
 export const MAXIMO_PARCELAS = 60;
 export const MAXIMO_MESES_CONTRATO = 120;
+export const MAXIMO_HORAS_MES = 744;
+export const MAXIMO_LANCE = 1_000_000_000;
 
 const chaveCompra = z.string().regex(/^\d{14}-\d{4}-\d{1,9}$/, "Licitação inválida.");
 
-/** Gestor e dono: resposta da terceirização, custo do dev, parcelas e meses de contrato. */
+/** Gestor e dono: terceirização, custo e parcelas do dev, horas próprias, meses de contrato e preço do lance. */
 export const entradaSoftwareSchema = z.object({
   compra: chaveCompra,
   terceirizavel: z.boolean().nullable(),
   devCusto: z.number().finite().min(0).max(MAXIMO_DEV_CUSTO).nullable(),
   devParcelas: z.number().int().min(1).max(MAXIMO_PARCELAS).nullable(),
   contratoMeses: z.number().int().min(1).max(MAXIMO_MESES_CONTRATO).nullable(),
+  precoLance: z.number().finite().min(0).max(MAXIMO_LANCE).nullable().default(null),
+  horasMes: z.number().int().min(1).max(MAXIMO_HORAS_MES).nullable().default(null),
 });
 export type EntradaSoftware = z.infer<typeof entradaSoftwareSchema>;
 
-/** Só o dono: comissão do item; null = sem comissão. */
+/** Gestor e dono: comissão do item; null = sem comissão. */
 export const entradaComissaoSchema = z.object({
   compra: chaveCompra,
   percentual: z.number().finite().min(COMISSAO_MINIMA).max(COMISSAO_MAXIMA).nullable(),

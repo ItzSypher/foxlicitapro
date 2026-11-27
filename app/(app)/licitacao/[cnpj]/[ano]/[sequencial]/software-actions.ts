@@ -13,7 +13,7 @@ const SEM_SESSAO = "Sessão expirada. Entre de novo.";
 const FORA_DO_PIPELINE = "Salve a licitação no pipeline para guardar.";
 
 /**
- * Gestor e dono guardam a resposta de terceirização, o custo e as parcelas do dev e os meses de contrato.
+ * Gestor e dono guardam terceirização, custo e parcelas do dev, horas próprias, meses de contrato e preço do lance.
  * O item tem que estar no pipeline da empresa da sessão.
  */
 export async function salvarSoftwareAction(entrada: unknown): Promise<ResultadoSoftware> {
@@ -21,8 +21,10 @@ export async function salvarSoftwareAction(entrada: unknown): Promise<ResultadoS
   if (!sessao) return { ok: false, erro: SEM_SESSAO };
   if (sessao.papel !== "dono" && sessao.papel !== "gestor") return { ok: false, erro: SEM_PERMISSAO };
   const lida = entradaSoftwareSchema.safeParse(entrada);
-  if (!lida.success) return { ok: false, erro: "Confira os valores: custo do dev, parcelas (1 a 60) e meses de contrato (1 a 120)." };
-  const { compra, terceirizavel, devCusto, devParcelas, contratoMeses } = lida.data;
+  if (!lida.success) {
+    return { ok: false, erro: "Confira os valores: custo do dev, parcelas (1 a 60), horas (1 a 744), meses (1 a 120) e lance." };
+  }
+  const { compra, terceirizavel, devCusto, devParcelas, contratoMeses, precoLance, horasMes } = lida.data;
   const chave = lerChaveCompra(compra);
   if (!chave) return { ok: false, erro: "Licitação inválida." };
   try {
@@ -31,6 +33,8 @@ export async function salvarSoftwareAction(entrada: unknown): Promise<ResultadoS
       devCusto,
       devParcelas,
       contratoMeses,
+      precoLance,
+      horasMes,
     });
     if (!gravou) return { ok: false, erro: FORA_DO_PIPELINE };
   } catch (e) {
@@ -41,11 +45,11 @@ export async function salvarSoftwareAction(entrada: unknown): Promise<ResultadoS
   return { ok: true };
 }
 
-/** Só o dono: comissão deste item (0 a 30%); null = sem comissão. */
+/** Gestor e dono: comissão deste item (0 a 30%); null = sem comissão. */
 export async function salvarComissaoItemAction(entrada: unknown): Promise<ResultadoSoftware> {
   const sessao = await lerSessao();
   if (!sessao) return { ok: false, erro: SEM_SESSAO };
-  if (sessao.papel !== "dono") return { ok: false, erro: SEM_PERMISSAO };
+  if (sessao.papel !== "dono" && sessao.papel !== "gestor") return { ok: false, erro: SEM_PERMISSAO };
   const lida = entradaComissaoSchema.safeParse(entrada);
   if (!lida.success) return { ok: false, erro: "Use uma comissão de 0 a 30%." };
   const chave = lerChaveCompra(lida.data.compra);
