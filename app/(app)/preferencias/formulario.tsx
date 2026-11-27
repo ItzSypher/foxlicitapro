@@ -98,12 +98,12 @@ export function FormularioPreferencias({ inicial, podeEditar }: Props) {
 
       <ListaChips
         titulo="Pregão: exceções que valem a pena"
-        ajuda="Pregão fica fora do foco atual. O conselheiro só recomenda um pregão quando o objeto tem um destes termos."
+        ajuda="Pregão que casa com o foco ou o CNAE da empresa já conta como seu. Estes termos valem como foco extra só para pregão."
         valores={excecoesPregao}
         onChange={setExcecoesPregao}
         somenteLeitura={somenteLeitura}
         placeholder="Ex.: suporte gerenciado"
-        vazio="Nenhuma exceção: todo pregão fica fora do foco."
+        vazio="Nenhum termo extra: vale o foco e o CNAE da empresa."
       />
 
       <ListaChips

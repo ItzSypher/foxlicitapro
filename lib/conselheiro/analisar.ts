@@ -8,17 +8,21 @@ import { podeMontar } from "@/core/limite-diario";
 import type { PerfilEmpresa } from "@/core/perfil";
 import type { DetalheCompra } from "@/core/types-detalhe";
 import type { Sessao } from "@/core/types-equipe";
+import type { DocumentoAcervo } from "@/core/acervo";
+import type { DadosSoftware } from "@/core/campos-software";
+import { listarAcervo } from "@/db/acervo";
+import { listarAtestados } from "@/db/atestados";
 import { lerAmostrasEmCache } from "@/db/concorrentes";
 import { lerUltimaAnalise, salvarAnalise } from "@/db/conselheiro";
 import { lerFicha } from "@/db/fichas";
 import { lerComissaoDoItemPipeline } from "@/db/fluxo-caixa";
 import { listarFornecedores, listarPrecosRecentes } from "@/db/fornecedores";
-import { listarPipeline } from "@/db/pipeline";
+import { lerSoftwareDoItem, listarPipeline } from "@/db/pipeline";
 import { lerPreferencias } from "@/db/preferencias";
 import { perfilDaEmpresa } from "@/lib/empresa-atual";
 import { ErroAssistente, assistenteDisponivel, gerarJson, nomeDoModelo } from "@/lib/gemini";
 import { analisesRestantesHoje, mensagemLimiteAnalises } from "./cota";
-import { montarContexto } from "./contexto";
+import { montarContexto, type AtestadoParaContexto } from "./contexto";
 import { ESQUEMA_JSON_CONSELHEIRO, SaidaConselheiroSchema, type AnaliseSalva, type SaidaConselheiro } from "./esquema";
 import { precoDoItemPipeline } from "./preco";
 import { MAX_TOKENS_CONSELHEIRO, TEMPERATURA_CONSELHEIRO, sistemaConselheiro, textoPedidoConselheiro } from "./prompt";
@@ -88,9 +92,13 @@ async function executar(itemId: string, sessao: Sessao): Promise<ResultadoAnalis
     return { ok: false, erro: "Não foi possível ler o perfil da empresa agora. Tente de novo." };
   }
 
-  const [ficha, detalhe] = await Promise.all([
+  // Complementos: se algum falhar, o bloco correspondente some em vez de derrubar a análise.
+  const [ficha, detalhe, software, acervo, atestados] = await Promise.all([
     lerFicha(doPipeline.item.id).catch((): FichaSalva | null => null),
     detalheSePossivel(doPipeline),
+    lerSoftwareDoItem(sessao.empresaId, doPipeline.id).catch((): DadosSoftware | null => null),
+    listarAcervo(sessao.empresaId).catch((): DocumentoAcervo[] | null => null),
+    listarAtestados(sessao.empresaId).catch((): AtestadoParaContexto[] | null => null),
   ]);
 
   const preco = precoDoItemPipeline(doPipeline, dados.perfil.porte, dados.amostras, dados.precos);
@@ -105,6 +113,9 @@ async function executar(itemId: string, sessao: Sessao): Promise<ResultadoAnalis
     fornecedores: dados.fornecedores,
     excecoesPregao: dados.excecoes,
     comissaoPercentual: await lerComissaoDoItemPipeline(sessao.empresaId, doPipeline.id).catch(() => 0),
+    software,
+    acervo,
+    atestados,
   });
 
   let bruta: SaidaConselheiro;

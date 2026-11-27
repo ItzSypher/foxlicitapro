@@ -30,28 +30,33 @@ describe("valoresEstranhos", () => {
 });
 
 describe("refinarSaida", () => {
-  const livre = { pregao: { ehPregao: false, excecao: null, foraDoFoco: false }, valoresPermitidos: PERMITIDOS };
-  const fora = { ...livre, pregao: { ehPregao: true, excecao: null, foraDoFoco: true } };
+  const livre = { pregao: { ehPregao: false, excecao: null, casouFoco: null, foraDoFoco: false }, valoresPermitidos: PERMITIDOS };
+  const fora = { ...livre, pregao: { ehPregao: true, excecao: null, casouFoco: null, foraDoFoco: true } };
 
   it("não mexe em saída que respeita as regras", () => {
     expect(refinarSaida(SAIDA, livre)).toEqual(SAIDA);
   });
 
   it("a regra do sistema manda na modalidade, não o modelo", () => {
-    const r = refinarSaida(SAIDA, { ...livre, pregao: { ehPregao: true, excecao: "suporte gerenciado", foraDoFoco: false } });
+    const r = refinarSaida(SAIDA, { ...livre, pregao: { ehPregao: true, excecao: "suporte gerenciado", casouFoco: null, foraDoFoco: false } });
     expect(r.modalidade).toMatchObject({ ehPregao: true, foraDoFoco: false });
   });
 
-  it("sem meio-termo: pregão fora do foco e talvez viram não vale", () => {
+  it("pregão fora do foco não força não vale: o veredito é do modelo", () => {
     const r = refinarSaida(SAIDA, fora);
-    expect(r.veredito).toBe("nao-vale");
-    expect(refinarSaida({ ...SAIDA, veredito: "talvez" }, livre).veredito).toBe("nao-vale");
+    expect(r.veredito).toBe("vale");
     expect(r.modalidade.foraDoFoco).toBe(true);
     expect(refinarSaida({ ...SAIDA, veredito: "nao-vale" }, fora).veredito).toBe("nao-vale");
   });
 
+  it("sem meio-termo: talvez vira vale com resultado positivo no alvo, senão não vale", () => {
+    expect(refinarSaida({ ...SAIDA, veredito: "talvez" }, { ...livre, resultadoPositivo: true }).veredito).toBe("vale");
+    expect(refinarSaida({ ...SAIDA, veredito: "talvez" }, { ...livre, resultadoPositivo: false }).veredito).toBe("nao-vale");
+    expect(refinarSaida({ ...SAIDA, veredito: "talvez" }, livre).veredito).toBe("nao-vale");
+  });
+
   it("pregão com exceção mantém o veredito", () => {
-    const r = refinarSaida(SAIDA, { ...livre, pregao: { ehPregao: true, excecao: "suporte gerenciado", foraDoFoco: false } });
+    const r = refinarSaida(SAIDA, { ...livre, pregao: { ehPregao: true, excecao: "suporte gerenciado", casouFoco: null, foraDoFoco: false } });
     expect(r.veredito).toBe("vale");
   });
 

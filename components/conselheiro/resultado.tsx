@@ -70,7 +70,7 @@ export function ResultadoConselheiro({ saida }: { saida: SaidaConselheiro }) {
           <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           <p className="min-w-0 wrap-break-word">
             <span className="font-semibold">
-              {modalidade.foraDoFoco ? "Pregão: fora do foco atual. " : "Pregão com exceção: vale a pena. "}
+              {modalidade.foraDoFoco ? "Pregão fora do que a empresa oferece. " : "Pregão dentro do que a empresa oferece. "}
             </span>
             {modalidade.observacao}
           </p>

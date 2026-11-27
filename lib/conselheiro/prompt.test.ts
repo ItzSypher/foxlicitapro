@@ -22,6 +22,18 @@ describe("postura do conselheiro", () => {
     expect(sistema).toContain('só "vale" ou "nao-vale"');
   });
 
+  it("o veredito pesa tudo junto e diz o que faria valer", () => {
+    expect(sistema).toContain("pesa tudo junto");
+    expect(sistema).toContain("Vale se o dev sair por até");
+    expect(sistema).toContain("não reprove só por ser pregão");
+  });
+
+  it("atestado que falta em site e software é conseguível", () => {
+    expect(sistema).toContain("CONSEGUÍVEL, nunca motivo de reprovação");
+    expect(sistema).toContain("gerador de atestados");
+    expect(sistema).toContain("50% do bruto");
+  });
+
   it("mantém as regras legais", () => {
     for (const texto of [POSTURA_PARA_GANHAR, sistema]) {
       expect(texto).toContain("conluio");

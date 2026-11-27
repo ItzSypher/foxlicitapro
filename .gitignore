@@ -47,3 +47,4 @@ AGENTS.md
 .taste-skill/
 .env*
 !.env.example
+entregas/

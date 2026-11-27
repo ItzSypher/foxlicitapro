@@ -8,13 +8,17 @@ const MAX_RISCOS = MAX_ITENS;
 
 /**
  * Ajusta a resposta validada às regras do sistema, que mandam mais que o assistente:
- * - ehPregao e foraDoFoco vêm da regra de pregão e das exceções, nunca do modelo;
- * - sem meio-termo: "talvez" vira "nao-vale"; pregão fora do foco é "nao-vale";
+ * - ehPregao e foraDoFoco vêm da regra de pregão, do foco e das exceções, nunca do modelo;
+ * - o veredito é do modelo (pregão fora do foco não reprova sozinho); sem meio-termo, "talvez" vira decisão:
+ *   "vale" quando o resultado no alvo é positivo, senão "nao-vale";
  * - valor em reais que o sistema não entregou ganha um aviso nos riscos.
  */
-export function refinarSaida(saida: SaidaConselheiro, contexto: Pick<ContextoConselheiro, "pregao" | "valoresPermitidos">): SaidaConselheiro {
+export function refinarSaida(
+  saida: SaidaConselheiro,
+  contexto: Pick<ContextoConselheiro, "pregao" | "valoresPermitidos"> & Partial<Pick<ContextoConselheiro, "resultadoPositivo">>,
+): SaidaConselheiro {
   const { pregao } = contexto;
-  const veredito = pregao.foraDoFoco || saida.veredito === "talvez" ? "nao-vale" : saida.veredito;
+  const veredito = saida.veredito === "talvez" ? (contexto.resultadoPositivo === true ? "vale" : "nao-vale") : saida.veredito;
   let riscos = saida.riscos.slice(0, MAX_RISCOS);
   if (valoresEstranhos(textosDaSaida(saida), contexto.valoresPermitidos).length > 0) {
     riscos = [...riscos.slice(0, MAX_RISCOS - 1), AVISO_VALORES_ESTRANHOS];

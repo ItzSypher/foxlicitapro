@@ -69,7 +69,7 @@ Cada empresa só enxerga os próprios dados. O gestor só entra nas empresas que
 
 ## Arquitetura
 
-- **App:** Next.js 16 (App Router, Server Components, Server Actions), TypeScript estrito, Tailwind. Hospedagem Vercel (região gru1), deploy a cada push na `main`.
+- **App:** Next.js 16 (App Router, Server Components, Server Actions), TypeScript estrito, Tailwind. Hospedagem Vercel (região iad1, a mesma do banco no us-east-1; o PNCP às vezes dá timeout daqui e a coleta repete), deploy a cada push na `main`.
 - **Banco:** Postgres no Supabase, pelo pooler em **modo sessão (porta 5432)** — o modo transação travava com consultas paralelas. Driver `postgres`, `max: 2` e `idle_timeout: 2` por instância (o modo sessão aceita 15 clientes). Migrations manuais em `db/migrations`, aplicadas com `npm run db:migrar` e só com ok.
 - **Camadas:** `core/` regras puras e testadas; `db/` consultas (sempre filtradas por `empresa_id`); `lib/` integrações e orquestração; `app/` telas e rotas; `components/` interface.
 - **Testes:** Vitest (~1.000 testes de unidade e testes de banco em série), `tsc --noEmit` e ESLint antes de cada commit.

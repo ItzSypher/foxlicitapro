@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FICHA_EXEMPLO } from "@/core/ficha.fixture";
+import type { DocumentoAcervo } from "@/core/acervo";
 import type { Fornecedor } from "@/core/fornecedores";
 import type { PerfilEmpresa } from "@/core/perfil";
 import type { PrecoSugerido } from "@/core/preco-sugerido";
@@ -130,13 +131,110 @@ describe("montarContexto", () => {
     expect(c.valoresPermitidos).toEqual(expect.arrayContaining([120000, 80000, 95000.5, 114000, 70000, 14000]));
   });
 
-  it("pregão sem exceção sai marcado como fora do foco; com exceção, não", () => {
-    const fora = montarContexto(entrada());
+  it("pregão sem exceção, sem foco e sem CNAE casado sai marcado como fora do foco; com exceção, não", () => {
+    const semCasamento = { ...ITEM, score: { ...ITEM.score, cnaesCasados: [], frenteCasada: null } };
+    const fora = montarContexto(entrada({ item: semCasamento }));
     expect(fora.pregao.foraDoFoco).toBe(true);
     expect(fora.texto).toContain("foraDoFoco = true");
-    const com = montarContexto(entrada({ item: { ...ITEM, objeto: "Suporte gerenciado de TI" } }));
+    const com = montarContexto(entrada({ item: { ...semCasamento, objeto: "Suporte gerenciado de TI" } }));
     expect(com.pregao).toMatchObject({ ehPregao: true, foraDoFoco: false, excecao: "suporte gerenciado" });
     expect(com.texto).toContain("foraDoFoco = false");
+  });
+
+  it("pregão que casa com o foco ou com o CNAE da empresa não é fora do foco", () => {
+    const porCnae = montarContexto(entrada());
+    expect(porCnae.pregao).toMatchObject({ ehPregao: true, foraDoFoco: false });
+    expect(porCnae.texto).toContain("foraDoFoco = false");
+    expect(porCnae.texto).toContain("a atividade (CNAE) da empresa");
+    const semCasamento = { ...ITEM, objeto: "Desenvolvimento de site institucional", score: { ...ITEM.score, cnaesCasados: [], frenteCasada: null } };
+    const porFoco = montarContexto(entrada({ item: semCasamento, perfil: { ...PERFIL, foco: ["site"] } }));
+    expect(porFoco.pregao).toMatchObject({ foraDoFoco: false, casouFoco: "site" });
+    expect(porFoco.texto).toContain('o foco "site"');
+    expect(porFoco.texto).toContain("Foco da empresa: site.");
+    const fora = montarContexto(entrada({ item: { ...semCasamento, objeto: "Compra de mesas" } }));
+    expect(fora.pregao.foraDoFoco).toBe(true);
+    expect(fora.texto).toContain("não reprove só por ser pregão");
+  });
+
+  it("traz o bloco de site, sistema e software com os números só para objeto de desenvolvimento", () => {
+    expect(montarContexto(entrada()).texto).not.toContain("SITE, SISTEMA E SOFTWARE");
+    const site = { ...ITEM, objeto: "Desenvolvimento e manutenção de site institucional", valorEstimado: 60000 };
+    const c = montarContexto(
+      entrada({
+        item: site,
+        preco: { ...PRECO, alvo: 48000, sugerido: 48000, custoTotal: 0 },
+        software: { terceirizavel: true, devCusto: 10000, devParcelas: 4, contratoMeses: 12, comissaoPercentual: 10 },
+      }),
+    );
+    expect(c.texto).toContain("SITE, SISTEMA E SOFTWARE");
+    expect(c.texto).toMatch(/mínimo de R\$\s3\.500,00 por mês/);
+    expect(c.texto).toMatch(/hora técnica de R\$\s175,00/);
+    // 48.000 x (1 - 10% - 50%) = 19.200
+    expect(c.texto).toMatch(/Teto do dev .*: R\$\s19\.200,00/);
+    expect(c.texto).toMatch(/Dev combinado: R\$\s10\.000,00 em 4 parcelas/);
+    expect(c.texto).toContain("Veredito do sistema (conta de software): VALE");
+    expect(c.texto).toContain("Preço mínimo");
+    expect(c.texto).toContain("Folga até o valor estimado");
+    expect(c.valoresPermitidos).toEqual(expect.arrayContaining([3500, 175, 19200, 10000, 4000, 4800]));
+    expect(c.resultadoPositivo).toBe(true);
+  });
+
+  it("conta de software que reprova derruba o resultado positivo e explica o motivo", () => {
+    const site = { ...ITEM, objeto: "Criação de site", valorEstimado: 30000 };
+    const c = montarContexto(
+      entrada({
+        item: site,
+        preco: { ...PRECO, alvo: 30000, sugerido: 30000, custoTotal: 0 },
+        software: { terceirizavel: true, devCusto: 20000, devParcelas: 1, contratoMeses: 12, comissaoPercentual: null },
+      }),
+    );
+    expect(c.texto).toContain("NÃO VALE");
+    expect(c.texto).toContain("ABAIXO do mínimo");
+    expect(c.resultadoPositivo).toBe(false);
+  });
+
+  it("traz o acervo com tipo, título e se casa com o objeto, até 10 linhas", () => {
+    expect(montarContexto(entrada()).texto).not.toContain("ACERVO DA EMPRESA");
+    const doc = (i: number, titulo: string, areas: string[]): DocumentoAcervo => ({
+      id: `d${i}`,
+      tipo: "atestado",
+      titulo,
+      emissor: `Cliente ${i}`,
+      emissorCnpj: null,
+      descricao: "",
+      areas,
+      valor: null,
+      periodoInicio: null,
+      periodoFim: null,
+      emitidoEm: null,
+      validade: null,
+      arquivoTipo: null,
+      arquivoNome: null,
+      arquivoTamanho: null,
+      atestadoId: null,
+      criadoEm: `2026-01-${String(i + 10)}T00:00:00.000Z`,
+    });
+    const docs = [doc(1, "Atestado de desenvolvimento de site", ["site"]), ...Array.from({ length: 12 }, (_, i) => doc(i + 2, `Certidão ${i}`, []))];
+    const site = { ...ITEM, objeto: "Criação de site institucional" };
+    const c = montarContexto(entrada({ item: site, acervo: docs, atestados: [] }));
+    expect(c.texto).toContain("ACERVO DA EMPRESA");
+    expect(c.texto).toContain("Atestado: Atestado de desenvolvimento de site; cliente/emissor: Cliente 1; casa com o objeto");
+    expect(c.texto).toContain("não parece casar com o objeto");
+    const bloco = c.texto.split("ACERVO DA EMPRESA")[1].split("\n\n")[0];
+    expect(bloco.split("\n").filter((l) => l.startsWith("- Atestado")).length).toBeLessThanOrEqual(10);
+    expect(bloco).toContain("Mais 3 documentos não listados");
+    const vazio = montarContexto(entrada({ acervo: [], atestados: [] }));
+    expect(vazio.texto).toContain("não tem documento nem atestado");
+    expect(vazio.texto).toContain("gerador de atestados");
+  });
+
+  it("atestado gerado no sistema entra no acervo sem duplicar o que já está lá", () => {
+    const site = { ...ITEM, objeto: "Criação de site institucional" };
+    const atestado = { id: "a1", clienteNome: "Clínica Sol", objeto: "Desenvolvimento de site institucional", areas: ["site"], valor: 5000, periodoInicio: null, periodoFim: null, status: "aguardando" };
+    const c = montarContexto(entrada({ item: site, acervo: [], atestados: [atestado] }));
+    expect(c.texto).toContain("cliente/emissor: Clínica Sol");
+    expect(c.texto).toContain("situação: aguardando");
+    expect(c.texto.match(/Clínica Sol/g)).toHaveLength(1);
   });
 
   it("sem preço calculado, avisa e não inventa número", () => {

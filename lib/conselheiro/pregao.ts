@@ -2,14 +2,17 @@ import { normalizarTexto } from "@/core/texto-busca";
 
 /**
  * Pregão fica "fora do foco atual", exceto quando o objeto casa com uma exceção das preferências
- * (por padrão, "suporte gerenciado"). Funções puras.
+ * (por padrão, "suporte gerenciado"), com um termo do foco da empresa ou com um CNAE/frente dela
+ * (o casamento que o score já calculou). Funções puras.
  */
 
 export interface RegraPregao {
   ehPregao: boolean;
-  /** Termo da exceção que casou com o objeto; null sem casamento */
+  /** Termo da exceção das preferências que casou com o objeto; null sem casamento */
   excecao: string | null;
-  /** Pregão sem exceção: o conselheiro deve avisar que está fora do foco */
+  /** O que casou do lado da empresa: termo do foco ou a atividade (CNAE); null sem casamento */
+  casouFoco: string | null;
+  /** Pregão sem exceção, sem foco e sem CNAE casado: o conselheiro avisa, mas não reprova só por isso */
   foraDoFoco: boolean;
 }
 
@@ -34,9 +37,23 @@ export function avaliarPregao(entrada: {
   modalidadeNome: string;
   objeto: string;
   excecoes: readonly string[];
+  /** Termo do foco da empresa que casou com o objeto (o score já calcula); null ou ausente sem casamento */
+  focoCasado?: string | null;
+  /** Códigos CNAE da empresa que casaram com o objeto (o score já calcula) */
+  cnaesCasados?: readonly string[];
 }): RegraPregao {
   const ehPregao = ehModalidadePregao(entrada.modalidadeId, entrada.modalidadeNome);
-  if (!ehPregao) return { ehPregao: false, excecao: null, foraDoFoco: false };
+  const casouFoco = motivoDoFoco(entrada.focoCasado ?? null, entrada.cnaesCasados ?? []);
+  if (!ehPregao) return { ehPregao: false, excecao: null, casouFoco, foraDoFoco: false };
   const excecao = excecaoCasada(entrada.objeto, entrada.excecoes);
-  return { ehPregao: true, excecao, foraDoFoco: excecao === null };
+  return { ehPregao: true, excecao, casouFoco, foraDoFoco: excecao === null && casouFoco === null };
+}
+
+/** Marca de casamento só por CNAE (sem termo do foco). */
+export const ATIVIDADE_DA_EMPRESA = "atividade (CNAE) da empresa";
+
+/** Termo do foco, ou a atividade da empresa quando só o CNAE casou; null sem casamento. */
+function motivoDoFoco(foco: string | null, cnaesCasados: readonly string[]): string | null {
+  if (foco !== null && foco.trim() !== "") return foco.trim();
+  return cnaesCasados.length > 0 ? ATIVIDADE_DA_EMPRESA : null;
 }

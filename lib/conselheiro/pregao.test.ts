@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avaliarPregao, ehModalidadePregao, excecaoCasada } from "./pregao";
+import { ATIVIDADE_DA_EMPRESA, avaliarPregao, ehModalidadePregao, excecaoCasada } from "./pregao";
 
 describe("ehModalidadePregao", () => {
   it("reconhece o pregão pelo código ou pelo nome", () => {
@@ -28,14 +28,31 @@ describe("avaliarPregao", () => {
     expect(avaliarPregao({ ...base, objeto: "Aquisição de licenças Zoom Workplace Pro por 24 meses" })).toEqual({
       ehPregao: true,
       excecao: null,
+      casouFoco: null,
       foraDoFoco: true,
     });
+  });
+
+  it("pregão com termo do foco casado não fica fora do foco", () => {
+    expect(avaliarPregao({ ...base, objeto: "Desenvolvimento de site institucional", focoCasado: "site" })).toEqual({
+      ehPregao: true,
+      excecao: null,
+      casouFoco: "site",
+      foraDoFoco: false,
+    });
+  });
+
+  it("pregão que casa só com o CNAE da empresa não fica fora do foco", () => {
+    const r = avaliarPregao({ ...base, objeto: "Manutenção de redes", cnaesCasados: ["61.90-6-99"] });
+    expect(r).toMatchObject({ ehPregao: true, excecao: null, casouFoco: ATIVIDADE_DA_EMPRESA, foraDoFoco: false });
+    expect(avaliarPregao({ ...base, objeto: "Manutenção de redes", cnaesCasados: [], focoCasado: null }).foraDoFoco).toBe(true);
   });
 
   it("pregão com exceção não fica fora do foco", () => {
     expect(avaliarPregao({ ...base, objeto: "Serviço de suporte gerenciado de infraestrutura" })).toEqual({
       ehPregao: true,
       excecao: "suporte gerenciado",
+      casouFoco: null,
       foraDoFoco: false,
     });
   });
@@ -48,6 +65,7 @@ describe("avaliarPregao", () => {
     expect(avaliarPregao({ ...base, modalidadeId: 8, modalidadeNome: "Dispensa", objeto: "Licenças" })).toEqual({
       ehPregao: false,
       excecao: null,
+      casouFoco: null,
       foraDoFoco: false,
     });
   });

@@ -9,8 +9,21 @@ import type { OportunidadeComScore } from "@/core/types";
 import type { ItemCompra } from "@/core/types-detalhe";
 import { textoPerfil } from "@/lib/assistente/prompt";
 import { caminhoDoDinheiro } from "@/core/caminho-dinheiro";
-import { comissaoDoItem, contaLucro } from "@/core/lucro";
-import { avaliarPregao, type RegraPregao } from "./pregao";
+import { comissaoDoItem, contaLucro, type ContaLucro } from "@/core/lucro";
+import { ROTULO_CURTO_TIPO_ACERVO, sugerirDoAcervo, type DocumentoAcervo } from "@/core/acervo";
+import type { DadosSoftware } from "@/core/campos-software";
+import { casarFoco } from "@/core/cnae-keywords";
+import {
+  HORAS_POR_MES,
+  MARGEM_MINIMA_DONO,
+  MINIMO_MENSAL_SOFTWARE,
+  VALOR_HORA,
+  contaSoftware,
+  ehDesenvolvimento,
+  tetoDoDev,
+  type ContaSoftware,
+} from "@/core/custo-software";
+import { ATIVIDADE_DA_EMPRESA, avaliarPregao, type RegraPregao } from "./pregao";
 
 /** Texto do contexto enviado ao assistente: dados já calculados pelo sistema, sem rede e sem banco. */
 
@@ -20,6 +33,8 @@ export const MAX_ITENS_NO_CONTEXTO = 15;
 export const MAX_FORNECEDORES_NO_CONTEXTO = 8;
 const MAX_OBJETO = 1500;
 const MAX_DOCUMENTOS = 12;
+/** Linhas do bloco do acervo (documentos e atestados juntos). */
+export const MAX_LINHAS_ACERVO = 10;
 
 const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -73,6 +88,18 @@ export function fornecedoresDoObjeto(fornecedores: readonly Fornecedor[], objeto
   });
 }
 
+/** O que o contexto precisa de um atestado gerado no sistema (a linha da tabela atestados cabe aqui). */
+export interface AtestadoParaContexto {
+  id: string;
+  clienteNome: string;
+  objeto: string;
+  areas: readonly string[];
+  valor: number | null;
+  periodoInicio: string | null;
+  periodoFim: string | null;
+  status: string;
+}
+
 export interface EntradaContexto {
   item: OportunidadeComScore;
   perfil: PerfilEmpresa;
@@ -89,6 +116,12 @@ export interface EntradaContexto {
   excecoesPregao: readonly string[];
   /** Comissão de quem opera, % sobre o bruto (a do item do pipeline; 0 sem marcar) */
   comissaoPercentual?: number;
+  /** Terceirização, custo do dev e meses de contrato do item (lerSoftwareDoItem); null/ausente sem resposta */
+  software?: DadosSoftware | null;
+  /** Documentos do acervo da empresa; null/ausente quando não deu para ler (o bloco some) */
+  acervo?: readonly DocumentoAcervo[] | null;
+  /** Atestados gerados no sistema; null/ausente quando não deu para ler */
+  atestados?: readonly AtestadoParaContexto[] | null;
 }
 
 export interface ContextoConselheiro {
@@ -97,6 +130,8 @@ export interface ContextoConselheiro {
   fornecedores: Fornecedor[];
   /** Todos os valores em reais que o sistema entregou ao assistente (base da conferência da resposta) */
   valoresPermitidos: number[];
+  /** Resultado no alvo positivo (e a conta de software, se houver, não reprova): base para "talvez" virar "vale" */
+  resultadoPositivo: boolean;
 }
 
 function linhaPreco(p: PrecoSugerido, valores: number[]): string[] {
@@ -188,14 +223,39 @@ function linhaFornecedor(f: Fornecedor): string {
 }
 
 /** Monta o texto do pedido e devolve junto a regra do pregão, os fornecedores que casaram e os valores entregues. */
-function linhasLucro(e: EntradaContexto, valores: number[]): string[] {
+function comissaoDe(e: EntradaContexto): number {
+  return comissaoDoItem(e.comissaoPercentual ?? e.software?.comissaoPercentual);
+}
+
+function receitaDe(e: EntradaContexto): number | null {
+  return e.preco?.alvo ?? e.preco?.sugerido ?? e.item.valorEstimado;
+}
+
+function contaLucroDe(e: EntradaContexto): ContaLucro | null {
+  const receita = receitaDe(e);
+  return receita === null ? null : contaLucro({ receita, custo: e.preco?.custoTotal ?? null, comissaoPercentual: comissaoDe(e), oportunidade: e.item });
+}
+
+/** Conta de site, sistema e software; null quando o objeto não é desenvolvimento ou falta valor. */
+function contaSoftwareDe(e: EntradaContexto): ContaSoftware | null {
+  if (!ehDesenvolvimento(e.item.objeto)) return null;
+  const bruto = receitaDe(e);
+  if (bruto === null) return null;
+  return contaSoftware({
+    bruto,
+    meses: e.software?.contratoMeses ?? null,
+    comissaoPercentual: comissaoDe(e),
+    terceirizavel: e.software?.terceirizavel ?? null,
+    devCusto: e.software?.devCusto ?? null,
+    valorReferencia: e.item.valorEstimado,
+  });
+}
+
+function linhasLucro(e: EntradaContexto, valores: number[], conta: ContaLucro | null): string[] {
   const guardar = (v: number): string => {
     valores.push(v);
     return brl(v);
   };
-  const comissao = comissaoDoItem(e.comissaoPercentual);
-  const receita = e.preco?.alvo ?? e.preco?.sugerido ?? e.item.valorEstimado;
-  const conta = receita === null ? null : contaLucro({ receita, custo: e.preco?.custoTotal ?? null, comissaoPercentual: comissao, oportunidade: e.item });
   const linhas: string[] = [];
   if (conta === null) {
     linhas.push("Sem preço alvo nem valor estimado: não há como calcular o resultado.");
@@ -217,6 +277,108 @@ function linhasLucro(e: EntradaContexto, valores: number[]): string[] {
   return linhas;
 }
 
+function descricaoDoCasamento(p: RegraPregao): string {
+  if (p.excecao !== null) return `a exceção "${p.excecao}"`;
+  return p.casouFoco === ATIVIDADE_DA_EMPRESA ? "a atividade (CNAE) da empresa" : `o foco "${p.casouFoco ?? ""}"`;
+}
+
+const ROTULO_VEREDITO_SOFTWARE: Record<ContaSoftware["veredito"], string> = {
+  vale: "VALE",
+  "nao-vale": "NÃO VALE",
+  pendente: "pendente (falta dado)",
+};
+
+/** Bloco da conta de software; os números entram nos valores permitidos para a resposta poder citá-los. */
+function linhasSoftware(e: EntradaContexto, conta: ContaSoftware | null, valores: number[]): string[] {
+  const guardar = (v: number): string => {
+    valores.push(v);
+    return brl(v);
+  };
+  const linhas = [
+    `Regras do dono: mínimo de ${guardar(MINIMO_MENSAL_SOFTWARE)} por mês; hora técnica de ${guardar(VALOR_HORA)} (${HORAS_POR_MES} h por mês); depois da comissão e do dev, a sobra tem que ficar em pelo menos ${MARGEM_MINIMA_DONO}% do bruto.`,
+  ];
+  if (conta === null) {
+    linhas.push("Sem preço alvo nem valor estimado: não há como fechar a conta de software.");
+    return linhas;
+  }
+  const terceirizavel = e.software?.terceirizavel ?? null;
+  linhas.push(
+    `Contrato de ${conta.meses} ${conta.meses === 1 ? "mês" : "meses"} sobre ${guardar(conta.bruto)}: ${guardar(conta.valorMensal)} por mês, o que paga ${guardar(conta.horaPaga)} por hora${conta.abaixoDoMinimo ? " (ABAIXO do mínimo)" : ""}.`,
+    `Terceirizável: ${terceirizavel === null ? "ainda não respondido" : terceirizavel ? "sim" : "não (a empresa faz sozinha)"}.`,
+    `Teto do dev (bruto menos comissão menos ${MARGEM_MINIMA_DONO}% do dono): ${guardar(conta.tetoDev ?? tetoDoDev(conta.bruto, comissaoDe(e)))}.`,
+  );
+  if (terceirizavel === true) {
+    const parcelas = e.software?.devParcelas ?? null;
+    linhas.push(
+      conta.devCusto > 0
+        ? `Dev combinado: ${guardar(conta.devCusto)}${parcelas !== null ? ` em ${parcelas} ${parcelas === 1 ? "parcela" : "parcelas"}` : ""}.`
+        : "Dev ainda sem cotação.",
+    );
+  }
+  linhas.push(
+    `Comissão: ${guardar(conta.comissao)}; sobra para o dono: ${guardar(conta.sobra)} (${conta.margemPercentual}%).`,
+    `Veredito do sistema (conta de software): ${ROTULO_VEREDITO_SOFTWARE[conta.veredito]}. Motivo: ${conta.motivo}.`,
+    `Preço mínimo (mínimo mensal ou o que mantém a margem com o dev): ${guardar(conta.precoMinimo)}.`,
+  );
+  if (conta.folga !== null) {
+    linhas.push(
+      `Folga até o valor estimado pelo órgão: ${guardar(conta.folga)} (${conta.folgaPercentual}%)${conta.folga < 0 ? ": o preço mínimo passa do valor estimado" : ""}.`,
+    );
+  }
+  return linhas;
+}
+
+/** Atestado gerado no sistema no formato do acervo, para usar o mesmo casamento com o objeto. */
+function atestadoComoDocumento(a: AtestadoParaContexto): DocumentoAcervo {
+  return {
+    id: a.id,
+    tipo: "atestado",
+    titulo: a.objeto,
+    emissor: a.clienteNome,
+    emissorCnpj: null,
+    descricao: "",
+    areas: [...a.areas],
+    valor: a.valor,
+    periodoInicio: a.periodoInicio,
+    periodoFim: a.periodoFim,
+    emitidoEm: null,
+    validade: null,
+    arquivoTipo: null,
+    arquivoNome: null,
+    arquivoTamanho: null,
+    atestadoId: a.id,
+    criadoEm: "",
+  };
+}
+
+/** Bloco do acervo: até MAX_LINHAS_ACERVO linhas, os que casam com o objeto primeiro. */
+function linhasAcervo(e: EntradaContexto, documentos: readonly DocumentoAcervo[], atestados: readonly AtestadoParaContexto[]): string[] {
+  const jaNoAcervo = new Set(documentos.map((d) => d.atestadoId).filter((id): id is string => id !== null));
+  const statusPorAtestado = new Map(atestados.map((a) => [a.id, a.status]));
+  const todos = [...documentos, ...atestados.filter((a) => !jaNoAcervo.has(a.id)).map(atestadoComoDocumento)];
+  if (todos.length === 0) {
+    return ["A empresa não tem documento nem atestado cadastrado. Atestado se consegue com cliente anterior ou se gera no gerador de atestados."];
+  }
+  const casados = new Map(sugerirDoAcervo(e.item.objeto, todos, todos.length).map((s) => [s.documento.id, s.motivo]));
+  const ordenados = [...todos].sort((a, b) => Number(casados.has(b.id)) - Number(casados.has(a.id)));
+  const linhas = ordenados.slice(0, MAX_LINHAS_ACERVO).map((d) => {
+    const motivo = casados.get(d.id);
+    const status = d.atestadoId !== null ? statusPorAtestado.get(d.atestadoId) : undefined;
+    const partes = [`${ROTULO_CURTO_TIPO_ACERVO[d.tipo]}: ${cortar(d.titulo, 120)}`];
+    if (d.emissor.trim() !== "") partes.push(`cliente/emissor: ${cortar(d.emissor, 80)}`);
+    if (status !== undefined && status !== "assinado") partes.push(`situação: ${status}`);
+    partes.push(motivo !== undefined ? `casa com o objeto (${motivo.replace(/^Bate com: /, "")})` : "não parece casar com o objeto");
+    return `- ${partes.join("; ")}`;
+  });
+  if (todos.length > MAX_LINHAS_ACERVO) linhas.push(`- Mais ${todos.length - MAX_LINHAS_ACERVO} documentos não listados aqui.`);
+  linhas.push(
+    casados.size > 0
+      ? `${casados.size} de ${todos.length} parecem casar com este objeto.`
+      : `Nenhum dos ${todos.length} parece casar com este objeto.`,
+  );
+  return linhas;
+}
+
 export function montarContexto(e: EntradaContexto): ContextoConselheiro {
   const { item, perfil } = e;
   const valores: number[] = [];
@@ -227,7 +389,11 @@ export function montarContexto(e: EntradaContexto): ContextoConselheiro {
     modalidadeNome: item.modalidadeNome,
     objeto: item.objeto,
     excecoes: e.excecoesPregao,
+    focoCasado: item.score.foco ?? casarFoco(item.objeto, perfil.foco),
+    cnaesCasados: item.score.cnaesCasados,
   });
+  const contaDoLucro = contaLucroDe(e);
+  const contaDoSoftware = contaSoftwareDe(e);
   const fornecedores = fornecedoresDoObjeto(e.fornecedores, item.objeto).slice(0, MAX_FORNECEDORES_NO_CONTEXTO);
 
   const secoes: string[][] = [];
@@ -246,10 +412,11 @@ export function montarContexto(e: EntradaContexto): ContextoConselheiro {
   secoes.push([
     "MODALIDADE E FOCO ATUAL",
     `Exceções de pregão da empresa: ${e.excecoesPregao.length > 0 ? e.excecoesPregao.join(", ") : "nenhuma"}.`,
+    `Foco da empresa: ${perfil.foco.length > 0 ? perfil.foco.join(", ") : "nenhum termo cadastrado"}.`,
     pregao.ehPregao
-      ? pregao.excecao !== null
-        ? `Esta contratação é pregão e o objeto casa com a exceção "${pregao.excecao}": vale a pena e deve ser recomendada normalmente (foraDoFoco = false).`
-        : "Esta contratação é pregão e o objeto NÃO casa com nenhuma exceção: está fora do foco atual da empresa (foraDoFoco = true)."
+      ? pregao.excecao !== null || pregao.casouFoco !== null
+        ? `Esta contratação é pregão e o objeto casa com ${descricaoDoCasamento(pregao)}: está dentro do foco (foraDoFoco = false). Decida pelos números, como em qualquer outra modalidade.`
+        : "Esta contratação é pregão e o objeto NÃO casa com exceção, foco nem atividade da empresa: está fora do foco atual (foraDoFoco = true). Avise na observação, mas o veredito sai dos números (lucro, caixa, conta de software, acervo); não reprove só por ser pregão."
       : "Esta contratação não é pregão (foraDoFoco = false).",
   ]);
 
@@ -270,7 +437,15 @@ export function montarContexto(e: EntradaContexto): ContextoConselheiro {
 
   if (e.cotacoes !== null) secoes.push(["COTAÇÕES DA EMPRESA", ...linhasCotacoes(e.cotacoes, valores)]);
 
-  secoes.push(["LUCRO × PREJUÍZO E CAIXA (calculado pelo sistema; base da decisão)", ...linhasLucro(e, valores)]);
+  secoes.push(["LUCRO × PREJUÍZO E CAIXA (calculado pelo sistema; base da decisão)", ...linhasLucro(e, valores, contaDoLucro)]);
+
+  if (ehDesenvolvimento(item.objeto)) {
+    secoes.push(["SITE, SISTEMA E SOFTWARE (conta do dono; pesa junto com o lucro)", ...linhasSoftware(e, contaDoSoftware, valores)]);
+  }
+
+  if (e.acervo != null || e.atestados != null) {
+    secoes.push(["ACERVO DA EMPRESA (documentos e atestados que ela já tem)", ...linhasAcervo(e, e.acervo ?? [], e.atestados ?? [])]);
+  }
 
   secoes.push([
     "FORNECEDORES CADASTRADOS QUE CASAM COM O OBJETO",
@@ -290,5 +465,6 @@ export function montarContexto(e: EntradaContexto): ContextoConselheiro {
     pregao,
     fornecedores,
     valoresPermitidos: valores,
+    resultadoPositivo: contaDoLucro?.situacao === "lucro" && (contaDoSoftware === null || contaDoSoftware.veredito !== "nao-vale"),
   };
 }
