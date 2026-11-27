@@ -25,7 +25,7 @@ export function SeletorAba({
             aria-pressed={ativa}
             onClick={() => onEscolher(opcao.id)}
             className={cn(
-              "-mb-px inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset",
+              "-mb-px inline-flex h-11 max-md:h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset",
               ativa
                 ? "border-brand font-semibold text-ink"
                 : "border-transparent text-muted-foreground hover:text-ink",

@@ -54,11 +54,11 @@ function textoDias(dias: number | null): React.ReactNode {
 function Linha({ rotulo, children, selo }: { rotulo: string; children: React.ReactNode; selo?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
-      <dt className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+      <dt className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
         {rotulo}
         {selo}
       </dt>
-      <dd className="text-sm font-medium tabular-nums whitespace-nowrap text-ink">{children}</dd>
+      <dd className="shrink-0 text-sm font-medium tabular-nums whitespace-nowrap text-ink">{children}</dd>
     </div>
   );
 }
@@ -76,7 +76,7 @@ function Resultado({ lucro, receitaDe }: { lucro: ContaLucro; receitaDe: "alvo" 
           <Icone aria-hidden="true" className="size-4" />
           {prejuizo ? "Prejuízo" : empate ? "Sem lucro nem prejuízo" : "Lucro"}
         </p>
-        <p className={cn("text-2xl leading-tight font-semibold tabular-nums", cor)}>
+        <p className={cn("min-w-0 text-2xl leading-tight font-semibold tabular-nums wrap-break-word", cor)}>
           {formatarMoeda(lucro.resultado)}
           <span className="ml-2 text-sm font-medium">{lucro.margemPercentual.toLocaleString("pt-BR")}%</span>
         </p>

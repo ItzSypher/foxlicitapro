@@ -31,10 +31,28 @@ function assinarOculto(aviso: () => void): () => void {
   };
 }
 
-/** Resumo recolhido ou não, lembrado no aparelho. Sem armazenamento, fica sempre à vista. */
-function useResumoOculto(): { oculto: boolean; alternar: () => void } {
+const CONSULTA_CELULAR = "(max-width: 767px)";
+
+function assinarCelular(aviso: () => void): () => void {
+  const lista = window.matchMedia(CONSULTA_CELULAR);
+  lista.addEventListener("change", aviso);
+  return () => lista.removeEventListener("change", aviso);
+}
+
+/**
+ * Resumo recolhido ou não, lembrado no aparelho. Sem escolha guardada, ele abre no computador e fica
+ * recolhido no celular (a linha de contagem do topo já resume). Sem armazenamento, vale o padrão.
+ * `escolha` vazia = padrão; o CSS esconde o miolo só no celular, sem piscar na carga.
+ */
+function useResumoOculto(): { escolha: "" | "0" | "1"; oculto: boolean; alternar: () => void } {
   const bruto = useSyncExternalStore(assinarOculto, lerOcultoBruto, () => "");
-  const oculto = bruto === "1";
+  const celular = useSyncExternalStore(
+    assinarCelular,
+    () => window.matchMedia(CONSULTA_CELULAR).matches,
+    () => false,
+  );
+  const escolha = bruto === "0" || bruto === "1" ? bruto : "";
+  const oculto = escolha === "" ? celular : escolha === "1";
   function alternar() {
     try {
       window.localStorage.setItem(CHAVE_OCULTO, oculto ? "0" : "1");
@@ -43,7 +61,7 @@ function useResumoOculto(): { oculto: boolean; alternar: () => void } {
     }
     window.dispatchEvent(new Event(EVENTO_OCULTO));
   }
-  return { oculto, alternar };
+  return { escolha, oculto, alternar };
 }
 
 function Numero({ valor, formatar }: { valor: number; formatar?: (n: number) => string }) {
@@ -221,7 +239,7 @@ export function PainelDiaView({
   aoVerValor,
   aoEscolherUf,
 }: Props) {
-  const { oculto, alternar } = useResumoOculto();
+  const { escolha, oculto, alternar } = useResumoOculto();
   const novasDisponiveis = painel.temPublicacao;
   const semNovidade = novasDisponiveis && painel.novas24h === 0;
 
@@ -233,87 +251,91 @@ export function PainelDiaView({
           type="button"
           onClick={alternar}
           aria-expanded={!oculto}
-          className="inline-flex h-11 items-center gap-1.5 rounded-control px-2 text-xs font-medium text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand md:h-9"
+          className="inline-flex h-10 items-center gap-1.5 rounded-control px-2 text-xs font-medium text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand md:h-9"
         >
           {oculto ? "Mostrar resumo" : "Ocultar resumo"}
           {oculto ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronUp className="size-4" aria-hidden="true" />}
         </button>
       </div>
 
-      {oculto || !meta ? null : <MetaSemana painel={meta} compacta />}
+      {escolha === "1" ? null : (
+        <div className={cn("flex flex-col gap-3", escolha === "" && "max-md:hidden")}>
+          {meta ? <MetaSemana painel={meta} compacta /> : null}
 
-      {oculto ? null : painel.abertas === 0 ? (
-        <p className="rounded-card border border-dashed border-control px-4 py-4 text-center text-sm text-muted-foreground">
-          Nenhuma oportunidade aberta agora.
-        </p>
-      ) : (
-        <div className={cn("flex flex-col gap-3 transition-opacity duration-200", ocupado && "opacity-60")}>
-          <Entrada className={GRADE_PAINEL}>
-            <CelulaBotao
-              aoClicar={aoVerNovas}
-              rotuloAria={
-                novasDisponiveis
-                  ? `Novas nas últimas 24 horas: ${painel.novas24h}. Ver as mais recentes`
-                  : "Novas: data de publicação indisponível. Ver as mais recentes"
-              }
-            >
-              <Indicador
-                rotulo="Novas 24h"
-                numero={novasDisponiveis ? <Numero valor={painel.novas24h} /> : "—"}
-                discreto={!novasDisponiveis}
-                contexto={
-                  !novasDisponiveis
-                    ? "Sem data de publicação"
-                    : semNovidade
-                      ? "Nada novo hoje"
-                      : `${painel.novasHoje} hoje · ${painel.novasOntem} ontem`
-                }
-              />
-            </CelulaBotao>
+          {painel.abertas === 0 ? (
+            <p className="rounded-card border border-dashed border-control px-4 py-4 text-center text-sm text-muted-foreground">
+              Nenhuma oportunidade aberta agora.
+            </p>
+          ) : (
+            <div className={cn("flex flex-col gap-3 transition-opacity duration-200", ocupado && "opacity-60")}>
+              <Entrada className={GRADE_PAINEL}>
+                <CelulaBotao
+                  aoClicar={aoVerNovas}
+                  rotuloAria={
+                    novasDisponiveis
+                      ? `Novas nas últimas 24 horas: ${painel.novas24h}. Ver as mais recentes`
+                      : "Novas: data de publicação indisponível. Ver as mais recentes"
+                  }
+                >
+                  <Indicador
+                    rotulo="Novas 24h"
+                    numero={novasDisponiveis ? <Numero valor={painel.novas24h} /> : "—"}
+                    discreto={!novasDisponiveis}
+                    contexto={
+                      !novasDisponiveis
+                        ? "Sem data de publicação"
+                        : semNovidade
+                          ? "Nada novo hoje"
+                          : `${painel.novasHoje} hoje · ${painel.novasOntem} ontem`
+                    }
+                  />
+                </CelulaBotao>
 
-            <CelulaBotao aoClicar={aoVerEncerrando} rotuloAria={`Fecham em até 48 horas: ${painel.encerram48h}. Ver por prazo`}>
-              <Indicador
-                rotulo="Fecham 48h"
-                numero={<Numero valor={painel.encerram48h} />}
-                destaque={painel.encerram48h > 0}
-                contexto={`${painel.encerramSemana} na semana`}
-              />
-            </CelulaBotao>
+                <CelulaBotao aoClicar={aoVerEncerrando} rotuloAria={`Fecham em até 48 horas: ${painel.encerram48h}. Ver por prazo`}>
+                  <Indicador
+                    rotulo="Fecham 48h"
+                    numero={<Numero valor={painel.encerram48h} />}
+                    destaque={painel.encerram48h > 0}
+                    contexto={`${painel.encerramSemana} na semana`}
+                  />
+                </CelulaBotao>
 
-            <CelulaBotao aoClicar={aoVerSinalAlto} rotuloAria={`Para você, com sinal alto: ${painel.sinalAlto}. Ver por nota`}>
-              <Indicador rotulo="Para você" numero={<Numero valor={painel.sinalAlto} />} contexto="com sinal alto" />
-            </CelulaBotao>
+                <CelulaBotao aoClicar={aoVerSinalAlto} rotuloAria={`Para você, com sinal alto: ${painel.sinalAlto}. Ver por nota`}>
+                  <Indicador rotulo="Para você" numero={<Numero valor={painel.sinalAlto} />} contexto="com sinal alto" />
+                </CelulaBotao>
 
-            <CelulaBotao
-              aoClicar={aoVerValor}
-              rotuloAria={`Valor em jogo: ${formatarValorCompacto(painel.valorTotal)}. Ver por maior valor`}
-              className="max-md:hidden"
-            >
-              <Indicador
-                rotulo="Valor em jogo"
-                numero={<Numero valor={painel.valorTotal} formatar={formatarValorCompacto} />}
-                contexto={`em ${painel.abertas.toLocaleString("pt-BR")} ${painel.abertas === 1 ? "aberta" : "abertas"}`}
-              />
-            </CelulaBotao>
+                <CelulaBotao
+                  aoClicar={aoVerValor}
+                  rotuloAria={`Valor em jogo: ${formatarValorCompacto(painel.valorTotal)}. Ver por maior valor`}
+                  className="max-md:hidden"
+                >
+                  <Indicador
+                    rotulo="Valor em jogo"
+                    numero={<Numero valor={painel.valorTotal} formatar={formatarValorCompacto} />}
+                    contexto={`em ${painel.abertas.toLocaleString("pt-BR")} ${painel.abertas === 1 ? "aberta" : "abertas"}`}
+                  />
+                </CelulaBotao>
 
-            <CelulaRegiao contagens={contagensUf} ativas={ufsAtivas} aoEscolher={aoEscolherUf} />
+                <CelulaRegiao contagens={contagensUf} ativas={ufsAtivas} aoEscolher={aoEscolherUf} />
 
-            <Link href="/pipeline" className={cn(CELULA, CELULA_CLICAVEL, COLUNAS_PIPELINE)}>
-              <Indicador
-                rotulo="Pipeline"
-                numero={painel.pipeline ? <Numero valor={painel.pipeline.ativas} /> : "—"}
-                discreto={!painel.pipeline}
-                contexto={
-                  painel.pipeline
-                    ? painel.pipeline.emDisputa > 0
-                      ? `${painel.pipeline.emDisputa} em disputa`
-                      : "nenhum em disputa"
-                    : "Abrir o pipeline"
-                }
-              />
-            </Link>
-          </Entrada>
-          <RegiaoRecolhida contagens={contagensUf} ativas={ufsAtivas} aoEscolher={aoEscolherUf} />
+                <Link href="/pipeline" className={cn(CELULA, CELULA_CLICAVEL, COLUNAS_PIPELINE)}>
+                  <Indicador
+                    rotulo="Pipeline"
+                    numero={painel.pipeline ? <Numero valor={painel.pipeline.ativas} /> : "—"}
+                    discreto={!painel.pipeline}
+                    contexto={
+                      painel.pipeline
+                        ? painel.pipeline.emDisputa > 0
+                          ? `${painel.pipeline.emDisputa} em disputa`
+                          : "nenhum em disputa"
+                        : "Abrir o pipeline"
+                    }
+                  />
+                </Link>
+              </Entrada>
+              <RegiaoRecolhida contagens={contagensUf} ativas={ufsAtivas} aoEscolher={aoEscolherUf} />
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { CardOportunidade } from "./card-oportunidade";
 import { DetalheSheet } from "./detalhe-sheet";
 import { AvisoFalhaParcial, EstadoErro, EstadoVazio } from "./estados";
-import { BarraFiltros } from "./filtros";
+import { BarraFiltros, BotaoFiltros } from "./filtros";
 import { BuscaPalavras } from "./busca-palavras";
 import { BuscaPncp } from "./busca-pncp";
 import { FaixaOferta } from "./faixa-oferta";
@@ -123,6 +123,7 @@ export function RadarView({
 
   const [frenteOtimista, definirFrenteOtimista] = useOptimistic(frente);
 
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [aberta, setAberta] = useState<OportunidadeComScore | null>(null);
   const [detalheAberto, setDetalheAberto] = useState(false);
   const topoRef = useRef<HTMLDivElement>(null);
@@ -437,21 +438,21 @@ export function RadarView({
   const chaveLista = `${aba}|${frenteOtimista}|${visao}|${dados?.pagina ?? 1}|${dados?.porPagina ?? 0}|${total}`;
 
   return (
-    <div className="flex flex-col gap-4 lg:gap-5">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-3 md:flex-nowrap">
+    <div className="flex flex-col gap-3 md:gap-4 lg:gap-5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 md:flex-nowrap md:gap-x-4 md:gap-y-3">
         <h1 className="order-1 text-[22px] leading-tight font-semibold text-ink">Radar</h1>
         {dados ? (
-          <p className="order-4 w-full text-[13px] text-muted-foreground md:order-2 md:w-auto md:min-w-0 md:flex-1 md:text-sm">
+          <p className="order-4 w-full truncate text-[13px] text-muted-foreground md:order-2 md:w-auto md:min-w-0 md:flex-1 md:text-sm">
             {fraseResumo(dados.resumo)}
           </p>
         ) : (
           <span className="order-2 md:flex-1" />
         )}
-        <div className="order-3 w-full md:w-auto">
+        <div className="order-2 min-w-0 flex-1 md:order-3 md:w-auto md:flex-none">
           <SeletorFrente frente={frenteOtimista} onEscolher={escolherFrente} />
         </div>
         {dados ? (
-          <div className="order-2 ml-auto flex items-center gap-2 md:order-4 md:ml-0">
+          <div className="order-3 flex items-center gap-2 md:order-4">
             <span className="hidden text-xs text-muted-foreground lg:inline">
               Atualizado às{" "}
               <span className="tabular-nums">{formatarHora(dados.atualizadoEm)}</span>
@@ -462,7 +463,7 @@ export function RadarView({
               onClick={atualizar}
               disabled={pendente}
               aria-label={`Atualizar oportunidades (última atualização às ${formatarHora(dados.atualizadoEm)})`}
-              className="size-11 md:size-9"
+              className="size-10 md:size-9"
             >
               <RefreshCw
                 className={cn("size-4", pendente && "motion-safe:animate-spin")}
@@ -487,13 +488,13 @@ export function RadarView({
             aoVerValor={() => verLista("todas", "valor")}
             aoEscolherUf={escolherUfDoPainel}
           />
-          <div ref={aposPainelRef} aria-hidden="true" className="-mt-4 scroll-mt-[68px] lg:-mt-5 lg:scroll-mt-6" />
+          <div ref={aposPainelRef} aria-hidden="true" className="-mt-3 scroll-mt-[68px] md:-mt-4 lg:-mt-5 lg:scroll-mt-6" />
 
           <SeletorAba aba={aba} contagens={dados.contagensAbas} onEscolher={mudarAba} />
 
           {emDesertas ? null : (
             <>
-              <FaixaOferta foco={foco} />
+              <FaixaOferta foco={foco} className="max-md:hidden" />
 
               <BuscaPalavras
                 busca={busca}
@@ -505,12 +506,17 @@ export function RadarView({
                 aoAlternar={alternarPalavra}
                 aoRemoverMarcada={alternarPalavra}
                 aoGuardar={marcarGuardada}
+                acaoCelular={<BotaoFiltros ativos={contarFiltrosAtivos(filtros, !paraVoce)} aoAbrir={() => setFiltrosAbertos(true)} />}
               />
 
               <BuscaPncp texto={buscaNaUrl} ufs={filtros.ufs.length > 0 ? filtros.ufs : ufsDaEmpresa} />
 
               <BarraFiltros
                 filtros={filtros}
+                painelAberto={filtrosAbertos}
+                onPainelAberto={setFiltrosAbertos}
+                foco={foco}
+                atalhoAjuste={paraVoce}
                 ufsAtendidas={ufsDaEmpresa}
                 ufEmAdicao={ufEmAdicao}
                 erroUf={erroUf}
@@ -558,7 +564,7 @@ export function RadarView({
           ) : (
             <div ref={topoRef} className="scroll-mt-[68px] lg:scroll-mt-6">
               {paraVoce ? (
-                <p className="mb-3 text-sm text-muted-foreground">
+                <p className="mb-3 text-sm text-muted-foreground max-md:hidden">
                   {dados.tudoDoRamo
                     ? fraseRamo(dados.contagensAbas["para-voce"], dados.baseRecomendacao)
                     : fraseRecomendadas(dados.contagensAbas["para-voce"], dados.baseRecomendacao)}
@@ -573,7 +579,7 @@ export function RadarView({
               ) : null}
               {emDesertas ? (
                 <>
-                  <p className="mb-3 text-sm text-muted-foreground">
+                  <p className="mb-3 text-[13px] text-muted-foreground max-md:line-clamp-2 md:text-sm">
                     Compras que deram deserta nos últimos 60 dias e costumam reabrir; cada uma aparece uma vez e some quando reabre.
                   </p>
                   <ListaDesertas key={chaveLista} itens={dados.desertas} ocupado={pendente} />

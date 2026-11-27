@@ -24,8 +24,8 @@ const dataCurta = new Intl.DateTimeFormat("pt-BR", {
   hourCycle: "h23",
 });
 
-/** "12/11, 14:32" */
+/** "12/11, 14:32". Alguns ICU já devolvem a vírgula; o regex aceita com ou sem ela, sem dobrar. */
 export function dataHoraCurta(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : dataCurta.format(d).replace(" ", ", ");
+  return Number.isNaN(d.getTime()) ? "—" : dataCurta.format(d).replace(/,?\s+/, ", ");
 }

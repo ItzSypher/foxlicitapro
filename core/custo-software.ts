@@ -198,3 +198,23 @@ export function cronogramaRepasse(
   }
   return linhas;
 }
+
+const MESES_NO_TEXTO = /\b(\d{1,3})\s*\(?[a-z ]*\)?\s*meses\b/;
+const DOZE_MESES = /\bdoze meses\b/;
+const CONTINUO = /\b(continuad[oa]s?|continuos?|manutencao|suporte|hospedagem|mensal|mensais|locacao|licenciamento de uso)\b/;
+
+/**
+ * Meses de contrato que o objeto sugere quando ninguém informou: "12 meses" escrito no texto,
+ * ou 12 para serviço contínuo (manutenção, suporte, hospedagem); null para entrega única.
+ */
+export function mesesSugeridos(objeto: string, natureza?: string | null): number | null {
+  const texto = normalizarTexto(objeto);
+  const m = MESES_NO_TEXTO.exec(texto);
+  if (m) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= 120) return n;
+  }
+  if (DOZE_MESES.test(texto)) return 12;
+  if (natureza === "servico-continuo" || CONTINUO.test(texto)) return 12;
+  return null;
+}

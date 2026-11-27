@@ -117,7 +117,8 @@ export function Coluna({
         </button>
       ) : (
         <>
-      <header className="flex items-center justify-between gap-2 px-1 pt-1 pb-2 md:px-3 md:pt-3 md:pb-1">
+      {/* No celular a aba já diz a etapa e a contagem; o título repetido só empurra o primeiro card. */}
+      <header className="flex items-center justify-between gap-2 px-1 pt-1 pb-2 max-md:hidden md:px-3 md:pt-3 md:pb-1">
         <h2 className="min-w-0 truncate text-sm font-semibold text-ink">
           {rotulo}
           <span className="font-normal tabular-nums text-muted-foreground">

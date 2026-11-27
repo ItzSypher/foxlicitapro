@@ -13,13 +13,17 @@ export function Pilula({
   tom,
   children,
   className,
+  title,
 }: {
   tom: TomPilula;
   children: React.ReactNode;
   className?: string;
+  /** Explicação que aparece ao pairar, para o que não cabe na pílula */
+  title?: string;
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-xs font-medium",
         TONS[tom],

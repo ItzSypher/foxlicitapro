@@ -285,7 +285,7 @@ function Prazo({ encerramentoIso, agoraInicial }: { encerramentoIso: string; ago
     <span
       data-tour="pipeline-prazo"
       className={cn(
-        "text-xs tabular-nums",
+        "text-xs tabular-nums max-md:rounded-full max-md:bg-raised max-md:px-2 max-md:leading-6",
         texto === null ? "text-muted-foreground" : "text-ink",
       )}
     >
@@ -401,7 +401,7 @@ function horaRelativa(iso: string, agora: number): string {
   const dias = Math.floor(horas / 24);
   if (dias === 1) return "ontem";
   if (dias < 7) return `há ${dias} dias`;
-  return horaFmt.format(new Date(t)).replace(" ", ", ");
+  return horaFmt.format(new Date(t)).replace(/,?\s+/, ", ");
 }
 
 function Comentarios({
@@ -686,7 +686,7 @@ export function CardItem({
         <span className="flex min-w-0 items-baseline gap-2">
           <span
             className={cn(
-              "text-base font-semibold tabular-nums",
+              "text-base font-semibold tabular-nums max-md:rounded-full max-md:bg-raised max-md:px-2 max-md:text-sm max-md:leading-6",
               COR_FAIXA[item.score.faixa],
             )}
           >
@@ -733,10 +733,12 @@ export function CardItem({
 
       <p className="line-clamp-2 text-sm font-medium leading-snug text-ink">{titulo}</p>
 
-      <p className="text-[13px] leading-snug text-muted-foreground">
-        {item.municipio}/{item.uf}
-        {" · "}
-        <span className="tabular-nums text-ink">
+      <p className="flex min-w-0 items-center justify-between gap-2 text-[13px] leading-snug text-muted-foreground md:block">
+        <span className="min-w-0 max-md:truncate">
+          {item.municipio}/{item.uf}
+        </span>
+        <span className="max-md:hidden">{" · "}</span>
+        <span className="tabular-nums text-ink max-md:shrink-0 max-md:rounded-full max-md:bg-raised max-md:px-2 max-md:text-xs max-md:leading-6">
           {item.valorEstimado === null ? "—" : formatarReais(item.valorEstimado)}
         </span>
       </p>

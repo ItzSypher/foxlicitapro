@@ -23,6 +23,8 @@ interface Props {
   aoRemoverMarcada: (termo: string) => void;
   /** Palavra acabou de ser guardada: limpa a busca e marca a palavra */
   aoGuardar: (termo: string) => void;
+  /** Botão que fica ao lado do campo só no celular (o "Filtros"); a partir de 768 px a barra de filtros tem o seu */
+  acaoCelular?: React.ReactNode;
 }
 
 /** Busca fixa no topo e palavras-chave como chips que rolam na horizontal. Alvos de toque de 44 px. */
@@ -36,6 +38,7 @@ export function BuscaPalavras({
   aoAlternar,
   aoRemoverMarcada,
   aoGuardar,
+  acaoCelular,
 }: Props) {
   const faixa = useFaixaRolavel<HTMLDivElement>();
   const [editando, setEditando] = useState(false);
@@ -122,6 +125,7 @@ export function BuscaPalavras({
             <span className="hidden sm:inline">{pendente ? "Salvando…" : "Salvar palavra"}</span>
           </button>
         ) : null}
+        {acaoCelular ? <div className="shrink-0 md:hidden">{acaoCelular}</div> : null}
       </form>
 
       {salvas.length > 0 ? (
@@ -143,7 +147,7 @@ export function BuscaPalavras({
                   onClick={() => (editando ? remover(termo) : aoAlternar(termo))}
                   disabled={pendente && editando}
                   className={cn(
-                    "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border px-3 text-sm whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand lg:h-9",
+                    "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border px-3 text-sm whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand max-md:h-10 lg:h-9",
                     editando
                       ? "border-negative text-negative hover:bg-active"
                       : ativa
@@ -162,7 +166,7 @@ export function BuscaPalavras({
             onClick={() => setEditando((v) => !v)}
             aria-label={editando ? "Concluir edição das palavras-chave" : "Editar palavras-chave"}
             aria-pressed={editando}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-control text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand lg:size-9"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-control text-muted-foreground outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand max-md:size-10 lg:size-9"
           >
             <Pencil aria-hidden="true" className="size-4" />
           </button>

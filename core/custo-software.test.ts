@@ -93,3 +93,17 @@ describe("cronogramaRepasse com mais parcelas que meses", () => {
     expect(r.reduce((s, m) => s + m.dev, 0)).toBe(3000);
   });
 });
+
+describe("mesesSugeridos", () => {
+  it("lê os meses escritos no objeto", async () => {
+    const { mesesSugeridos } = await import("./custo-software");
+    expect(mesesSugeridos("Desenvolvimento de sistema pelo período de 24 meses")).toBe(24);
+    expect(mesesSugeridos("Manutenção do portal por doze meses")).toBe(12);
+  });
+  it("serviço contínuo vira 12; entrega única fica sem meses", async () => {
+    const { mesesSugeridos } = await import("./custo-software");
+    expect(mesesSugeridos("Redesign, desenvolvimento, modernização, manutenção e hospedagem do site")).toBe(12);
+    expect(mesesSugeridos("Criação de site institucional")).toBeNull();
+    expect(mesesSugeridos("Criação de site", "servico-continuo")).toBe(12);
+  });
+});

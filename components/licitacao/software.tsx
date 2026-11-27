@@ -72,7 +72,7 @@ function Linha({ rotulo, children }: { rotulo: string; children: React.ReactNode
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
       <dt className="min-w-0 text-sm text-muted-foreground">{rotulo}</dt>
-      <dd className="text-right text-sm font-medium tabular-nums text-ink">{children}</dd>
+      <dd className="shrink-0 text-right text-sm font-medium tabular-nums text-ink">{children}</dd>
     </div>
   );
 }

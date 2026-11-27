@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { definirResponsavelAction, moverEtapa, removerDoPipeline } from "@/app/(app)/pipeline/actions";
 import { frasePrazoEncerrado } from "@/core/encerradas";
 import type { PainelMeta } from "@/core/meta";
+import { formatarMoedaCurta } from "@/lib/formato";
 import { useAgora } from "@/lib/relogio";
 import { MetaSemana } from "@/components/meta/meta-semana";
 import { Segmentado, TRILHO_SEGMENTADO, classeItemSegmentado } from "@/components/ui/segmentado";
@@ -43,7 +44,10 @@ const OPCOES_VISTA: ReadonlyArray<{ valor: VistaPipeline; rotulo: string }> = [
   { valor: "prazo", rotulo: "Por prazo" },
 ];
 
-const CHAVE_PREFERENCIA = "foxlicita:pipeline-preferencia";
+/** Badge de número do topo do Pipeline no celular. */
+const BADGE_NUMERO = "inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-raised px-2.5 font-medium whitespace-nowrap text-ink";
+
+const CHAVE_PREFERENCIA ="foxlicita:pipeline-preferencia";
 const EVENTO_PREFERENCIA = "foxlicita:pipeline-preferencia-mudou";
 
 interface PreferenciaPipeline {
@@ -481,7 +485,7 @@ function Quadro({
     <div
       data-largura-total
       className={cn(
-        "flex min-w-0 flex-col gap-3",
+        "flex min-w-0 flex-col gap-3 max-md:gap-2",
         // A tela inteira é do Pipeline: o cabeçalho é enxuto e o quadro pega todo o resto da altura.
         vazio ? "" : "md:h-[calc(100dvh-9.5rem)] md:min-h-[28rem] lg:h-[calc(100dvh-5.5rem)]",
       )}
@@ -497,7 +501,29 @@ function Quadro({
             Conselheiro
           </Link>
         </div>
-        <p className="text-[13px] tabular-nums text-muted-foreground">
+        {/* Celular: números em badges curtos numa linha só; o resumo corrido fica para telas maiores. */}
+        <div className="sem-barra -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 text-xs tabular-nums md:hidden">
+          <span className={BADGE_NUMERO}>
+            {resumo.ativas} {resumo.ativas === 1 ? "ativa" : "ativas"}
+          </span>
+          {resumo.valorAtivo > 0 ? <span className={BADGE_NUMERO}>{formatarMoedaCurta(resumo.valorAtivo)} em jogo</span> : null}
+          {resumo.ganhas > 0 ? (
+            <span className={BADGE_NUMERO}>
+              {resumo.ganhas} {resumo.ganhas === 1 ? "ganha" : "ganhas"}
+            </span>
+          ) : null}
+          {totalEncerradas > 0 ? (
+            <Link
+              href={uf === TODAS_AS_UFS ? "/encerradas" : `/encerradas?uf=${uf}`}
+              aria-label={`Ver ${totalEncerradas} ${totalEncerradas === 1 ? "licitação encerrada" : "licitações encerradas"}`}
+              className={cn(BADGE_NUMERO, "min-h-10 bg-pill-warn-bg text-pill-warn-fg outline-none focus-visible:ring-2 focus-visible:ring-brand")}
+            >
+              {totalEncerradas} {totalEncerradas === 1 ? "encerrada" : "encerradas"}
+              <ChevronRight aria-hidden="true" className="size-3.5" />
+            </Link>
+          ) : null}
+        </div>
+        <p className="text-[13px] tabular-nums text-muted-foreground max-md:hidden">
           {linhaDeNumeros(resumo)}
           {totalEncerradas > 0 ? (
             <>
@@ -526,25 +552,28 @@ function Quadro({
 
       {vazio ? null : (
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Segmentado
-            rotulo="Estado"
-            valor={uf}
-            aoMudar={escolherUf}
-            opcoes={opcoesUf.map((o) => ({ valor: o.valor, rotulo: o.rotulo, contagem: contagemUf[o.valor] ?? 0 }))}
-            rolavel
-            className="min-w-0 max-md:basis-full"
-          />
-          <div className="min-w-0 flex-1 max-md:hidden" aria-hidden="true" />
-          <Segmentado rotulo="Vista" valor={vista} aoMudar={escolherVista} opcoes={OPCOES_VISTA} className="shrink-0" />
-          <div className={cn(TRILHO_SEGMENTADO, "shrink-0")}>
-            <button
-              type="button"
-              aria-pressed={soMeus}
-              onClick={() => escolherSoMeus(!soMeus)}
-              className={classeItemSegmentado(soMeus)}
-            >
-              Só os meus
-            </button>
+          {/* Celular: UF, vista e "Só os meus" numa fileira que rola sem barra; no computador o contêiner some (contents). */}
+          <div className="sem-barra flex min-w-0 items-center gap-2 max-md:flex-1 max-md:overflow-x-auto md:contents">
+            <Segmentado
+              rotulo="Estado"
+              valor={uf}
+              aoMudar={escolherUf}
+              opcoes={opcoesUf.map((o) => ({ valor: o.valor, rotulo: o.rotulo, contagem: contagemUf[o.valor] ?? 0 }))}
+              rolavel
+              className="min-w-0 max-md:shrink-0"
+            />
+            <div className="min-w-0 flex-1 max-md:hidden" aria-hidden="true" />
+            <Segmentado rotulo="Vista" valor={vista} aoMudar={escolherVista} opcoes={OPCOES_VISTA} className="shrink-0" />
+            <div className={cn(TRILHO_SEGMENTADO, "shrink-0")}>
+              <button
+                type="button"
+                aria-pressed={soMeus}
+                onClick={() => escolherSoMeus(!soMeus)}
+                className={classeItemSegmentado(soMeus)}
+              >
+                Só os meus
+              </button>
+            </div>
           </div>
           {podeEditar ? <AdicionarPeloLink /> : null}
         </div>
@@ -596,12 +625,19 @@ function Quadro({
                   aria-controls={`coluna-${e.id}`}
                   onClick={() => tocarAba(e.id)}
                   className={cn(
-                    "flex h-11 shrink-0 items-center gap-2 rounded-control px-3 text-sm whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                    "flex h-10 shrink-0 items-center gap-1.5 rounded-control px-3 text-sm whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-brand",
                     ativa ? "bg-active font-medium text-ink" : "text-muted-foreground",
                   )}
                 >
                   {e.rotulo}
-                  <span className="text-xs tabular-nums">{resumo.porEtapa[e.id].quantidade}</span>
+                  <span
+                    className={cn(
+                      "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs leading-5 tabular-nums",
+                      ativa ? "bg-brand-fill font-medium text-black" : "bg-raised text-muted-foreground",
+                    )}
+                  >
+                    {resumo.porEtapa[e.id].quantidade}
+                  </span>
                 </button>
               );
             })}

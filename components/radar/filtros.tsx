@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ import { Seletor, type OpcaoSeletor } from "@/components/ui/seletor";
 import { formatarMoedaCurta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { AlternadorVisao } from "./alternador-visao";
+import { FaixaOferta } from "./faixa-oferta";
 
 const OPCOES_MODALIDADE: ReadonlyArray<OpcaoSeletor<FiltroModalidade>> = MODALIDADES.map((m) => ({ valor: m.id, rotulo: m.rotulo }));
 const OPCOES_ORDEM: ReadonlyArray<OpcaoSeletor<Ordem>> = ORDENS.map((o) => ({ valor: o.id, rotulo: o.rotulo }));
@@ -173,8 +175,44 @@ function CampoCaixaMax({ valor, aoMudar }: { valor: number | null; aoMudar: (val
   );
 }
 
+/**
+ * Botão "Filtros" do celular, que vive na faixa da busca. No celular só o ícone aparece (com o número
+ * de filtros ativos); o nome fica para leitor de tela. A folha é a mesma da barra.
+ */
+export function BotaoFiltros({ ativos, aoAbrir }: { ativos: number; aoAbrir: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={aoAbrir}
+      data-tour="radar-estados"
+      className="relative size-11 shrink-0 p-0"
+    >
+      <SlidersHorizontal className="size-4" aria-hidden="true" />
+      <span className="sr-only">
+        Filtros{ativos > 0 ? `, ${ativos} ${ativos === 1 ? "ativo" : "ativos"}` : ""}
+      </span>
+      {ativos > 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute -top-1 -right-1 inline-flex size-5 items-center justify-center rounded-full bg-brand text-xs font-medium text-black"
+        >
+          {ativos}
+        </span>
+      ) : null}
+    </Button>
+  );
+}
+
 interface Props {
   filtros: Filtros;
+  /** Folha de filtros aberta; o estado vive no Radar porque o botão do celular fica na faixa da busca */
+  painelAberto: boolean;
+  onPainelAberto: (aberto: boolean) => void;
+  /** Termos do foco da empresa: no celular a faixa "Você oferece" mora dentro da folha */
+  foco: ReadonlyArray<string>;
+  /** Mostra, no celular, o atalho para ajustar o que aparece em "Para você" */
+  atalhoAjuste: boolean;
   /** UFs das áreas da empresa (as que entram na busca diária) */
   ufsAtendidas: ReadonlyArray<string>;
   /** UF sendo adicionada às áreas agora, para travar o chip */
@@ -206,12 +244,17 @@ interface Props {
 }
 
 /**
- * No celular, duas linhas: os estados rolando na horizontal e, embaixo, "Pouco caixa", "Caixa até" e o botão
- * "Filtros". A partir de 1024 px tudo cabe numa linha só, com modalidade, ordem e visualização.
+ * No celular a barra some: o botão "Filtros" fica ao lado da busca e tudo (estado, caixa, "Você oferece")
+ * mora na folha. De 768 a 1023 px, duas linhas: os estados rolando na horizontal e, embaixo, "Pouco caixa",
+ * "Caixa até" e o botão "Filtros". A partir de 1024 px tudo cabe numa linha só, com modalidade, ordem e visualização.
  * A folha tem seções curtas (estado, valor, caixa, modalidade, fonte, tudo do ramo, ordem, visualização).
  */
 export function BarraFiltros({
   filtros,
+  painelAberto,
+  onPainelAberto,
+  foco,
+  atalhoAjuste,
   ufsAtendidas,
   ufEmAdicao,
   erroUf,
@@ -233,15 +276,14 @@ export function BarraFiltros({
   onCaixaMax,
   onLimparPainel,
 }: Props) {
-  const [painelAberto, setPainelAberto] = useState(false);
   const ativos = contarFiltrosAtivos(filtros, !semOrdem);
   // Linha do topo: só os estados atendidos e os escolhidos. O painel lista os 27.
   const todasUfs = ordenarUfsParaFiltro(ufsAtendidas);
   const ufsDaLinha = todasUfs.filter((uf) => ufsAtendidas.includes(uf) || filtros.ufs.includes(uf));
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
-      <div role="group" aria-label="Estado" data-tour="radar-estados" className="flex w-full min-w-0 items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5 lg:w-auto lg:flex-1">
+    <div className="flex min-w-0 flex-col gap-2 max-md:contents lg:flex-row lg:items-center lg:gap-3">
+      <div role="group" aria-label="Estado" data-tour="radar-estados" className="flex w-full min-w-0 items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5 max-md:hidden lg:w-auto lg:flex-1">
         <Chip ativo={filtros.ufs.length === 0} aoAlternar={() => onUfs([])}>
           Todos
         </Chip>
@@ -251,13 +293,13 @@ export function BarraFiltros({
             <ContagemDoChip ativo={filtros.ufs.includes(uf)} valor={contagensUf[uf] ?? 0} />
           </Chip>
         ))}
-        <Chip ativo={false} aoAlternar={() => setPainelAberto(true)}>
+        <Chip ativo={false} aoAlternar={() => onPainelAberto(true)}>
           <Plus className="size-3.5" aria-hidden="true" />
           Estados
         </Chip>
       </div>
 
-      <div className="flex min-w-0 items-center gap-2 lg:contents">
+      <div className="flex min-w-0 items-center gap-2 max-md:hidden lg:contents">
         <Chip ativo={filtros.poucoCaixa} aoAlternar={() => onPoucoCaixa(!filtros.poucoCaixa)}>
           Pouco caixa
         </Chip>
@@ -272,7 +314,7 @@ export function BarraFiltros({
           className="flex-1 lg:w-40 lg:flex-none"
         />
 
-        <Button type="button" variant="outline" onClick={() => setPainelAberto(true)} className="h-11 shrink-0 gap-2 px-3 lg:h-9">
+        <Button type="button" variant="outline" onClick={() => onPainelAberto(true)} className="h-11 shrink-0 gap-2 px-3 lg:h-9">
           <SlidersHorizontal className="size-4" aria-hidden="true" />
           Filtros
           {ativos > 0 ? (
@@ -309,7 +351,7 @@ export function BarraFiltros({
         <AlternadorVisao visao={visao} onEscolher={onVisao} />
       </div>
 
-      <Sheet open={painelAberto} onOpenChange={setPainelAberto}>
+      <Sheet open={painelAberto} onOpenChange={onPainelAberto}>
         <SheetContent
           side="bottom"
           className="max-h-[88dvh] gap-0 rounded-t-sheet border-t border-border data-[side=bottom]:h-auto"
@@ -322,6 +364,18 @@ export function BarraFiltros({
           </SheetHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain p-4">
+            {/* No celular a faixa sai do topo do Radar e vem para cá. */}
+            <FaixaOferta foco={foco} className="md:hidden" />
+
+            {atalhoAjuste ? (
+              <Link
+                href="/preferencias"
+                className="inline-flex min-h-11 w-fit items-center text-[13px] font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand md:hidden"
+              >
+                Ajustar o que aparece em Para você
+              </Link>
+            ) : null}
+
             <GrupoDoPainel titulo="Estados">
               <p className="text-xs text-muted-foreground">Toque para filtrar. Estados com + entram na busca diária.</p>
               <div role="group" aria-label="Estados" className="flex flex-wrap gap-2">
@@ -431,7 +485,7 @@ export function BarraFiltros({
                 Limpar
               </Button>
             ) : null}
-            <Button type="button" onClick={() => setPainelAberto(false)} className="h-12 flex-1 text-sm">
+            <Button type="button" onClick={() => onPainelAberto(false)} className="h-12 flex-1 text-sm">
               Ver {totalResultados} {totalResultados === 1 ? "oportunidade" : "oportunidades"}
             </Button>
           </SheetFooter>

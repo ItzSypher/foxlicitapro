@@ -29,7 +29,7 @@ import { calcularCapitalGiro } from "@/core/capital-giro";
 import { caminhoDoDinheiro, type OportunidadeCaixa } from "@/core/caminho-dinheiro";
 import { COMISSAO_AO_MARCAR, comissaoDoItem, contaLucro, type ContaLucro } from "@/core/lucro";
 import type { DadosSoftware } from "@/core/campos-software";
-import { ehDesenvolvimento } from "@/core/custo-software";
+import { ehDesenvolvimento, mesesSugeridos } from "@/core/custo-software";
 import { montarResultado, type AmostraConcorrente, type ResultadoConcorrentes } from "@/core/concorrentes";
 import type { ResumoCotacoes } from "@/core/cotacoes-resumo";
 import type { PrecoFornecedor } from "@/core/fornecedores";
@@ -107,6 +107,10 @@ const complementoDoPedido = cache(async (cnpj: string, ano: string, sequencial: 
  * junto com a chamada ao PNCP em vez de esperar por ela; se o PNCP trouxer outro número, a leitura se repete com ele.
  */
 const preferenciasDoPedido = cache((empresaId: string) => noBanco(() => lerPreferencias(empresaId)));
+function comMesesSugeridos(dados: DadosSoftware, sugeridos: number | null): DadosSoftware {
+  return dados.contratoMeses === null && sugeridos !== null ? { ...dados, contratoMeses: sugeridos } : dados;
+}
+
 const fichaDoPedido = cache((numero: string) => noBanco(() => lerFicha(numero).catch((): FichaSalva | null => null)));
 const cotacoesDoPedido = cache((empresaId: string, numero: string) =>
   noBanco(() =>
@@ -344,7 +348,11 @@ export async function SecaoNumeros({ chave }: { chave: ChaveUrl }) {
               bruto: receita,
               valorReferencia: d.detalhe.valorEstimado,
               comissaoPadrao,
-              inicial: doItem ?? { terceirizavel: null, devCusto: null, devParcelas: null, contratoMeses: null, comissaoPercentual: null },
+              // Sem meses gravados, sugere pelo objeto e pela ficha (serviço contínuo = 12); entrega única fica vazio.
+              inicial: comMesesSugeridos(
+                doItem ?? { terceirizavel: null, devCusto: null, devParcelas: null, contratoMeses: null, comissaoPercentual: null },
+                mesesSugeridos(d.detalhe.objeto, d.ficha?.ficha.natureza.valor ?? null),
+              ),
             }
           : null
       }
